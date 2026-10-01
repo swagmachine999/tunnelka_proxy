@@ -53,6 +53,8 @@ public class SearchBox : Control
 
     public void Clear() => _box.Clear();
 
+    public void SetText(string text) => _box.Text = text;
+
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
