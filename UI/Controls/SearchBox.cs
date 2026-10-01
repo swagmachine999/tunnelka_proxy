@@ -10,9 +10,10 @@ public class SearchBox : Control
         Font = Theme.Body
     };
 
+    private readonly bool _icon;
+
     private readonly Label _placeholder = new()
     {
-        Text = "Поиск сервера",
         BackColor = Theme.Card,
         ForeColor = Theme.TextMuted,
         Font = Theme.Body,
@@ -22,8 +23,13 @@ public class SearchBox : Control
 
     public event EventHandler? QueryChanged;
 
-    public SearchBox()
+    public SearchBox(string placeholder = "Поиск сервера", bool icon = true)
     {
+        _icon = icon;
+        _placeholder.Text = placeholder;
+        Theme.Bind(_box, () => Theme.Card, () => Theme.Text);
+        Theme.Bind(_placeholder, () => Theme.Card, () => Theme.TextMuted);
+        Theme.Bind(this, () => Theme.Surface);
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BackColor = Theme.Surface;
@@ -45,13 +51,16 @@ public class SearchBox : Control
 
     public string Query => _box.Text.Trim();
 
+    public void Clear() => _box.Clear();
+
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
         var height = _box.PreferredHeight;
         var top = (Height - height) / 2;
-        _box.SetBounds(40, top, Width - 54, height);
-        _placeholder.SetBounds(40, top, Width - 54, height);
+        var left = _icon ? 40 : 14;
+        _box.SetBounds(left, top, Width - left - 14, height);
+        _placeholder.SetBounds(left, top, Width - left - 14, height);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -62,6 +71,9 @@ public class SearchBox : Control
         var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
         Theme.FillRounded(g, Theme.Card, rect, 12);
         Theme.DrawRounded(g, _box.Focused ? Theme.Accent : Theme.Border, rect, 12, _box.Focused ? 1.6f : 1f);
+
+        if (!_icon)
+            return;
 
         using var pen = new Pen(Theme.TextMuted, 1.8f) { EndCap = System.Drawing.Drawing2D.LineCap.Round };
         var cy = Height / 2f;
