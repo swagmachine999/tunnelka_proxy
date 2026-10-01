@@ -27,6 +27,7 @@ public class HeroView : Control
     private IReadOnlyList<NamePart> _serverParts = Array.Empty<NamePart>();
     private string? _serverCode;
     private string _pingText = "";
+    private bool _busy;
     private string? _speedDown;
     private string? _speedUp;
     private Color _pingColor = Theme.TextMuted;
@@ -77,8 +78,15 @@ public class HeroView : Control
         Invalidate(new Rectangle(0, 0, ClientSize.Width / 2, Theme.Px(80)));
     }
 
+    public void SetBusy(bool busy)
+    {
+        _busy = busy;
+        Invalidate(ToDevice(_pingResultRect));
+    }
+
     public void SetPing(string text, Color color)
     {
+        _busy = false;
         _pingText = text;
         _pingColor = color;
         Invalidate();
@@ -98,6 +106,8 @@ public class HeroView : Control
 
         var area = RectangleF.Union(Inflate(_powerRect, 70), _kittenRect);
         Invalidate(ToDevice(area));
+        if (_busy)
+            Invalidate(ToDevice(_pingResultRect));
     }
 
     private void ComputeLayout()
@@ -109,7 +119,7 @@ public class HeroView : Control
         var diameter = 150 * scale;
         var kittenW = 190 * scale;
         var kittenH = 152 * scale;
-        var gap = 44 * scale;
+        var gap = 72 * scale;
         var total = diameter + gap + kittenH + 12 + 34 + 18 + 44 + 26;
         var top = Math.Max(76, (h - total) / 2 + 24);
         var cx = w / 2;
@@ -301,8 +311,25 @@ public class HeroView : Control
 
         Theme.DrawText(g, "Проверка пинга", Theme.BodyBold, Color.White, r, StringAlignment.Center);
 
-        if (_pingText.Length > 0)
+        if (_busy)
+            DrawBusy(g);
+        else if (_pingText.Length > 0)
             Theme.DrawText(g, _pingText, Theme.CaptionBold, _pingColor, _pingResultRect, StringAlignment.Center);
+    }
+
+    private void DrawBusy(Graphics g)
+    {
+        var cx = _pingResultRect.X + _pingResultRect.Width / 2;
+        var cy = _pingResultRect.Y + _pingResultRect.Height / 2;
+
+        for (var i = 0; i < 3; i++)
+        {
+            var phase = (float)Math.Sin(_time * 6 - i * 0.9);
+            var lift = Math.Max(0, phase) * 4;
+            var alpha = (int)(120 + 135 * Math.Max(0, phase));
+            using var brush = new SolidBrush(Color.FromArgb(alpha, i == 1 ? Theme.Pink : Theme.Accent));
+            g.FillEllipse(brush, cx - 16 + i * 13, cy - 3.5f - lift, 7, 7);
+        }
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
