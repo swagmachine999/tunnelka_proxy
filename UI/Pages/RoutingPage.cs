@@ -56,7 +56,7 @@ public class RuleCard : Control
 
         var title = ActionTitle(Rule.Action);
         var color = ActionColor(Rule.Action);
-        var chipWidth = g.MeasureString(title, Theme.CaptionBold).Width + 18;
+        var chipWidth = Theme.Measure(title, Theme.CaptionBold).Width + 18;
         _actionRect = new RectangleF(16, 38, chipWidth, 22);
         Theme.FillRounded(g, Color.FromArgb(Rule.Enabled ? 60 : 30, color), _actionRect, 11);
         Theme.DrawText(g, title, Theme.CaptionBold, Rule.Enabled ? color : Theme.TextMuted, _actionRect, StringAlignment.Center);

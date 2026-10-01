@@ -1,6 +1,5 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
-using System.Runtime.InteropServices;
 
 namespace VpnClient.UI;
 
@@ -111,8 +110,8 @@ public static class Theme
     public static readonly Color Star = Color.FromArgb(247, 196, 72);
     public static readonly Color Infinity = Color.FromArgb(110, 164, 244);
 
-    private static readonly PrivateFontCollection Fonts = new();
-    private static readonly FontFamily Family = LoadFamily();
+    private static readonly string RegularFamily = PickFamily("Segoe UI Variable Text", "Segoe UI");
+    private static readonly string StrongFamily = PickFamily("Segoe UI Variable Text Semibold", "Segoe UI Semibold", "Segoe UI");
     private static readonly Dictionary<string, Image?> Flags = new();
 
     public static readonly Font Title = MakeFont(26, FontStyle.Bold);
@@ -127,8 +126,18 @@ public static class Theme
     public static readonly Font Big = MakeFont(23, FontStyle.Bold);
     public static readonly Font Log = new("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel);
 
-    public static Font MakeFont(float pixels, FontStyle style = FontStyle.Regular) =>
-        new(Family, pixels, style, GraphicsUnit.Pixel);
+    public static Font MakeFont(float pixels, FontStyle style = FontStyle.Regular)
+    {
+        var strong = (style & FontStyle.Bold) != 0;
+        var family = strong ? StrongFamily : RegularFamily;
+        var finalStyle = style & ~FontStyle.Bold;
+        if (strong && family == "Segoe UI")
+            finalStyle |= FontStyle.Bold;
+        return new Font(family, pixels, finalStyle, GraphicsUnit.Pixel);
+    }
+
+    public static Size Measure(string text, Font font) =>
+        TextRenderer.MeasureText(text, font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
 
     public static T Bind<T>(T control, Func<Color>? back = null, Func<Color>? fore = null) where T : Control
     {
@@ -197,15 +206,22 @@ public static class Theme
     public static void DrawText(Graphics g, string text, Font font, Color color, RectangleF r,
         StringAlignment horizontal = StringAlignment.Near, StringAlignment vertical = StringAlignment.Center, bool wrap = false)
     {
-        using var brush = new SolidBrush(color);
-        using var format = new StringFormat
+        var flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping;
+        flags |= wrap ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis;
+        flags |= horizontal switch
         {
-            Alignment = horizontal,
-            LineAlignment = vertical,
-            Trimming = StringTrimming.EllipsisCharacter,
-            FormatFlags = wrap ? 0 : StringFormatFlags.NoWrap
+            StringAlignment.Center => TextFormatFlags.HorizontalCenter,
+            StringAlignment.Far => TextFormatFlags.Right,
+            _ => TextFormatFlags.Left
         };
-        g.DrawString(text, font, brush, r, format);
+        flags |= vertical switch
+        {
+            StringAlignment.Center => TextFormatFlags.VerticalCenter,
+            StringAlignment.Far => TextFormatFlags.Bottom,
+            _ => TextFormatFlags.Top
+        };
+
+        TextRenderer.DrawText(g, text, font, Rectangle.Round(r), color, flags);
     }
 
     public static void DrawBadge(Graphics g, RectangleF r, string? code)
@@ -282,37 +298,22 @@ public static class Theme
         _ => $"{ms} ms"
     };
 
-    private static FontFamily LoadFamily()
+    private static string PickFamily(params string[] names)
     {
         try
         {
-            var dir = Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts");
-            foreach (var file in new[] { "Nunito-Regular.ttf", "Nunito-Bold.ttf" })
+            using var installed = new InstalledFontCollection();
+            var available = new HashSet<string>(installed.Families.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
+            foreach (var name in names)
             {
-                var path = Path.Combine(dir, file);
-                if (!File.Exists(path))
-                    continue;
-
-                Fonts.AddFontFile(path);
-                try
-                {
-                    AddFontResourceEx(path, 0x10, IntPtr.Zero);
-                }
-                catch (Exception)
-                {
-                }
+                if (available.Contains(name))
+                    return name;
             }
-
-            if (Fonts.Families.Length > 0)
-                return Fonts.Families[0];
         }
         catch (Exception)
         {
         }
 
-        return new FontFamily("Segoe UI");
+        return names[names.Length - 1];
     }
-
-    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
-    private static extern int AddFontResourceEx(string name, uint flags, IntPtr reserved);
 }

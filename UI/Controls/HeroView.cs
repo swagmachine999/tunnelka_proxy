@@ -189,8 +189,8 @@ public class HeroView : Control
             return;
 
         const float arrowWidth = 10;
-        var downWidth = g.MeasureString(_speedDown, Theme.BodyBold).Width;
-        var upWidth = g.MeasureString(_speedUp, Theme.BodyBold).Width;
+        var downWidth = Theme.Measure(_speedDown, Theme.BodyBold).Width;
+        var upWidth = Theme.Measure(_speedUp, Theme.BodyBold).Width;
         var r = new RectangleF(24, 24, arrowWidth * 2 + downWidth + upWidth + 52, 40);
 
         Theme.FillRounded(g, Color.FromArgb(225, Theme.Card), r, r.Height / 2);
