@@ -16,7 +16,7 @@ public class MainForm : Form
 
     private readonly HeroView _hero = new() { Dock = DockStyle.Fill };
     private readonly TipBubble _tip = new();
-    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = 410, Padding = new Padding(22, 20, 14, 10) };
+    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(410), Padding = Theme.Px(22, 20, 14, 10) };
     private readonly Dictionary<IconKind, Control> _pages = new();
     private readonly List<IconButton> _navButtons = new();
 
@@ -24,8 +24,8 @@ public class MainForm : Form
     private readonly Label _countLabel = new()
     {
         Dock = DockStyle.Top,
-        Height = 34,
-        Font = Theme.CaptionBold,
+        Height = Theme.Px(34),
+        Font = Theme.Scaled(Theme.CaptionBold),
         TextAlign = ContentAlignment.MiddleLeft
     };
 
@@ -58,22 +58,27 @@ public class MainForm : Form
     private readonly List<(double Down, double Up)> _speedSamples = new();
     private int _speedTick;
 
-    public MainForm()
+    private readonly System.Windows.Forms.Timer _scaleDelay = new() { Interval = 700 };
+
+    public bool RestartRequested { get; private set; }
+    public bool WasConnected { get; private set; }
+
+    public MainForm(bool reconnect = false, bool openSettings = false, Rectangle? bounds = null)
     {
         Theme.Use(_data.DarkTheme);
 
         Text = "Tunnelka";
-        ClientSize = new Size(1080, 720);
-        MinimumSize = new Size(900, 640);
+        ClientSize = new Size(Theme.Px(1080), Theme.Px(720));
+        MinimumSize = new Size(Theme.Px(900), Theme.Px(640));
         StartPosition = FormStartPosition.CenterScreen;
-        Font = Theme.Body;
+        Font = Theme.Scaled(Theme.Body);
         KeyPreview = true;
         Icon = LogoView.CreateAppIcon() ?? Icon;
         Theme.Bind(this, () => Theme.Window);
 
         _logPage = new LogPage(() => ShowPage(IconKind.Settings));
         _routingPage = new RoutingPage(_data.Rules, () => ShowPage(IconKind.Settings));
-        _settingsPage = new SettingsPage(_data.DarkTheme, _data.UseSystemProxy, _data.SpeedInterval, _data.RealPing);
+        _settingsPage = new SettingsPage(_data.DarkTheme, _data.UseSystemProxy, _data.SpeedInterval, _data.RealPing, _data.UiScale);
         _pingPage = new PingPage(_data.RealPing, _data.PingUrl, () => ShowPage(IconKind.Settings));
 
         BuildLayout();
@@ -117,12 +122,43 @@ public class MainForm : Form
         _xray.Exited += OnXrayExited;
         KeyDown += OnKeyDown;
         FormClosing += (_, _) => Disconnect();
+        FormClosed += (_, _) =>
+        {
+            _autoUpdate.Dispose();
+            _clock.Dispose();
+            _scaleDelay.Dispose();
+            _traffic.Dispose();
+        };
 
         _stats.SetTotals(_data.TotalDownload, _data.TotalUpload);
         _selected = _data.Servers.FirstOrDefault(s => s.Link == _data.LastServerLink) ?? _data.Servers.FirstOrDefault();
         RebuildList();
         UpdateHero();
-        ShowPage(IconKind.Servers);
+        ShowPage(openSettings ? IconKind.Settings : IconKind.Servers);
+
+        if (bounds != null)
+        {
+            StartPosition = FormStartPosition.Manual;
+            Location = bounds.Value.Location;
+        }
+
+        _settingsPage.ScaleSelector.ValueChanged += (_, _) =>
+        {
+            _scaleDelay.Stop();
+            _scaleDelay.Start();
+        };
+        _scaleDelay.Tick += (_, _) =>
+        {
+            _scaleDelay.Stop();
+            _data.UiScale = _settingsPage.ScaleSelector.Value;
+            Save();
+            WasConnected = _xray.IsRunning;
+            RestartRequested = true;
+            Close();
+        };
+
+        if (reconnect)
+            Shown += (_, _) => Connect();
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -133,15 +169,15 @@ public class MainForm : Form
 
     private void BuildLayout()
     {
-        var sidebar = Theme.Bind(new Panel { Dock = DockStyle.Left, Width = 68 }, () => Theme.Sidebar);
-        sidebar.Controls.Add(new LogoView { Location = new Point(12, 18) });
+        var sidebar = Theme.Bind(new Panel { Dock = DockStyle.Left, Width = Theme.Px(68) }, () => Theme.Sidebar);
+        sidebar.Controls.Add(new LogoView { Location = new Point(Theme.Px(12), Theme.Px(18)) });
 
-        var add = new IconButton(IconKind.Add, "Добавить ключ или подписку") { Location = new Point(12, 84) };
+        var add = new IconButton(IconKind.Add, "Добавить ключ или подписку") { Location = new Point(Theme.Px(12), Theme.Px(84)) };
         add.Click += (_, _) => ShowAddDialog();
         AttachTip(add);
         sidebar.Controls.Add(add);
 
-        var separator = Theme.Bind(new Panel { Location = new Point(20, 140), Size = new Size(28, 2) }, () => Theme.Border);
+        var separator = Theme.Bind(new Panel { Location = new Point(Theme.Px(20), Theme.Px(140)), Size = new Size(Theme.Px(28), Math.Max(1, Theme.Px(2))) }, () => Theme.Border);
         sidebar.Controls.Add(separator);
 
         var nav = new (IconKind Kind, string Title)[]
@@ -151,18 +187,18 @@ public class MainForm : Form
         };
 
         for (var i = 0; i < nav.Length; i++)
-            AddNavButton(sidebar, new IconButton(nav[i].Kind, nav[i].Title) { Location = new Point(12, 156 + i * 54) });
+            AddNavButton(sidebar, new IconButton(nav[i].Kind, nav[i].Title) { Location = new Point(Theme.Px(12), Theme.Px(156 + i * 54)) });
 
-        var settings = new IconButton(IconKind.Settings, "Настройки") { Location = new Point(12, 600) };
+        var settings = new IconButton(IconKind.Settings, "Настройки") { Location = new Point(Theme.Px(12), Theme.Px(600)) };
         AddNavButton(sidebar, settings);
-        sidebar.Resize += (_, _) => settings.Top = sidebar.Height - settings.Height - 18;
+        sidebar.Resize += (_, _) => settings.Top = sidebar.Height - settings.Height - Theme.Px(18);
 
         Theme.Bind(_middle, () => Theme.Surface);
         Theme.Bind(_list, () => Theme.Surface);
         Theme.Bind(_countLabel, () => Theme.Surface, () => Theme.TextMuted);
 
         var serversPage = Theme.Bind(new Panel { Dock = DockStyle.Fill }, () => Theme.Surface);
-        var gap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = 8 }, () => Theme.Surface);
+        var gap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(8) }, () => Theme.Surface);
         serversPage.Controls.Add(_list);
         serversPage.Controls.Add(_countLabel);
         serversPage.Controls.Add(gap);
@@ -174,8 +210,8 @@ public class MainForm : Form
         pingAll.Click += async (_, _) => await PingAll();
         AttachTip(pingAll);
 
-        var searchRow = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = 42 }, () => Theme.Surface);
-        var searchGap = Theme.Bind(new Panel { Dock = DockStyle.Right, Width = 8 }, () => Theme.Surface);
+        var searchRow = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(42) }, () => Theme.Surface);
+        var searchGap = Theme.Bind(new Panel { Dock = DockStyle.Right, Width = Theme.Px(8) }, () => Theme.Surface);
         _search.Dock = DockStyle.Fill;
         searchRow.Controls.Add(_search);
         searchRow.Controls.Add(searchGap);
@@ -184,7 +220,7 @@ public class MainForm : Form
         serversPage.Controls.Add(PageParts.Title("Серверы"));
 
         var statsPage = Theme.Bind(new Panel { Dock = DockStyle.Fill }, () => Theme.Surface);
-        var statsGap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = 10 }, () => Theme.Surface);
+        var statsGap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(10) }, () => Theme.Surface);
         statsPage.Controls.Add(_stats);
         statsPage.Controls.Add(statsGap);
         statsPage.Controls.Add(PageParts.Title("Статистика"));
@@ -353,7 +389,7 @@ public class MainForm : Form
 
     private void ResizeCards()
     {
-        var width = _list.Width - SystemInformation.VerticalScrollBarWidth - 6;
+        var width = _list.Width - SystemInformation.VerticalScrollBarWidth - Theme.Px(6);
         if (width <= 0)
             return;
 

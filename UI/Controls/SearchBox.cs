@@ -2,12 +2,15 @@ namespace VpnClient.UI.Controls;
 
 public class SearchBox : Control
 {
+    private float W => Width / Theme.S;
+    private float H => Height / Theme.S;
+
     private readonly TextBox _box = new()
     {
         BorderStyle = BorderStyle.None,
         BackColor = Theme.Card,
         ForeColor = Theme.Text,
-        Font = Theme.Body
+        Font = Theme.Scaled(Theme.Body)
     };
 
     private readonly bool _icon;
@@ -16,7 +19,7 @@ public class SearchBox : Control
     {
         BackColor = Theme.Card,
         ForeColor = Theme.TextMuted,
-        Font = Theme.Body,
+        Font = Theme.Scaled(Theme.Body),
         AutoSize = false,
         Cursor = Cursors.IBeam
     };
@@ -33,7 +36,7 @@ public class SearchBox : Control
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BackColor = Theme.Surface;
-        Height = 42;
+        Height = Theme.Px(42);
 
         Controls.Add(_box);
         Controls.Add(_placeholder);
@@ -60,17 +63,17 @@ public class SearchBox : Control
         base.OnResize(e);
         var height = _box.PreferredHeight;
         var top = (Height - height) / 2;
-        var left = _icon ? 40 : 14;
-        _box.SetBounds(left, top, Width - left - 14, height);
-        _placeholder.SetBounds(left, top, Width - left - 14, height);
+        var left = Theme.Px(_icon ? 40 : 14);
+        _box.SetBounds(left, top, Width - left - Theme.Px(14), height);
+        _placeholder.SetBounds(left, top, Width - left - Theme.Px(14), height);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        Theme.Smooth(g);
+        Theme.Begin(g, Theme.Surface);
 
-        var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, Theme.Card, rect, 12);
         Theme.DrawRounded(g, _box.Focused ? Theme.Accent : Theme.Border, rect, 12, _box.Focused ? 1.6f : 1f);
 
@@ -78,7 +81,7 @@ public class SearchBox : Control
             return;
 
         using var pen = new Pen(Theme.TextMuted, 1.8f) { EndCap = System.Drawing.Drawing2D.LineCap.Round };
-        var cy = Height / 2f;
+        var cy = H / 2f;
         g.DrawEllipse(pen, 15, cy - 8, 12, 12);
         g.DrawLine(pen, 25, cy + 2, 29, cy + 6);
     }

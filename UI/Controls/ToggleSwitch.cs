@@ -2,6 +2,9 @@ namespace VpnClient.UI.Controls;
 
 public class ToggleSwitch : Control
 {
+    private float W => Width / Theme.S;
+    private float H => Height / Theme.S;
+
     private bool _checked;
 
     public event EventHandler? CheckedChanged;
@@ -10,7 +13,7 @@ public class ToggleSwitch : Control
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        Size = new Size(44, 24);
+        Size = new Size(Theme.Px(44), Theme.Px(24));
         Cursor = Cursors.Hand;
     }
 
@@ -36,14 +39,13 @@ public class ToggleSwitch : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        Theme.Smooth(g);
-        g.Clear(Parent?.BackColor ?? Theme.Card);
+        Theme.Begin(g, Parent?.BackColor ?? Theme.Card);
 
-        var track = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        var track = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, _checked ? Theme.Accent : Theme.TrackOff, track, track.Height / 2);
 
-        var knob = Height - 7f;
-        var x = _checked ? Width - knob - 4 : 3;
+        var knob = H - 7f;
+        var x = _checked ? W - knob - 4 : 3;
         using var brush = new SolidBrush(Color.White);
         g.FillEllipse(brush, x, 3, knob, knob);
     }
