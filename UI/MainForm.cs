@@ -678,19 +678,38 @@ public class MainForm : Form, IMessageFilter
 
     private async Task Ping(List<ProxyServer> servers)
     {
-        if (_data.RealPing && File.Exists(XrayRunner.XrayPath))
+        SetBusy(servers, true);
+        try
         {
-            var results = await RealPinger.PingAsync(servers, _data.PingUrl);
-            foreach (var pair in results)
-                pair.Key.PingMs = pair.Value;
-            return;
-        }
+            if (_data.RealPing && File.Exists(XrayRunner.XrayPath))
+            {
+                var results = await RealPinger.PingAsync(servers, _data.PingUrl);
+                foreach (var pair in results)
+                    pair.Key.PingMs = pair.Value;
+                return;
+            }
 
-        await Task.WhenAll(servers.Select(async server =>
+            await Task.WhenAll(servers.Select(async server =>
+            {
+                var ms = await Pinger.TcpPingAsync(server.Address, server.Port);
+                server.PingMs = ms ?? -1;
+                SetBusy(new[] { server }, false);
+            }));
+        }
+        finally
         {
-            var ms = await Pinger.TcpPingAsync(server.Address, server.Port);
-            server.PingMs = ms ?? -1;
-        }));
+            SetBusy(servers, false);
+        }
+    }
+
+    private void SetBusy(IEnumerable<ProxyServer> servers, bool busy)
+    {
+        var set = new HashSet<ProxyServer>(servers);
+        foreach (var card in _cards)
+        {
+            if (set.Contains(card.Server))
+                card.IsBusy = busy;
+        }
     }
 
     private void Delete(ProxyServer server)
