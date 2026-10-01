@@ -82,14 +82,15 @@ public class SettingsPage : Panel
 {
     private static readonly int[] Intervals = { 3, 5, 10 };
 
-    public SettingsPage(bool dark, bool proxy, int speedInterval, bool realPing, int uiScale)
+    public SettingsPage(bool dark, bool tun, int speedInterval, bool realPing, int uiScale)
     {
         Dock = DockStyle.Fill;
         AutoScroll = true;
         Theme.Bind(this, () => Theme.Surface);
 
         DarkToggle.Checked = dark;
-        ProxyToggle.Checked = proxy;
+        ModeSelector.Size = new Size(Theme.Px(156), Theme.Px(34));
+        ModeSelector.SelectedIndex = tun ? 1 : 0;
         SpeedSelector.Size = new Size(Theme.Px(156), Theme.Px(34));
         SpeedSelector.SelectedIndex = Math.Max(0, Array.IndexOf(Intervals, speedInterval));
 
@@ -105,7 +106,7 @@ public class SettingsPage : Panel
         Controls.Add(RoutingRow);
         Controls.Add(PingRow);
         Controls.Add(new SettingRow("Скорость в окне", "Как часто обновлять", SpeedSelector));
-        Controls.Add(new SettingRow("Системный прокси", "Браузер и программы пойдут через VPN", ProxyToggle));
+        Controls.Add(new SettingRow("Режим", "Прокси: браузер и программы. TUN: весь трафик", ModeSelector));
         ScaleSelector = new ScaleStepper(uiScale);
         Controls.Add(new SettingRow("Масштаб интерфейса", "Ctrl + колесо мыши, Ctrl и +/−, Ctrl+0", ScaleSelector));
         Controls.Add(new SettingRow("Тёмная тема", "Мягкие тёмные цвета", DarkToggle));
@@ -114,7 +115,7 @@ public class SettingsPage : Panel
     }
 
     public ToggleSwitch DarkToggle { get; } = new();
-    public ToggleSwitch ProxyToggle { get; } = new();
+    public Segmented ModeSelector { get; } = new("Прокси", "TUN");
     public Segmented SpeedSelector { get; } = new("3 с", "5 с", "10 с");
     public SettingRow RoutingRow { get; }
     public SettingRow LogRow { get; }
