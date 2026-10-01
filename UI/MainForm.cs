@@ -7,7 +7,7 @@ using VpnClient.UI.Pages;
 
 namespace VpnClient.UI;
 
-public class MainForm : Form
+public class MainForm : Form, IMessageFilter
 {
     private readonly AppData _data = AppStorage.Load();
     private readonly XrayRunner _xray = new();
@@ -58,7 +58,7 @@ public class MainForm : Form
     private readonly List<(double Down, double Up)> _speedSamples = new();
     private int _speedTick;
 
-    private readonly System.Windows.Forms.Timer _scaleDelay = new() { Interval = 700 };
+    private readonly System.Windows.Forms.Timer _scaleDelay = new() { Interval = 350 };
 
     public event EventHandler? ScaleChangeRequested;
 
@@ -121,8 +121,10 @@ public class MainForm : Form
         _xray.Exited += OnXrayExited;
         KeyDown += OnKeyDown;
         FormClosing += (_, _) => Disconnect();
+        Application.AddMessageFilter(this);
         FormClosed += (_, _) =>
         {
+            Application.RemoveMessageFilter(this);
             _autoUpdate.Dispose();
             _clock.Dispose();
             _scaleDelay.Dispose();
@@ -443,8 +445,43 @@ public class MainForm : Form
         _hero.SetPing(ping, Theme.PingColor(server.PingMs));
     }
 
+    public bool PreFilterMessage(ref Message m)
+    {
+        const int WheelMessage = 0x020A;
+        if (m.Msg != WheelMessage || (ModifierKeys & Keys.Control) == 0 || ActiveForm != this)
+            return false;
+
+        var delta = (short)((long)m.WParam >> 16);
+        ChangeScale(delta > 0 ? ScaleStepper.Step : -ScaleStepper.Step);
+        return true;
+    }
+
+    private void ChangeScale(int delta) =>
+        _settingsPage.ScaleSelector.SetValue(_settingsPage.ScaleSelector.Value + delta);
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Control && e.KeyCode is Keys.Oemplus or Keys.Add)
+        {
+            ChangeScale(ScaleStepper.Step);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Control && e.KeyCode is Keys.OemMinus or Keys.Subtract)
+        {
+            ChangeScale(-ScaleStepper.Step);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Control && e.KeyCode is Keys.D0 or Keys.NumPad0)
+        {
+            _settingsPage.ScaleSelector.SetValue(90);
+            e.Handled = true;
+            return;
+        }
+
         if (ActiveControl is TextBoxBase)
             return;
 
