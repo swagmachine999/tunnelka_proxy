@@ -11,6 +11,7 @@ public class MainForm : Form, IMessageFilter
 {
     private readonly AppData _data = AppStorage.Load();
     private readonly XrayRunner _xray = new();
+    private readonly XrayRunner _singBox = new(XrayRunner.SingBoxPath, "tun.json");
     private readonly TrafficMonitor _traffic = new();
     private readonly System.Windows.Forms.Timer _clock = new() { Interval = 1000 };
 
@@ -77,7 +78,7 @@ public class MainForm : Form, IMessageFilter
 
         _logPage = new LogPage(() => ShowPage(IconKind.Settings));
         _routingPage = new RoutingPage(_data.Rules, () => ShowPage(IconKind.Settings));
-        _settingsPage = new SettingsPage(_data.DarkTheme, _data.UseSystemProxy, _data.SpeedInterval, _data.RealPing, _data.UiScale);
+        _settingsPage = new SettingsPage(_data.DarkTheme, _data.Tun, _data.SpeedInterval, _data.RealPing, _data.UiScale);
         _pingPage = new PingPage(_data.RealPing, _data.PingUrl, () => ShowPage(IconKind.Settings));
 
         BuildLayout();
@@ -87,12 +88,12 @@ public class MainForm : Form, IMessageFilter
         _autoUpdate.Start();
         Shown += async (_, _) => await AutoUpdateSubscriptions();
 
-        _hero.ProxyEnabled = _data.UseSystemProxy;
+        _hero.Tun = _data.Tun;
         _hero.PowerClicked += (_, _) => ToggleConnection();
         _hero.PingClicked += async (_, _) => await PingCurrent();
         _hero.RefreshClicked += async (_, _) => await UpdateSubscriptions();
-        _hero.ProxyToggled += (_, _) => SetSystemProxy(!_data.UseSystemProxy);
-        _settingsPage.ProxyToggle.CheckedChanged += (_, _) => SetSystemProxy(_settingsPage.ProxyToggle.Checked);
+        _hero.ModeSelected += SetMode;
+        _settingsPage.ModeSelector.SelectedIndexChanged += (_, _) => SetMode(_settingsPage.ModeSelector.SelectedIndex == 1);
         _settingsPage.DarkToggle.CheckedChanged += (_, _) => SetDarkTheme(_settingsPage.DarkToggle.Checked);
         _settingsPage.RoutingRow.Click += (_, _) => ShowPage(IconKind.Routing);
         _settingsPage.LogRow.Click += (_, _) => ShowPage(IconKind.Log);
@@ -119,6 +120,8 @@ public class MainForm : Form, IMessageFilter
         _traffic.Updated += OnTraffic;
         _xray.Output += Log;
         _xray.Exited += OnXrayExited;
+        _singBox.Output += line => Log("[tun] " + line);
+        _singBox.Exited += OnXrayExited;
         KeyDown += OnKeyDown;
         FormClosing += (_, _) => Disconnect();
         Application.AddMessageFilter(this);
@@ -721,6 +724,12 @@ public class MainForm : Form, IMessageFilter
         if (!StartXray(server))
             return;
 
+        if (_data.Tun && !StartTun())
+        {
+            _xray.Stop();
+            return;
+        }
+
         _active = server;
         _connectedAt = DateTime.Now;
         _lastCounters = new TrafficCounters();
@@ -771,6 +780,7 @@ public class MainForm : Form, IMessageFilter
     private void Disconnect()
     {
         var wasRunning = _xray.IsRunning;
+        _singBox.Stop();
         _xray.Stop();
         _clock.Stop();
         _traffic.Stop();
@@ -805,10 +815,9 @@ public class MainForm : Form, IMessageFilter
             return;
 
         _lastCounters = new TrafficCounters();
-        if (StartXray(_active))
+        if (StartXray(_active) && (!_data.Tun || StartTun()))
         {
-            if (_proxyEnabledByUs)
-                ApplySystemProxy();
+            ApplySystemProxy();
             Log("Правила применены");
         }
         else
@@ -863,30 +872,100 @@ public class MainForm : Form, IMessageFilter
             return;
         }
 
-        Log("Xray завершился. Причина обычно видна в строках выше");
+        Log("Ядро VPN завершилось. Причина обычно видна в строках выше");
         Disconnect();
         ShowPage(IconKind.Log);
     }
 
-    private void SetSystemProxy(bool enabled)
+    private void SetMode(bool tun)
     {
-        if (_data.UseSystemProxy == enabled)
+        if (_data.Tun == tun)
             return;
 
-        _data.UseSystemProxy = enabled;
-        _hero.ProxyEnabled = enabled;
-        _settingsPage.ProxyToggle.Checked = enabled;
+        _data.Tun = tun;
+        _hero.Tun = tun;
+        _settingsPage.ModeSelector.SelectedIndex = tun ? 1 : 0;
         Save();
+        Log(tun ? "Режим TUN: через VPN идёт весь трафик" : "Режим прокси: через VPN идут браузер и программы");
 
-        if (_xray.IsRunning)
-            ApplySystemProxy();
+        if (_active != null && _xray.IsRunning)
+        {
+            Disconnect();
+            Connect();
+        }
+    }
+
+    private bool StartTun()
+    {
+        if (!IsAdministrator())
+        {
+            var answer = MessageBox.Show(this,
+                "Для режима TUN нужны права администратора. Перезапустить Tunnelka от имени администратора?",
+                "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (answer == DialogResult.Yes)
+                RestartAsAdministrator();
+            return false;
+        }
+
+        try
+        {
+            XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
+            _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, _data.Rules));
+            Log("TUN включён");
+            return true;
+        }
+        catch (FileNotFoundException)
+        {
+            MessageBox.Show(this,
+                $"Не найден {XrayRunner.SingBoxPath}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.",
+                "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch (Exception ex)
+        {
+            Log($"Не удалось запустить TUN: {ex.Message}");
+            ShowPage(IconKind.Log);
+        }
+
+        return false;
+    }
+
+    private static bool IsAdministrator()
+    {
+        try
+        {
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            return new System.Security.Principal.WindowsPrincipal(identity).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private void RestartAsAdministrator()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Application.ExecutablePath, "--connect")
+            {
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+            Disconnect();
+            Application.Exit();
+        }
+        catch (Exception ex)
+        {
+            Log($"Перезапуск отменён: {ex.Message}");
+        }
     }
 
     private void ApplySystemProxy()
     {
         try
         {
-            if (_data.UseSystemProxy)
+            if (!_data.Tun)
             {
                 SystemProxy.Enable($"127.0.0.1:{XrayConfigBuilder.HttpPort}");
                 _proxyEnabledByUs = true;

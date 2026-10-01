@@ -5,13 +5,27 @@ namespace VpnClient.Services;
 
 public sealed class XrayRunner : IDisposable
 {
+    private readonly string _exePath;
+    private readonly string _configName;
     private Process? _process;
+
+    public XrayRunner()
+        : this(XrayPath, "config.json")
+    {
+    }
+
+    public XrayRunner(string exePath, string configName)
+    {
+        _exePath = exePath;
+        _configName = configName;
+    }
 
     public event Action<string>? Output;
     public event Action? Exited;
 
     public static string CoreDir => Path.Combine(AppContext.BaseDirectory, "core");
     public static string XrayPath => Path.Combine(CoreDir, "xray.exe");
+    public static string SingBoxPath => Path.Combine(CoreDir, "sing-box.exe");
 
     public bool IsRunning => _process is { HasExited: false };
 
@@ -19,15 +33,15 @@ public sealed class XrayRunner : IDisposable
     {
         Stop();
 
-        if (!File.Exists(XrayPath))
-            throw new FileNotFoundException("Не найден xray.exe", XrayPath);
+        if (!File.Exists(_exePath))
+            throw new FileNotFoundException($"Не найден {Path.GetFileName(_exePath)}", _exePath);
 
-        var configPath = Path.Combine(CoreDir, "config.json");
+        var configPath = Path.Combine(CoreDir, _configName);
         File.WriteAllText(configPath, configJson);
 
         var process = new Process
         {
-            StartInfo = new ProcessStartInfo(XrayPath, $"run -c \"{configPath}\"")
+            StartInfo = new ProcessStartInfo(_exePath, $"run -c \"{configPath}\"")
             {
                 WorkingDirectory = CoreDir,
                 UseShellExecute = false,
@@ -50,14 +64,16 @@ public sealed class XrayRunner : IDisposable
         process.BeginErrorReadLine();
     }
 
-    public static void KillOrphans()
+    public static void KillOrphans() => KillOrphans(XrayPath);
+
+    public static void KillOrphans(string exePath)
     {
-        foreach (var process in Process.GetProcessesByName("xray"))
+        foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exePath)))
         {
             try
             {
                 var path = process.MainModule?.FileName;
-                if (path != null && string.Equals(Path.GetFullPath(path), Path.GetFullPath(XrayPath), StringComparison.OrdinalIgnoreCase))
+                if (path != null && string.Equals(Path.GetFullPath(path), Path.GetFullPath(exePath), StringComparison.OrdinalIgnoreCase))
                 {
                     process.Kill(true);
                     process.WaitForExit(3000);
@@ -73,7 +89,7 @@ public sealed class XrayRunner : IDisposable
         }
     }
 
-        public void Stop()
+    public void Stop()
     {
         var process = _process;
         if (process == null)
