@@ -44,8 +44,8 @@ public static class Theme
         AccentStrong = Color.FromArgb(140, 106, 214),
         Pink = Color.FromArgb(246, 166, 196),
         Mint = Color.FromArgb(110, 206, 164),
-        Text = Color.FromArgb(74, 62, 98),
-        TextMuted = Color.FromArgb(150, 139, 174),
+        Text = Color.FromArgb(44, 36, 64),
+        TextMuted = Color.FromArgb(108, 98, 134),
         HeroTop = Color.FromArgb(253, 241, 248),
         HeroBottom = Color.FromArgb(239, 231, 251),
         PowerOff = Color.White,
@@ -136,8 +136,45 @@ public static class Theme
         return new Font(family, pixels, finalStyle, GraphicsUnit.Pixel);
     }
 
-    public static Size Measure(string text, Font font) =>
-        TextRenderer.MeasureText(text, font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+    public static float S { get; private set; } = 0.9f;
+
+    public static void SetScale(float scale) => S = Math.Max(0.5f, Math.Min(1.5f, scale));
+
+    public static int Px(float value) => (int)Math.Round(value * S);
+
+    public static Padding Px(int left, int top, int right, int bottom) => new(Px(left), Px(top), Px(right), Px(bottom));
+
+    public static PointF Design(Point point) => new(point.X / S, point.Y / S);
+
+    public static void Begin(Graphics g, Color background)
+    {
+        Smooth(g);
+        g.Clear(background);
+        g.ScaleTransform(S, S);
+    }
+
+    public static Font Scaled(Font font) => ScaledFont(font, S);
+
+    private static readonly Dictionary<(Font Font, int Scale), Font> ScaledFonts = new();
+
+    private static Font ScaledFont(Font font, float scale)
+    {
+        var key = (font, (int)Math.Round(scale * 1000));
+        if (Math.Abs(scale - 1) < 0.001f)
+            return font;
+        if (!ScaledFonts.TryGetValue(key, out var scaled))
+        {
+            scaled = new Font(font.FontFamily, font.Size * scale, font.Style, font.Unit);
+            ScaledFonts[key] = scaled;
+        }
+        return scaled;
+    }
+
+    public static Size Measure(string text, Font font)
+    {
+        var size = TextRenderer.MeasureText(text, ScaledFont(font, S), Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+        return new Size((int)Math.Ceiling(size.Width / S), (int)Math.Ceiling(size.Height / S));
+    }
 
     public static T Bind<T>(T control, Func<Color>? back = null, Func<Color>? fore = null) where T : Control
     {
@@ -167,7 +204,7 @@ public static class Theme
     {
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        g.TextRenderingHint = IsDark ? TextRenderingHint.AntiAlias : TextRenderingHint.ClearTypeGridFit;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
     }
 
@@ -206,7 +243,7 @@ public static class Theme
     public static void DrawText(Graphics g, string text, Font font, Color color, RectangleF r,
         StringAlignment horizontal = StringAlignment.Near, StringAlignment vertical = StringAlignment.Center, bool wrap = false)
     {
-        var flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.PreserveGraphicsClipping;
+        var flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
         flags |= wrap ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis;
         flags |= horizontal switch
         {
@@ -221,7 +258,13 @@ public static class Theme
             _ => TextFormatFlags.Top
         };
 
-        TextRenderer.DrawText(g, text, font, Rectangle.Round(r), color, flags);
+        using var matrix = g.Transform;
+        var e = matrix.Elements;
+        var device = new RectangleF(r.X * e[0] + e[4], r.Y * e[3] + e[5], r.Width * e[0], r.Height * e[3]);
+        var state = g.Save();
+        g.ResetTransform();
+        TextRenderer.DrawText(g, text, ScaledFont(font, e[0]), Rectangle.Round(device), color, flags);
+        g.Restore(state);
     }
 
     public static void DrawBadge(Graphics g, RectangleF r, string? code)

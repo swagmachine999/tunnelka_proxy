@@ -4,6 +4,9 @@ namespace VpnClient.UI.Controls;
 
 public class ServerCard : Control
 {
+    private float W => Width / Theme.S;
+    private float H => Height / Theme.S;
+
     private bool _hover;
     private bool _selected;
     private bool _active;
@@ -19,8 +22,8 @@ public class ServerCard : Control
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BackColor = Theme.Surface;
-        Height = 66;
-        Margin = new Padding(0, 0, 0, 8);
+        Height = Theme.Px(66);
+        Margin = Theme.Px(0, 0, 0, 8);
         Cursor = Cursors.Hand;
     }
 
@@ -59,18 +62,17 @@ public class ServerCard : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        Theme.Smooth(g);
+        Theme.Begin(g, Theme.Surface);
 
-        var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         var fill = _selected ? Theme.CardSelected : _hover ? Theme.CardHover : Theme.Card;
-        g.Clear(Theme.Surface);
         Theme.FillRounded(g, fill, rect, 14);
         Theme.DrawRounded(g, _selected ? Color.FromArgb(140, Theme.Accent) : Theme.Border, rect, 14);
 
         if (_selected)
-            Theme.FillRounded(g, Theme.Accent, new RectangleF(rect.X + 1, 16, 4, Height - 32), 2);
+            Theme.FillRounded(g, Theme.Accent, new RectangleF(rect.X + 1, 16, 4, H - 32), 2);
 
-        var badge = new RectangleF(16, (Height - 34) / 2f, 34, 34);
+        var badge = new RectangleF(16, (H - 34) / 2f, 34, 34);
         Theme.DrawBadge(g, badge, Code);
 
         if (_active)
@@ -83,7 +85,7 @@ public class ServerCard : Control
 
         var textLeft = badge.Right + 14;
         var pingWidth = 64f;
-        var textWidth = Width - textLeft - pingWidth - 8;
+        var textWidth = W - textLeft - pingWidth - 8;
 
         NamePainter.Draw(g, Parts, Theme.CardTitle, Theme.Text, new RectangleF(textLeft, 11, textWidth, 24));
         Theme.DrawText(g, Description, Theme.Caption, Theme.TextMuted, new RectangleF(textLeft, 35, textWidth, 18));
@@ -91,7 +93,7 @@ public class ServerCard : Control
         var ping = Theme.PingLabel(Server.PingMs);
         if (ping.Length > 0)
         {
-            var pingRect = new RectangleF(Width - pingWidth - 14, 0, pingWidth, Height);
+            var pingRect = new RectangleF(W - pingWidth - 14, 0, pingWidth, H);
             Theme.DrawText(g, ping, Theme.CaptionBold, Theme.PingColor(Server.PingMs), pingRect, StringAlignment.Far);
         }
     }

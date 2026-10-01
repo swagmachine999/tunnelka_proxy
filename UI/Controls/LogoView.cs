@@ -2,26 +2,27 @@ namespace VpnClient.UI.Controls;
 
 public class LogoView : Control
 {
+    private float W => Width / Theme.S;
+    private float H => Height / Theme.S;
+
     public LogoView()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BackColor = Theme.Sidebar;
-        Size = new Size(44, 44);
+        Size = new Size(Theme.Px(44), Theme.Px(44));
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        Theme.Smooth(g);
-
-        g.Clear(Theme.Sidebar);
-        var rect = new RectangleF(0, 0, Width - 1, Height - 1);
+        Theme.Begin(g, Theme.Sidebar);
+        var rect = new RectangleF(0, 0, W - 1, H - 1);
         using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(rect, Theme.Pink, Theme.Accent, 45f))
         using (var path = Theme.RoundedRect(rect, 13))
             g.FillPath(brush, path);
 
-        KittenPainter.DrawFace(g, new RectangleF(5, 6, Width - 10, Height - 11));
+        KittenPainter.DrawFace(g, new RectangleF(5, 6, W - 10, H - 11));
     }
 
     public static Icon? CreateAppIcon()

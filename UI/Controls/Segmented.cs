@@ -2,6 +2,9 @@ namespace VpnClient.UI.Controls;
 
 public class Segmented : Control
 {
+    private float W => Width / Theme.S;
+    private float H => Height / Theme.S;
+
     private readonly string[] _options;
     private int _selected;
     private int _hover = -1;
@@ -11,7 +14,7 @@ public class Segmented : Control
         _options = options;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        Height = 38;
+        Height = Theme.Px(38);
         Cursor = Cursors.Hand;
     }
 
@@ -32,17 +35,16 @@ public class Segmented : Control
 
     private RectangleF Segment(int index)
     {
-        var width = (Width - 8f) / _options.Length;
-        return new RectangleF(4 + width * index, 4, width, Height - 8);
+        var width = (W - 8f) / _options.Length;
+        return new RectangleF(4 + width * index, 4, width, H - 8);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        Theme.Smooth(g);
-        g.Clear(Parent?.BackColor ?? Theme.Surface);
+        Theme.Begin(g, Parent?.BackColor ?? Theme.Surface);
 
-        var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, Theme.Card, rect, 12);
         Theme.DrawRounded(g, Theme.Border, rect, 12);
 
@@ -64,7 +66,7 @@ public class Segmented : Control
         var hover = -1;
         for (var i = 0; i < _options.Length; i++)
         {
-            if (Segment(i).Contains(e.Location))
+            if (Segment(i).Contains(Theme.Design(e.Location)))
                 hover = i;
         }
 
@@ -87,7 +89,7 @@ public class Segmented : Control
         base.OnMouseClick(e);
         for (var i = 0; i < _options.Length; i++)
         {
-            if (Segment(i).Contains(e.Location))
+            if (Segment(i).Contains(Theme.Design(e.Location)))
                 SelectedIndex = i;
         }
     }

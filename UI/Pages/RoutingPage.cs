@@ -6,6 +6,9 @@ namespace VpnClient.UI.Pages;
 
 public class RuleCard : Control
 {
+    private float W => Width / Theme.S;
+    private float H => Height / Theme.S;
+
     private RectangleF _actionRect;
     private RectangleF _toggleRect;
     private RectangleF _deleteRect;
@@ -19,8 +22,8 @@ public class RuleCard : Control
         Rule = rule;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        Height = 70;
-        Margin = new Padding(0, 0, 0, 8);
+        Height = Theme.Px(70);
+        Margin = Theme.Px(0, 0, 0, 8);
     }
 
     public RoutingRule Rule { get; }
@@ -53,18 +56,17 @@ public class RuleCard : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        Theme.Smooth(g);
-        g.Clear(Theme.Surface);
+        Theme.Begin(g, Theme.Surface);
 
-        var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, Theme.Card, rect, 14);
         Theme.DrawRounded(g, Theme.Border, rect, 14);
 
-        _deleteRect = new RectangleF(Width - 36, 10, 24, 24);
-        _toggleRect = new RectangleF(Width - 82, 10, 40, 22);
+        _deleteRect = new RectangleF(W - 36, 10, 24, 24);
+        _toggleRect = new RectangleF(W - 82, 10, 40, 22);
 
         var textColor = Rule.Enabled ? Theme.Text : Theme.TextMuted;
-        Theme.DrawText(g, Describe(Rule.Values), Theme.BodyBold, textColor, new RectangleF(16, 9, Width - 112, 24));
+        Theme.DrawText(g, Describe(Rule.Values), Theme.BodyBold, textColor, new RectangleF(16, 9, W - 112, 24));
 
         var title = ActionTitle(Rule.Action);
         var color = ActionColor(Rule.Action);
@@ -90,8 +92,9 @@ public class RuleCard : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        var overDelete = _deleteRect.Contains(e.Location);
-        Cursor = overDelete || _toggleRect.Contains(e.Location) || _actionRect.Contains(e.Location) ? Cursors.Hand : Cursors.Default;
+        var point = Theme.Design(e.Location);
+        var overDelete = _deleteRect.Contains(point);
+        Cursor = overDelete || _toggleRect.Contains(point) || _actionRect.Contains(point) ? Cursors.Hand : Cursors.Default;
         if (overDelete != _hoverDelete)
         {
             _hoverDelete = overDelete;
@@ -109,15 +112,16 @@ public class RuleCard : Control
     protected override void OnMouseClick(MouseEventArgs e)
     {
         base.OnMouseClick(e);
-        if (_deleteRect.Contains(e.Location))
+        var point = Theme.Design(e.Location);
+        if (_deleteRect.Contains(point))
         {
             DeleteClicked?.Invoke(this, EventArgs.Empty);
             return;
         }
 
-        if (_toggleRect.Contains(e.Location))
+        if (_toggleRect.Contains(point))
             Rule.Enabled = !Rule.Enabled;
-        else if (_actionRect.Contains(e.Location))
+        else if (_actionRect.Contains(point))
             Rule.Action = Rule.Action switch
             {
                 RoutingRule.Direct => RoutingRule.Proxy,
@@ -157,10 +161,9 @@ public class RoutingPage : Panel
         var title = PageParts.Header("Маршрутизация", onBack);
         var subtitle = PageParts.Caption("Правила проверяются сверху вниз. Всё остальное идёт через VPN.", 34);
 
-        var form = new Panel { Dock = DockStyle.Top, Height = 184 };
+        var form = new Panel { Dock = DockStyle.Top, Height = Theme.Px(184) };
         Theme.Bind(form, () => Theme.Surface);
 
-        _input.SetBounds(0, 0, 360, 42);
 
         var add = PageParts.Button("Добавить", true);
         add.Click += (_, _) => AddFromInput();
@@ -187,17 +190,18 @@ public class RoutingPage : Panel
         form.Controls.AddRange(new Control[] { _input, _action, add, process, file, preset });
         form.Resize += (_, _) =>
         {
-            var width = form.Width - 6;
-            _input.SetBounds(0, 0, width, 42);
-            _action.SetBounds(0, 52, width - 120, 38);
-            add.SetBounds(width - 110, 52, 110, 38);
-            var half = (width - 10) / 2;
-            process.SetBounds(0, 100, half, 34);
-            file.SetBounds(half + 10, 100, width - half - 10, 34);
-            preset.SetBounds(0, 144, width, 34);
+            var width = form.Width - Theme.Px(6);
+            _input.SetBounds(0, 0, width, Theme.Px(42));
+            _action.SetBounds(0, Theme.Px(52), width - Theme.Px(120), Theme.Px(38));
+            add.SetBounds(width - Theme.Px(110), Theme.Px(52), Theme.Px(110), Theme.Px(38));
+            var gap = Theme.Px(10);
+            var half = (width - gap) / 2;
+            process.SetBounds(0, Theme.Px(100), half, Theme.Px(34));
+            file.SetBounds(half + gap, Theme.Px(100), width - half - gap, Theme.Px(34));
+            preset.SetBounds(0, Theme.Px(144), width, Theme.Px(34));
         };
 
-        var gap = new Panel { Dock = DockStyle.Top, Height = 12 };
+        var gap = new Panel { Dock = DockStyle.Top, Height = Theme.Px(12) };
         Theme.Bind(gap, () => Theme.Surface);
 
         Controls.Add(_list);
@@ -262,7 +266,7 @@ public class RoutingPage : Panel
 
     private void ResizeCards()
     {
-        var width = _list.Width - SystemInformation.VerticalScrollBarWidth - 6;
+        var width = _list.Width - SystemInformation.VerticalScrollBarWidth - Theme.Px(6);
         if (width <= 0)
             return;
 

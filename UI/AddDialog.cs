@@ -7,31 +7,31 @@ public static class AddDialog
         using var form = new Form
         {
             Text = "Добавить",
-            ClientSize = new Size(540, 170),
+            ClientSize = new Size(Theme.Px(540), Theme.Px(170)),
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
             MinimizeBox = false,
             MaximizeBox = false,
             ShowInTaskbar = false,
             BackColor = Theme.Window,
-            Font = Theme.Body
+            Font = Theme.Scaled(Theme.Body)
         };
 
         var label = new Label
         {
             Text = "Ключ (vless://, vmess://, trojan://, ss://) или ссылка на подписку",
-            Left = 20,
-            Top = 18,
+            Left = Theme.Px(20),
+            Top = Theme.Px(18),
             AutoSize = true,
             ForeColor = Theme.Text,
-            Font = Theme.BodyBold
+            Font = Theme.Scaled(Theme.BodyBold)
         };
 
         var box = new Controls.SearchBox("vless://...  или  https://подписка", false)
         {
-            Left = 20,
-            Top = 46,
-            Width = 500
+            Left = Theme.Px(20),
+            Top = Theme.Px(46),
+            Width = Theme.Px(500)
         };
 
         string? result = null;
@@ -77,14 +77,14 @@ public static class AddDialog
         var button = new Button
         {
             Text = text,
-            Left = left,
-            Top = 106,
-            Width = width,
-            Height = 36,
+            Left = Theme.Px(left),
+            Top = Theme.Px(106),
+            Width = Theme.Px(width),
+            Height = Theme.Px(36),
             FlatStyle = FlatStyle.Flat,
             BackColor = back,
             ForeColor = fore,
-            Font = Theme.BodyBold,
+            Font = Theme.Scaled(Theme.BodyBold),
             Cursor = Cursors.Hand
         };
         button.FlatAppearance.BorderSize = 0;

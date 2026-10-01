@@ -16,6 +16,9 @@ public enum IconKind
 
 public class IconButton : Control
 {
+    private float W => Width / Theme.S;
+    private float H => Height / Theme.S;
+
     private bool _hover;
     private bool _active;
 
@@ -25,7 +28,7 @@ public class IconButton : Control
         Title = title;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        Size = new Size(44, 44);
+        Size = new Size(Theme.Px(44), Theme.Px(44));
         Cursor = Cursors.Hand;
     }
 
@@ -56,10 +59,9 @@ public class IconButton : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        Theme.Smooth(g);
-        g.Clear(Background());
+        Theme.Begin(g, Background());
 
-        var rect = new RectangleF(0, 0, Width - 1, Height - 1);
+        var rect = new RectangleF(0, 0, W - 1, H - 1);
         if (_active)
             Theme.FillRounded(g, Color.FromArgb(Theme.IsDark ? 90 : 70, Theme.Accent), rect, 12);
         else if (_hover)
@@ -68,8 +70,8 @@ public class IconButton : Control
         var color = _active || _hover ? Theme.AccentStrong : Theme.Text;
         using var pen = new Pen(color, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         using var fill = new SolidBrush(color);
-        var cx = Width / 2f;
-        var cy = Height / 2f;
+        var cx = W / 2f;
+        var cy = H / 2f;
 
         switch (Kind)
         {
