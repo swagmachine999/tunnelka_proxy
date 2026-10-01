@@ -252,7 +252,7 @@ public class MainForm : Form, IMessageFilter
         var pingAll = new IconButton(IconKind.Gauge, "Проверить пинг всех серверов")
         {
             Dock = DockStyle.Right,
-            Background = () => Theme.Surface
+            Backdrop = () => Theme.Surface
         };
         pingAll.Click += async (_, _) => await PingAll();
         AttachTip(pingAll);
@@ -811,7 +811,7 @@ public class MainForm : Form, IMessageFilter
         try
         {
             _xray.Stop();
-            XrayRunner.KillOrphans();
+            XrayRunner.KillOrphans(XrayRunner.XrayPath);
             XrayConfigBuilder.ChoosePorts();
             if (XrayConfigBuilder.SocksPort != XrayConfigBuilder.PreferredSocksPort)
                 Log($"Порт {XrayConfigBuilder.PreferredSocksPort} занят другой программой (например, Happ или v2rayN), беру {XrayConfigBuilder.SocksPort}");

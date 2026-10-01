@@ -1,13 +1,11 @@
 using System.Drawing.Drawing2D;
 using VpnClient.Services;
+using VpnClient.UI.Controls;
 
 namespace VpnClient.UI.Pages;
 
-public class StatsView : Control
+public class StatsView : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     private const int HistorySize = 60;
 
     private readonly List<double> _down = new();
@@ -19,8 +17,6 @@ public class StatsView : Control
 
     public StatsView()
     {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
     }
 
     public void SetConnected(bool connected)
@@ -55,11 +51,8 @@ public class StatsView : Control
         Invalidate();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void Draw(Graphics g)
     {
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.Surface);
-
         float w = W - 4;
         var tileWidth = (w - 12) / 2;
 

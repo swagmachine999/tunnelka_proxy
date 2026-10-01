@@ -4,11 +4,8 @@ using VpnClient.UI.Controls;
 
 namespace VpnClient.UI.Pages;
 
-public class RuleCard : Control
+public class RuleCard : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     private RectangleF _actionRect;
     private RectangleF _toggleRect;
     private RectangleF _deleteRect;
@@ -20,8 +17,6 @@ public class RuleCard : Control
     public RuleCard(RoutingRule rule)
     {
         Rule = rule;
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Height = Theme.Px(70);
         Margin = Theme.Px(0, 0, 0, 8);
     }
@@ -53,11 +48,8 @@ public class RuleCard : Control
         _ => Theme.PingGood
     };
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void Draw(Graphics g)
     {
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.Surface);
-
         var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, Theme.Card, rect, 14);
         Theme.DrawRounded(g, Theme.Border, rect, 14);
@@ -150,8 +142,7 @@ public class RoutingPage : Panel
     private readonly SearchBox _input = new("Домены или IP через запятую", false);
     private readonly Segmented _action = new("Напрямую", "Через VPN", "Блок");
 
-    public const string RoutingBottomComment = "Напрямую - использование без VPN\nЧерез VPN - использование через VPN\nБлок - полная блокировка трафика";
-
+    private const string RoutingBottomComment = "Напрямую - использование без VPN\nЧерез VPN - использование через VPN\nБлок - полная блокировка трафика";
 
     public event EventHandler? RulesChanged;
 
@@ -166,19 +157,17 @@ public class RoutingPage : Panel
 
         var form = new Panel { Dock = DockStyle.Top, Height = Theme.Px(184) };
         Theme.Bind(form, () => Theme.Surface);
-    
-        var commentLabel = new Label
+
+        var commentLabel = Theme.Bind(new Label
         {
             Text = RoutingBottomComment,
             AutoSize = false,
             Dock = DockStyle.Bottom,
-            Height = Theme.Px(70), 
-            TextAlign = ContentAlignment.TopLeft, 
-            Padding = new Padding(Theme.Px(16), 0, Theme.Px(16), Theme.Px(20)), 
-            BackColor = Color.Transparent,
-            ForeColor = Theme.TextMuted,
-            Font = new Font("Segoe UI", 9F, FontStyle.Regular)
-        };
+            Height = Theme.Px(70),
+            TextAlign = ContentAlignment.TopLeft,
+            Padding = Theme.Px(16, 0, 16, 20),
+            Font = Theme.Scaled(Theme.Caption)
+        }, () => Theme.Surface, () => Theme.TextMuted);
 
         var add = PageParts.Button("Добавить", true);
         add.Click += (_, _) => AddFromInput();
@@ -202,7 +191,7 @@ public class RoutingPage : Panel
                 AddRule(XrayConfigBuilder.ProcessPrefix + dialog.FileName, SelectedAction());
         };
 
-        form.Controls.AddRange(new Control[] { _input, _action, add, process, file, preset, commentLabel });
+        form.Controls.AddRange(new Control[] { _input, _action, add, process, file, preset });
         form.Resize += (_, _) =>
         {
             var width = form.Width - Theme.Px(6);
