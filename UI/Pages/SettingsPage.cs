@@ -99,9 +99,6 @@ public class SettingsPage : Panel
         PingRow = new SettingRow("Пинг", "", chevron: true);
         ShowPingMode(realPing);
 
-        PortsRow = new SettingRow("Порты", "");
-        ShowPorts(10808, 10809);
-        Controls.Add(PortsRow);
         Controls.Add(LogRow);
         Controls.Add(RoutingRow);
         Controls.Add(PingRow);
@@ -119,7 +116,6 @@ public class SettingsPage : Panel
     public Segmented SpeedSelector { get; } = new("3 с", "5 с", "10 с");
     public SettingRow RoutingRow { get; }
     public SettingRow LogRow { get; }
-    public SettingRow PortsRow { get; }
     public ScaleStepper ScaleSelector { get; }
     public SettingRow PingRow { get; }
 
@@ -127,12 +123,6 @@ public class SettingsPage : Panel
     {
         PingRow.Subtitle = real ? "Реальный, через VPN" : "Быстрый, TCP";
         PingRow.Invalidate();
-    }
-
-    public void ShowPorts(int socks, int http)
-    {
-        PortsRow.Subtitle = $"SOCKS5 127.0.0.1:{socks} · HTTP 127.0.0.1:{http}";
-        PortsRow.Invalidate();
     }
 
     public int SpeedInterval => Intervals[SpeedSelector.SelectedIndex];
