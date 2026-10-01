@@ -50,7 +50,30 @@ public sealed class XrayRunner : IDisposable
         process.BeginErrorReadLine();
     }
 
-    public void Stop()
+    public static void KillOrphans()
+    {
+        foreach (var process in Process.GetProcessesByName("xray"))
+        {
+            try
+            {
+                var path = process.MainModule?.FileName;
+                if (path != null && string.Equals(Path.GetFullPath(path), Path.GetFullPath(XrayPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    process.Kill(true);
+                    process.WaitForExit(3000);
+                }
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+    }
+
+        public void Stop()
     {
         var process = _process;
         if (process == null)

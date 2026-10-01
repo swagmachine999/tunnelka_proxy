@@ -554,7 +554,14 @@ public class MainForm : Form
     {
         try
         {
+            _xray.Stop();
+            XrayRunner.KillOrphans();
+            XrayConfigBuilder.ChoosePorts();
+            if (XrayConfigBuilder.SocksPort != XrayConfigBuilder.PreferredSocksPort)
+                Log($"Порт {XrayConfigBuilder.PreferredSocksPort} занят другой программой (например, Happ или v2rayN), беру {XrayConfigBuilder.SocksPort}");
+
             _xray.Start(XrayConfigBuilder.Build(server, _data.Rules));
+            _settingsPage.ShowPorts(XrayConfigBuilder.SocksPort, XrayConfigBuilder.HttpPort);
             return true;
         }
         catch (FileNotFoundException)
@@ -608,7 +615,11 @@ public class MainForm : Form
 
         _lastCounters = new TrafficCounters();
         if (StartXray(_active))
+        {
+            if (_proxyEnabledByUs)
+                ApplySystemProxy();
             Log("Правила применены");
+        }
         else
             Disconnect();
     }
