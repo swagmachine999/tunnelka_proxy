@@ -574,7 +574,7 @@ public class MainForm : Form, IMessageFilter
             return;
         }
 
-        _hero.SetPing("Обновляю подписку...", Theme.TextMuted);
+        _hero.SetBusy(true);
         var ok = true;
         foreach (var url in _data.Subscriptions.ToList())
             ok &= await LoadSubscription(url);
@@ -617,7 +617,7 @@ public class MainForm : Form, IMessageFilter
 
     private async Task RefreshSubscription(string url)
     {
-        _hero.SetPing("Обновляю подписку...", Theme.TextMuted);
+        _hero.SetBusy(true);
         if (await LoadSubscription(url))
             _hero.SetPing("Подписка обновлена", Theme.PingGood);
         else
@@ -658,7 +658,7 @@ public class MainForm : Form, IMessageFilter
         if (_data.Servers.Count == 0)
             return;
 
-        _hero.SetPing("Проверяю пинг...", Theme.TextMuted);
+        _hero.SetBusy(true);
         await Ping(_data.Servers.ToList());
         UpdateCards();
         UpdateHero();
@@ -670,7 +670,7 @@ public class MainForm : Form, IMessageFilter
         if (server == null)
             return;
 
-        _hero.SetPing("Проверяю пинг...", Theme.TextMuted);
+        _hero.SetBusy(true);
         await Ping(new List<ProxyServer> { server });
         UpdateCards();
         UpdateHero();
