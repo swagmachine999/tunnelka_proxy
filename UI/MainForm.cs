@@ -80,7 +80,8 @@ public class MainForm : Form
 
         _hero.ProxyEnabled = _data.UseSystemProxy;
         _hero.PowerClicked += (_, _) => ToggleConnection();
-        _hero.PingClicked += async (_, _) => await PingCurrent();
+        _hero.PingClicked += async (_, _) => await PingAll();
+        _hero.RefreshClicked += async (_, _) => await UpdateSubscriptions();
         _hero.ProxyToggled += (_, _) => ToggleSystemProxy();
         _search.QueryChanged += (_, _) => ApplyFilter();
         _list.Resize += (_, _) => ResizeCards();
@@ -102,10 +103,7 @@ public class MainForm : Form
 
         var buttons = new (IconKind Kind, string Tip, Action OnClick)[]
         {
-            (IconKind.Add, "Вставить из буфера (Ctrl+V)", PasteFromClipboard),
-            (IconKind.Link, "Добавить подписку", AddSubscription),
-            (IconKind.Refresh, "Обновить подписки", async () => await UpdateSubscriptions()),
-            (IconKind.Gauge, "Пинг всех серверов", async () => await PingAll()),
+            (IconKind.Add, "Добавить ключ или подписку", ShowAddDialog),
             (IconKind.Log, "Журнал", ToggleLog)
         };
 
@@ -282,6 +280,13 @@ public class MainForm : Form
         }
     }
 
+    private void ShowAddDialog()
+    {
+        var text = AddDialog.Show(this);
+        if (text != null)
+            AddInput(text);
+    }
+
     private void PasteFromClipboard()
     {
         var text = Clipboard.GetText().Trim();
@@ -290,6 +295,13 @@ public class MainForm : Form
             Log("Буфер обмена пуст");
             return;
         }
+
+        AddInput(text);
+    }
+
+    private void AddInput(string text)
+    {
+        text = text.Trim();
 
         if (text.StartsWith("http://") || text.StartsWith("https://"))
         {
@@ -311,7 +323,7 @@ public class MainForm : Form
         var servers = LinkParser.ParseMany(text);
         if (servers.Count == 0)
         {
-            Log("В буфере нет поддерживаемых ссылок (vless, vmess, trojan, ss)");
+            Log("Не нашёл поддерживаемых ссылок (vless, vmess, trojan, ss)");
             ShowLog(true);
             return;
         }
@@ -322,13 +334,6 @@ public class MainForm : Form
         RebuildList();
         UpdateHero();
         Log($"Добавлено серверов: {servers.Count}");
-    }
-
-    private void AddSubscription()
-    {
-        var url = InputDialog.Show(this, "Подписка", "Ссылка на подписку:");
-        if (url != null)
-            _ = AddSubscriptionUrl(url);
     }
 
     private async Task AddSubscriptionUrl(string url)
@@ -343,15 +348,22 @@ public class MainForm : Form
     {
         if (_data.Subscriptions.Count == 0)
         {
-            Log("Подписок нет");
+            _hero.SetPing("Подписок нет: добавь её через +", Theme.TextMuted);
             return;
         }
 
+        _hero.SetPing("Обновляю подписку...", Theme.TextMuted);
+        var ok = true;
         foreach (var url in _data.Subscriptions.ToList())
-            await LoadSubscription(url);
+            ok &= await LoadSubscription(url);
+
+        if (ok)
+            _hero.SetPing("Подписка обновлена", Theme.PingGood);
+        else
+            _hero.SetPing("Не удалось обновить подписку", Theme.PingBad);
     }
 
-    private async Task LoadSubscription(string url)
+    private async Task<bool> LoadSubscription(string url)
     {
         try
         {
@@ -365,31 +377,23 @@ public class MainForm : Form
             RebuildList();
             UpdateHero();
             Log($"Из подписки получено серверов: {servers.Count}");
+            return true;
         }
         catch (Exception ex)
         {
             Log($"Ошибка подписки: {ex.Message}");
             ShowLog(true);
+            return false;
         }
     }
 
     private async Task PingAll()
     {
-        Log("Проверяю пинг...");
-        await Task.WhenAll(_data.Servers.Select(PingServer));
-        UpdateCards();
-        UpdateHero();
-        Log("Пинг готов");
-    }
-
-    private async Task PingCurrent()
-    {
-        var server = _active ?? _selected;
-        if (server == null)
+        if (_data.Servers.Count == 0)
             return;
 
-        _hero.SetPing("Проверяю...", Theme.TextMuted);
-        await PingServer(server);
+        _hero.SetPing("Проверяю пинг...", Theme.TextMuted);
+        await Task.WhenAll(_data.Servers.Select(PingServer));
         UpdateCards();
         UpdateHero();
     }
