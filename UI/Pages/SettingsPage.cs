@@ -94,7 +94,9 @@ public class SettingsPage : Panel
         RoutingRow = new SettingRow("Маршрутизация", "Какие сайты идут напрямую, через VPN или в блок", chevron: true);
         LogRow = new SettingRow("Журнал", "Сообщения приложения и Xray", chevron: true);
 
-        Controls.Add(new SettingRow("Порты", "SOCKS5 127.0.0.1:10808 · HTTP 127.0.0.1:10809"));
+        PortsRow = new SettingRow("Порты", "");
+        ShowPorts(10808, 10809);
+        Controls.Add(PortsRow);
         Controls.Add(LogRow);
         Controls.Add(RoutingRow);
         Controls.Add(new SettingRow("Скорость в окне", "Как часто обновлять", SpeedSelector));
@@ -109,6 +111,13 @@ public class SettingsPage : Panel
     public Segmented SpeedSelector { get; } = new("3 с", "5 с", "10 с");
     public SettingRow RoutingRow { get; }
     public SettingRow LogRow { get; }
+    public SettingRow PortsRow { get; }
+
+    public void ShowPorts(int socks, int http)
+    {
+        PortsRow.Subtitle = $"SOCKS5 127.0.0.1:{socks} · HTTP 127.0.0.1:{http}";
+        PortsRow.Invalidate();
+    }
 
     public int SpeedInterval => Intervals[SpeedSelector.SelectedIndex];
 }
