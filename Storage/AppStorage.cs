@@ -10,6 +10,7 @@ public class AppData
     public bool UseSystemProxy { get; set; } = true;
     public string LastServerLink { get; set; } = "";
     public bool DarkTheme { get; set; }
+    public int SpeedInterval { get; set; } = 3;
     public List<RoutingRule> Rules { get; set; } = new();
     public long TotalDownload { get; set; }
     public long TotalUpload { get; set; }

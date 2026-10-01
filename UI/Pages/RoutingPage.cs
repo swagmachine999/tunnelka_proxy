@@ -136,13 +136,13 @@ public class RoutingPage : Panel
 
     public event EventHandler? RulesChanged;
 
-    public RoutingPage(List<RoutingRule> rules)
+    public RoutingPage(List<RoutingRule> rules, Action onBack)
     {
         _rules = rules;
         Dock = DockStyle.Fill;
         Theme.Bind(this, () => Theme.Surface);
         Theme.Bind(_list, () => Theme.Surface);
-        var title = PageParts.Title("Маршрутизация");
+        var title = PageParts.Header("Маршрутизация", onBack);
         var subtitle = PageParts.Caption("Правила проверяются сверху вниз. Всё остальное идёт через VPN.", 34);
 
         var form = new Panel { Dock = DockStyle.Top, Height = 140 };

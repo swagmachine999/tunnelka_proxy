@@ -27,6 +27,8 @@ public class HeroView : Control
     private IReadOnlyList<NamePart> _serverParts = Array.Empty<NamePart>();
     private string? _serverCode;
     private string _pingText = "";
+    private string? _speedDown;
+    private string? _speedUp;
     private Color _pingColor = Theme.TextMuted;
 
     public event EventHandler? PowerClicked;
@@ -66,6 +68,13 @@ public class HeroView : Control
         _serverParts = parts;
         _serverCode = code;
         Invalidate();
+    }
+
+    public void SetSpeed(string? down, string? up)
+    {
+        _speedDown = down;
+        _speedUp = up;
+        Invalidate(new Rectangle(0, 0, ClientSize.Width / 2, 80));
     }
 
     public void SetPing(string text, Color color)
@@ -126,6 +135,7 @@ public class HeroView : Control
 
         DrawBackground(g);
         DrawToggle(g);
+        DrawSpeed(g);
         DrawPower(g);
         KittenPainter.Draw(g, _kittenRect, _connected, _time, _connected && _tick % 110 < 4);
         DrawServer(g);
@@ -171,6 +181,29 @@ public class HeroView : Control
         var knobX = _proxyEnabled ? track.Right - 19 : track.X + 3;
         using var knob = new SolidBrush(Color.White);
         g.FillEllipse(knob, knobX, track.Y + 3, 16, 16);
+    }
+
+    private void DrawSpeed(Graphics g)
+    {
+        if (!_connected || _speedDown == null || _speedUp == null)
+            return;
+
+        var arrowWidth = g.MeasureString("↓", Theme.BodyBold).Width - 4;
+        var downWidth = g.MeasureString(_speedDown, Theme.BodyBold).Width;
+        var upWidth = g.MeasureString(_speedUp, Theme.BodyBold).Width;
+        var r = new RectangleF(24, 24, arrowWidth * 2 + downWidth + upWidth + 54, 40);
+
+        Theme.FillRounded(g, Color.FromArgb(225, Theme.Card), r, r.Height / 2);
+        Theme.DrawRounded(g, Theme.Border, r, r.Height / 2);
+
+        var x = r.X + 14;
+        Theme.DrawText(g, "↓", Theme.BodyBold, Theme.AccentStrong, new RectangleF(x, r.Y, arrowWidth + 4, r.Height));
+        x += arrowWidth + 5;
+        Theme.DrawText(g, _speedDown, Theme.BodyBold, Theme.Text, new RectangleF(x, r.Y, downWidth + 4, r.Height));
+        x += downWidth + 12;
+        Theme.DrawText(g, "↑", Theme.BodyBold, Theme.PingBad, new RectangleF(x, r.Y, arrowWidth + 4, r.Height));
+        x += arrowWidth + 5;
+        Theme.DrawText(g, _speedUp, Theme.BodyBold, Theme.Text, new RectangleF(x, r.Y, upWidth + 4, r.Height));
     }
 
     private void DrawPower(Graphics g)

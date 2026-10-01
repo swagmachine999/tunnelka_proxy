@@ -61,32 +61,58 @@ public static class ServerText
         for (var i = 0; i < name.Length; i++)
         {
             var c = name[i];
-            string symbol;
 
-            if (char.IsHighSurrogate(c) && i + 1 < name.Length && char.IsLowSurrogate(name[i + 1]))
+            if (c == '\uFE0F' || c == '\uFE0E' || c == '\u200D' || (char.IsLowSurrogate(c)))
+                continue;
+
+            var codePoint = char.IsHighSurrogate(c) && i + 1 < name.Length ? char.ConvertToUtf32(c, name[i + 1]) : c;
+            var isPair = codePoint > 0xFFFF;
+
+            if (IsRegionalIndicator(codePoint))
             {
-                var codePoint = char.ConvertToUtf32(c, name[i + 1]);
                 i++;
-                if (IsRegionalIndicator(codePoint) || (codePoint >= 0x1F3FB && codePoint <= 0x1F3FF))
-                    continue;
-                symbol = char.ConvertFromUtf32(codePoint);
-            }
-            else if (c == '️' || c == '︎' || c == '‍' || char.IsSurrogate(c))
-            {
                 continue;
             }
-            else if (char.GetUnicodeCategory(c) == UnicodeCategory.OtherSymbol)
-            {
-                symbol = c.ToString();
-            }
-            else
+
+            if (!isPair && char.GetUnicodeCategory(c) != UnicodeCategory.OtherSymbol)
             {
                 text.Append(char.IsWhiteSpace(c) ? ' ' : c);
                 continue;
             }
 
+            var symbol = new StringBuilder(char.ConvertFromUtf32(codePoint));
+            i += isPair ? 1 : 0;
+
+            while (i + 1 < name.Length)
+            {
+                var next = name[i + 1];
+                if (next == '\uFE0F' || next == '\u20E3')
+                {
+                    symbol.Append(next);
+                    i++;
+                }
+                else if (next == '\u200D' && i + 2 < name.Length)
+                {
+                    var joined = char.IsHighSurrogate(name[i + 2]) && i + 3 < name.Length
+                        ? char.ConvertFromUtf32(char.ConvertToUtf32(name[i + 2], name[i + 3]))
+                        : name[i + 2].ToString();
+                    symbol.Append(next).Append(joined);
+                    i += 1 + joined.Length;
+                }
+                else if (char.IsHighSurrogate(next) && i + 2 < name.Length &&
+                         char.ConvertToUtf32(next, name[i + 2]) is >= 0x1F3FB and <= 0x1F3FF)
+                {
+                    symbol.Append(next).Append(name[i + 2]);
+                    i += 2;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
             FlushText();
-            parts.Add(new NamePart(symbol, true));
+            parts.Add(new NamePart(symbol.ToString(), true));
         }
 
         FlushText();
