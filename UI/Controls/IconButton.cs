@@ -10,7 +10,8 @@ public enum IconKind
     Gauge,
     Routing,
     Log,
-    Settings
+    Settings,
+    Ping
 }
 
 public class IconButton : Control

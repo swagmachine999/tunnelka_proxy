@@ -41,6 +41,7 @@ public class MainForm : Form
     private readonly LogPage _logPage;
     private readonly RoutingPage _routingPage;
     private readonly SettingsPage _settingsPage;
+    private readonly PingPage _pingPage;
 
     private readonly ContextMenuStrip _cardMenu = new();
     private readonly ContextMenuStrip _subscriptionMenu = new();
@@ -72,7 +73,8 @@ public class MainForm : Form
 
         _logPage = new LogPage(() => ShowPage(IconKind.Settings));
         _routingPage = new RoutingPage(_data.Rules, () => ShowPage(IconKind.Settings));
-        _settingsPage = new SettingsPage(_data.DarkTheme, _data.UseSystemProxy, _data.SpeedInterval);
+        _settingsPage = new SettingsPage(_data.DarkTheme, _data.UseSystemProxy, _data.SpeedInterval, _data.RealPing);
+        _pingPage = new PingPage(_data.RealPing, _data.PingUrl, () => ShowPage(IconKind.Settings));
 
         BuildLayout();
         BuildCardMenu();
@@ -90,6 +92,16 @@ public class MainForm : Form
         _settingsPage.DarkToggle.CheckedChanged += (_, _) => SetDarkTheme(_settingsPage.DarkToggle.Checked);
         _settingsPage.RoutingRow.Click += (_, _) => ShowPage(IconKind.Routing);
         _settingsPage.LogRow.Click += (_, _) => ShowPage(IconKind.Log);
+        _settingsPage.PingRow.Click += (_, _) => ShowPage(IconKind.Ping);
+        _pingPage.Changed += (_, _) =>
+        {
+            _data.RealPing = _pingPage.IsReal;
+            var url = _pingPage.Url.Query;
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https"))
+                _data.PingUrl = url;
+            _settingsPage.ShowPingMode(_data.RealPing);
+            Save();
+        };
         _settingsPage.SpeedSelector.SelectedIndexChanged += (_, _) =>
         {
             _data.SpeedInterval = _settingsPage.SpeedInterval;
@@ -182,6 +194,7 @@ public class MainForm : Form
         _pages[IconKind.Routing] = _routingPage;
         _pages[IconKind.Log] = _logPage;
         _pages[IconKind.Settings] = _settingsPage;
+        _pages[IconKind.Ping] = _pingPage;
 
         foreach (var page in _pages.Values)
         {
@@ -218,7 +231,7 @@ public class MainForm : Form
         foreach (var pair in _pages)
             pair.Value.Visible = pair.Key == kind;
 
-        var active = kind is IconKind.Routing or IconKind.Log ? IconKind.Settings : kind;
+        var active = kind is IconKind.Routing or IconKind.Log or IconKind.Ping ? IconKind.Settings : kind;
         foreach (var button in _navButtons)
             button.Active = button.Kind == active;
     }
@@ -565,7 +578,7 @@ public class MainForm : Form
             return;
 
         _hero.SetPing("Проверяю пинг...", Theme.TextMuted);
-        await Task.WhenAll(_data.Servers.Select(PingServer));
+        await Ping(_data.Servers.ToList());
         UpdateCards();
         UpdateHero();
     }
@@ -577,15 +590,26 @@ public class MainForm : Form
             return;
 
         _hero.SetPing("Проверяю пинг...", Theme.TextMuted);
-        await PingServer(server);
+        await Ping(new List<ProxyServer> { server });
         UpdateCards();
         UpdateHero();
     }
 
-    private static async Task PingServer(ProxyServer server)
+    private async Task Ping(List<ProxyServer> servers)
     {
-        var ms = await Pinger.TcpPingAsync(server.Address, server.Port);
-        server.PingMs = ms ?? -1;
+        if (_data.RealPing && File.Exists(XrayRunner.XrayPath))
+        {
+            var results = await RealPinger.PingAsync(servers, _data.PingUrl);
+            foreach (var pair in results)
+                pair.Key.PingMs = pair.Value;
+            return;
+        }
+
+        await Task.WhenAll(servers.Select(async server =>
+        {
+            var ms = await Pinger.TcpPingAsync(server.Address, server.Port);
+            server.PingMs = ms ?? -1;
+        }));
     }
 
     private void Delete(ProxyServer server)
