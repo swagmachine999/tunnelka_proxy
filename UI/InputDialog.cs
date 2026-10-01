@@ -7,17 +7,38 @@ public static class InputDialog
         using var form = new Form
         {
             Text = title,
-            ClientSize = new Size(520, 110),
+            ClientSize = new Size(520, 150),
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
             MinimizeBox = false,
-            MaximizeBox = false
+            MaximizeBox = false,
+            ShowInTaskbar = false,
+            BackColor = Theme.Window,
+            Font = Theme.Body
         };
 
-        var label = new Label { Text = prompt, Left = 12, Top = 12, AutoSize = true };
-        var box = new TextBox { Left = 12, Top = 38, Width = 496 };
-        var ok = new Button { Text = "OK", Left = 352, Top = 72, Width = 75, DialogResult = DialogResult.OK };
-        var cancel = new Button { Text = "Отмена", Left = 433, Top = 72, Width = 75, DialogResult = DialogResult.Cancel };
+        var label = new Label
+        {
+            Text = prompt,
+            Left = 20,
+            Top = 18,
+            AutoSize = true,
+            ForeColor = Theme.Text,
+            Font = Theme.BodyBold
+        };
+
+        var box = new TextBox
+        {
+            Left = 20,
+            Top = 46,
+            Width = 480,
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = Color.White,
+            ForeColor = Theme.Text
+        };
+
+        var ok = MakeButton("Добавить", Theme.Accent, Color.White, 300, DialogResult.OK);
+        var cancel = MakeButton("Отмена", Theme.Sidebar, Theme.Text, 410, DialogResult.Cancel);
 
         form.Controls.AddRange(new Control[] { label, box, ok, cancel });
         form.AcceptButton = ok;
@@ -27,5 +48,25 @@ public static class InputDialog
             return null;
 
         return box.Text.Trim();
+    }
+
+    private static Button MakeButton(string text, Color back, Color fore, int left, DialogResult result)
+    {
+        var button = new Button
+        {
+            Text = text,
+            Left = left,
+            Top = 98,
+            Width = 100,
+            Height = 34,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = back,
+            ForeColor = fore,
+            Font = Theme.BodyBold,
+            DialogResult = result,
+            Cursor = Cursors.Hand
+        };
+        button.FlatAppearance.BorderSize = 0;
+        return button;
     }
 }
