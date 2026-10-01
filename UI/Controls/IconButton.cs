@@ -5,9 +5,6 @@ namespace VpnClient.UI.Controls;
 public enum IconKind
 {
     Add,
-    Link,
-    Refresh,
-    Gauge,
     Log
 }
 
@@ -71,32 +68,6 @@ public class IconButton : Control
                     g.DrawPath(pen, path);
                 g.DrawLine(pen, cx - 4.5f, cy, cx + 4.5f, cy);
                 g.DrawLine(pen, cx, cy - 4.5f, cx, cy + 4.5f);
-                break;
-
-            case IconKind.Link:
-                var state = g.Save();
-                g.TranslateTransform(cx, cy);
-                g.RotateTransform(-45);
-                using (var left = Theme.RoundedRect(new RectangleF(-12, -4.5f, 14, 9), 4.5f))
-                    g.DrawPath(pen, left);
-                using (var right = Theme.RoundedRect(new RectangleF(-2, -4.5f, 14, 9), 4.5f))
-                    g.DrawPath(pen, right);
-                g.Restore(state);
-                break;
-
-            case IconKind.Refresh:
-                g.DrawArc(pen, cx - 9, cy - 9, 18, 18, 40, 280);
-                var angle = (40 + 280) * Math.PI / 180;
-                var tip = new PointF(cx + 9 * (float)Math.Cos(angle), cy + 9 * (float)Math.Sin(angle));
-                g.DrawLine(pen, tip.X, tip.Y, tip.X - 5.5f, tip.Y - 1f);
-                g.DrawLine(pen, tip.X, tip.Y, tip.X + 0.5f, tip.Y - 5.5f);
-                break;
-
-            case IconKind.Gauge:
-                g.DrawArc(pen, cx - 10, cy - 8, 20, 20, 180, 180);
-                g.DrawLine(pen, cx, cy + 2, cx + 5, cy - 4);
-                using (var dot = new SolidBrush(color))
-                    g.FillEllipse(dot, cx - 2.5f, cy - 0.5f, 5, 5);
                 break;
 
             case IconKind.Log:
