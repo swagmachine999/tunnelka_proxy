@@ -29,5 +29,5 @@ public class ProxyServer
     public string? SubscriptionUrl { get; set; }
 
     [JsonIgnore]
-    public string PingText { get; set; } = "";
+    public int? PingMs { get; set; }
 }

@@ -1,7 +1,8 @@
-using VpnClient.Core;
 using VpnClient.Models;
 using VpnClient.Parsing;
+using VpnClient.Services;
 using VpnClient.Storage;
+using VpnClient.UI.Controls;
 
 namespace VpnClient.UI;
 
@@ -9,77 +10,276 @@ public class MainForm : Form
 {
     private readonly AppData _data = AppStorage.Load();
     private readonly XrayRunner _xray = new();
+    private readonly System.Windows.Forms.Timer _clock = new() { Interval = 1000 };
+    private readonly ToolTip _tips = new();
 
-    private readonly ListView _list = new()
+    private readonly HeroView _hero = new() { Dock = DockStyle.Fill };
+    private readonly SearchBox _search = new() { Dock = DockStyle.Top };
+    private readonly Label _countLabel = new()
     {
-        View = View.Details,
-        FullRowSelect = true,
-        MultiSelect = true,
-        HideSelection = false,
-        Dock = DockStyle.Fill
+        Dock = DockStyle.Top,
+        Height = 34,
+        ForeColor = Theme.TextMuted,
+        Font = Theme.CaptionBold,
+        TextAlign = ContentAlignment.MiddleLeft
+    };
+
+    private readonly FlowLayoutPanel _list = new()
+    {
+        Dock = DockStyle.Fill,
+        FlowDirection = FlowDirection.TopDown,
+        WrapContents = false,
+        AutoScroll = true,
+        BackColor = Theme.Surface
+    };
+
+    private readonly Panel _logPanel = new()
+    {
+        Dock = DockStyle.Bottom,
+        Height = 180,
+        BackColor = Theme.LogBack,
+        Padding = new Padding(18, 12, 12, 12),
+        Visible = false
     };
 
     private readonly TextBox _log = new()
     {
+        Dock = DockStyle.Fill,
         Multiline = true,
         ReadOnly = true,
+        BorderStyle = BorderStyle.None,
         ScrollBars = ScrollBars.Vertical,
-        Dock = DockStyle.Bottom,
-        Height = 160,
-        Font = new Font("Consolas", 9)
+        BackColor = Theme.LogBack,
+        ForeColor = Theme.Text,
+        Font = Theme.Log
     };
 
-    private readonly Button _connectButton = new() { Text = "Подключить", Width = 140, Height = 34 };
-    private readonly CheckBox _proxyCheck = new() { Text = "Системный прокси", AutoSize = true, Margin = new Padding(12, 9, 3, 3) };
-    private readonly Label _status = new() { Text = "Отключено", AutoSize = true, Margin = new Padding(12, 10, 3, 3) };
+    private readonly ContextMenuStrip _cardMenu = new();
+    private readonly List<ServerCard> _cards = new();
+    private IconButton _logButton = null!;
 
+    private ProxyServer? _selected;
     private ProxyServer? _active;
+    private ServerCard? _menuCard;
+    private DateTime _connectedAt;
     private bool _proxyEnabledByUs;
 
     public MainForm()
     {
-        Text = "VpnClient";
-        ClientSize = new Size(900, 600);
-        MinimumSize = new Size(640, 400);
+        Text = "Tunnelka";
+        ClientSize = new Size(1080, 720);
+        MinimumSize = new Size(880, 600);
         StartPosition = FormStartPosition.CenterScreen;
+        BackColor = Theme.Window;
+        Font = Theme.Body;
+        KeyPreview = true;
+        Icon = LogoView.CreateAppIcon() ?? Icon;
 
-        _list.Columns.Add("Имя", 320);
-        _list.Columns.Add("Адрес", 240);
-        _list.Columns.Add("Протокол", 90);
-        _list.Columns.Add("Пинг", 100);
+        BuildLayout();
+        BuildCardMenu();
 
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(6) };
-        toolbar.Controls.Add(MakeButton("Вставить из буфера", PasteFromClipboard));
-        toolbar.Controls.Add(MakeButton("Добавить подписку", AddSubscription));
-        toolbar.Controls.Add(MakeButton("Обновить подписки", async () => await UpdateSubscriptions()));
-        toolbar.Controls.Add(MakeButton("Пинг", async () => await PingAll()));
-        toolbar.Controls.Add(MakeButton("Удалить", DeleteSelected));
-
-        var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(6) };
-        bottom.Controls.AddRange(new Control[] { _connectButton, _proxyCheck, _status });
-
-        Controls.Add(_list);
-        Controls.Add(_log);
-        Controls.Add(bottom);
-        Controls.Add(toolbar);
-
-        _proxyCheck.Checked = _data.UseSystemProxy;
-        _proxyCheck.CheckedChanged += (_, _) => OnProxyCheckChanged();
-        _connectButton.Click += (_, _) => ToggleConnection();
-        _list.DoubleClick += (_, _) => Connect();
+        _hero.ProxyEnabled = _data.UseSystemProxy;
+        _hero.PowerClicked += (_, _) => ToggleConnection();
+        _hero.PingClicked += async (_, _) => await PingCurrent();
+        _hero.ProxyToggled += (_, _) => ToggleSystemProxy();
+        _search.QueryChanged += (_, _) => ApplyFilter();
+        _list.Resize += (_, _) => ResizeCards();
+        _clock.Tick += (_, _) => UpdateClock();
         _xray.Output += Log;
         _xray.Exited += OnXrayExited;
+        KeyDown += OnKeyDown;
         FormClosing += (_, _) => Disconnect();
 
-        RefreshList();
-        SelectLastServer();
+        _selected = _data.Servers.FirstOrDefault(s => s.Link == _data.LastServerLink) ?? _data.Servers.FirstOrDefault();
+        RebuildList();
+        UpdateHero();
     }
 
-    private static Button MakeButton(string text, Action onClick)
+    private void BuildLayout()
     {
-        var button = new Button { Text = text, AutoSize = true, Height = 30 };
-        button.Click += (_, _) => onClick();
-        return button;
+        var sidebar = new Panel { Dock = DockStyle.Left, Width = 68, BackColor = Theme.Sidebar };
+        sidebar.Controls.Add(new LogoView { Location = new Point(12, 18) });
+
+        var buttons = new (IconKind Kind, string Tip, Action OnClick)[]
+        {
+            (IconKind.Add, "Вставить из буфера (Ctrl+V)", PasteFromClipboard),
+            (IconKind.Link, "Добавить подписку", AddSubscription),
+            (IconKind.Refresh, "Обновить подписки", async () => await UpdateSubscriptions()),
+            (IconKind.Gauge, "Пинг всех серверов", async () => await PingAll()),
+            (IconKind.Log, "Журнал", ToggleLog)
+        };
+
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            var (kind, tip, onClick) = buttons[i];
+            var button = new IconButton(kind) { Location = new Point(12, 92 + i * 54) };
+            button.Click += (_, _) => onClick();
+            _tips.SetToolTip(button, tip);
+            sidebar.Controls.Add(button);
+            if (kind == IconKind.Log)
+                _logButton = button;
+        }
+
+        var listPanel = new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 410,
+            BackColor = Theme.Surface,
+            Padding = new Padding(22, 20, 14, 10)
+        };
+
+        var title = new Label
+        {
+            Text = "Серверы",
+            Dock = DockStyle.Top,
+            Height = 52,
+            Font = Theme.Title,
+            ForeColor = Theme.Text,
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+
+        var gap = new Panel { Dock = DockStyle.Top, Height = 8 };
+
+        listPanel.Controls.Add(_list);
+        listPanel.Controls.Add(_countLabel);
+        listPanel.Controls.Add(gap);
+        listPanel.Controls.Add(_search);
+        listPanel.Controls.Add(title);
+
+        var divider = new Panel { Dock = DockStyle.Left, Width = 1, BackColor = Theme.Border };
+
+        var right = new Panel { Dock = DockStyle.Fill };
+        _logPanel.Controls.Add(_log);
+        right.Controls.Add(_hero);
+        right.Controls.Add(_logPanel);
+
+        Controls.Add(right);
+        Controls.Add(divider);
+        Controls.Add(listPanel);
+        Controls.Add(sidebar);
+    }
+
+    private void BuildCardMenu()
+    {
+        _cardMenu.Items.Add("Подключиться", null, (_, _) =>
+        {
+            if (_menuCard == null)
+                return;
+            Select(_menuCard.Server);
+            Connect();
+        });
+        _cardMenu.Items.Add("Удалить", null, (_, _) =>
+        {
+            if (_menuCard != null)
+                Delete(_menuCard.Server);
+        });
+        _cardMenu.Opening += (_, _) => _menuCard = _cardMenu.SourceControl as ServerCard;
+    }
+
+    private void RebuildList()
+    {
+        _list.SuspendLayout();
+        foreach (var card in _cards)
+            card.Dispose();
+        _list.Controls.Clear();
+        _cards.Clear();
+
+        foreach (var server in _data.Servers)
+        {
+            var card = new ServerCard(server) { ContextMenuStrip = _cardMenu };
+            card.Click += (_, _) => Select(server);
+            card.DoubleClick += (_, _) =>
+            {
+                Select(server);
+                Connect();
+            };
+            _cards.Add(card);
+        }
+
+        _list.Controls.AddRange(_cards.ToArray());
+        UpdateCards();
+        ApplyFilter();
+        ResizeCards();
+        _list.ResumeLayout();
+
+        _countLabel.Text = _data.Servers.Count == 0
+            ? "Нажми + или Ctrl+V, чтобы добавить ключ"
+            : ServerText.Plural(_data.Servers.Count, "сервер", "сервера", "серверов").ToUpperInvariant();
+    }
+
+    private void UpdateCards()
+    {
+        foreach (var card in _cards)
+        {
+            card.IsSelected = card.Server == _selected;
+            card.IsActive = card.Server == _active;
+            card.Invalidate();
+        }
+    }
+
+    private void ResizeCards()
+    {
+        var width = _list.Width - SystemInformation.VerticalScrollBarWidth - 6;
+        if (width <= 0)
+            return;
+
+        foreach (var card in _cards)
+            card.Width = width;
+    }
+
+    private void ApplyFilter()
+    {
+        var query = _search.Query;
+        foreach (var card in _cards)
+        {
+            card.Visible = query.Length == 0
+                || card.DisplayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
+                || card.Server.Address.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+    }
+
+    private void Select(ProxyServer server)
+    {
+        _selected = server;
+        UpdateCards();
+        UpdateHero();
+    }
+
+    private void UpdateHero()
+    {
+        var server = _active ?? _selected;
+        if (server == null)
+        {
+            _hero.SetServer("", null);
+            _hero.SetPing("", Theme.TextMuted);
+            return;
+        }
+
+        _hero.SetServer(ServerText.CleanName(server), ServerText.CountryCode(server.Name));
+        var ping = server.PingMs switch
+        {
+            null => "",
+            < 0 => "Сервер не ответил",
+            var ms => $"Пинг {ms} мс"
+        };
+        _hero.SetPing(ping, Theme.PingColor(server.PingMs));
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (ActiveControl is TextBoxBase)
+            return;
+
+        if (e.KeyCode == Keys.Delete && _selected != null)
+        {
+            Delete(_selected);
+            e.Handled = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.V)
+        {
+            PasteFromClipboard();
+            e.Handled = true;
+        }
     }
 
     private void PasteFromClipboard()
@@ -112,12 +312,15 @@ public class MainForm : Form
         if (servers.Count == 0)
         {
             Log("В буфере нет поддерживаемых ссылок (vless, vmess, trojan, ss)");
+            ShowLog(true);
             return;
         }
 
         _data.Servers.AddRange(servers);
+        _selected ??= servers[0];
         Save();
-        RefreshList();
+        RebuildList();
+        UpdateHero();
         Log($"Добавлено серверов: {servers.Count}");
     }
 
@@ -156,42 +359,59 @@ public class MainForm : Form
             var servers = await SubscriptionLoader.LoadAsync(url);
             _data.Servers.RemoveAll(s => s.SubscriptionUrl == url && s != _active);
             _data.Servers.AddRange(servers);
+            if (_selected == null || !_data.Servers.Contains(_selected))
+                _selected = servers.FirstOrDefault() ?? _data.Servers.FirstOrDefault();
             Save();
-            RefreshList();
+            RebuildList();
+            UpdateHero();
             Log($"Из подписки получено серверов: {servers.Count}");
         }
         catch (Exception ex)
         {
             Log($"Ошибка подписки: {ex.Message}");
+            ShowLog(true);
         }
     }
 
     private async Task PingAll()
     {
         Log("Проверяю пинг...");
-        var tasks = _data.Servers.Select(async server =>
-        {
-            var ms = await Pinger.TcpPingAsync(server.Address, server.Port);
-            server.PingText = ms is int value ? $"{value} мс" : "нет ответа";
-        });
-
-        await Task.WhenAll(tasks);
-        RefreshList();
+        await Task.WhenAll(_data.Servers.Select(PingServer));
+        UpdateCards();
+        UpdateHero();
         Log("Пинг готов");
     }
 
-    private void DeleteSelected()
+    private async Task PingCurrent()
     {
-        var selected = SelectedServers();
-        if (selected.Count == 0)
+        var server = _active ?? _selected;
+        if (server == null)
             return;
 
-        foreach (var server in selected)
-            _data.Servers.Remove(server);
+        _hero.SetPing("Проверяю...", Theme.TextMuted);
+        await PingServer(server);
+        UpdateCards();
+        UpdateHero();
+    }
+
+    private static async Task PingServer(ProxyServer server)
+    {
+        var ms = await Pinger.TcpPingAsync(server.Address, server.Port);
+        server.PingMs = ms ?? -1;
+    }
+
+    private void Delete(ProxyServer server)
+    {
+        if (server == _active)
+            Disconnect();
+
+        _data.Servers.Remove(server);
+        if (_selected == server)
+            _selected = _data.Servers.FirstOrDefault();
 
         Save();
-        RefreshList();
-        Log($"Удалено серверов: {selected.Count}");
+        RebuildList();
+        UpdateHero();
     }
 
     private void ToggleConnection()
@@ -204,12 +424,9 @@ public class MainForm : Form
 
     private void Connect()
     {
-        var server = SelectedServers().FirstOrDefault();
+        var server = _selected;
         if (server == null)
-        {
-            MessageBox.Show(this, "Выбери сервер в списке", "VpnClient");
             return;
-        }
 
         try
         {
@@ -217,31 +434,35 @@ public class MainForm : Form
         }
         catch (FileNotFoundException)
         {
-            MessageBox.Show(this, $"Не найден {XrayRunner.XrayPath}", "VpnClient", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, $"Не найден {XrayRunner.XrayPath}", "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         catch (Exception ex)
         {
             Log($"Не удалось запустить xray: {ex.Message}");
+            ShowLog(true);
             return;
         }
 
         _active = server;
+        _connectedAt = DateTime.Now;
         _data.LastServerLink = server.Link;
         Save();
-
         ApplySystemProxy();
 
-        _connectButton.Text = "Отключить";
-        _status.Text = $"Подключено: {server.Name}";
-        Log($"Подключено к {server.Name}. SOCKS 127.0.0.1:{XrayConfigBuilder.SocksPort}, HTTP 127.0.0.1:{XrayConfigBuilder.HttpPort}");
-        RefreshList();
+        _hero.ElapsedText = "00:00:00";
+        _hero.Connected = true;
+        _clock.Start();
+        UpdateCards();
+        UpdateHero();
+        Log($"Подключено к {ServerText.CleanName(server)}. SOCKS 127.0.0.1:{XrayConfigBuilder.SocksPort}, HTTP 127.0.0.1:{XrayConfigBuilder.HttpPort}");
     }
 
     private void Disconnect()
     {
         var wasRunning = _xray.IsRunning;
         _xray.Stop();
+        _clock.Stop();
 
         if (_proxyEnabledByUs)
         {
@@ -250,14 +471,21 @@ public class MainForm : Form
         }
 
         _active = null;
-        _connectButton.Text = "Подключить";
-        _status.Text = "Отключено";
+        if (IsDisposed)
+            return;
+
+        _hero.Connected = false;
+        UpdateCards();
+        UpdateHero();
 
         if (wasRunning)
             Log("Отключено");
+    }
 
-        if (!IsDisposed)
-            RefreshList();
+    private void UpdateClock()
+    {
+        var elapsed = DateTime.Now - _connectedAt;
+        _hero.ElapsedText = $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
     }
 
     private void OnXrayExited()
@@ -271,13 +499,15 @@ public class MainForm : Form
             return;
         }
 
-        Log("Xray завершился. Причина обычно видна в строках лога выше");
+        Log("Xray завершился. Причина обычно видна в строках выше");
         Disconnect();
+        ShowLog(true);
     }
 
-    private void OnProxyCheckChanged()
+    private void ToggleSystemProxy()
     {
-        _data.UseSystemProxy = _proxyCheck.Checked;
+        _data.UseSystemProxy = !_data.UseSystemProxy;
+        _hero.ProxyEnabled = _data.UseSystemProxy;
         Save();
 
         if (_xray.IsRunning)
@@ -288,7 +518,7 @@ public class MainForm : Form
     {
         try
         {
-            if (_proxyCheck.Checked)
+            if (_data.UseSystemProxy)
             {
                 SystemProxy.Enable($"127.0.0.1:{XrayConfigBuilder.HttpPort}");
                 _proxyEnabledByUs = true;
@@ -307,41 +537,12 @@ public class MainForm : Form
         }
     }
 
-    private List<ProxyServer> SelectedServers() =>
-        _list.SelectedItems.Cast<ListViewItem>().Select(item => (ProxyServer)item.Tag!).ToList();
+    private void ToggleLog() => ShowLog(!_logPanel.Visible);
 
-    private void RefreshList()
+    private void ShowLog(bool visible)
     {
-        var selected = SelectedServers();
-
-        _list.BeginUpdate();
-        _list.Items.Clear();
-
-        foreach (var server in _data.Servers)
-        {
-            var name = server == _active ? $"● {server.Name}" : server.Name;
-            var item = new ListViewItem(new[] { name, $"{server.Address}:{server.Port}", server.Protocol, server.PingText })
-            {
-                Tag = server,
-                Selected = selected.Contains(server)
-            };
-            _list.Items.Add(item);
-        }
-
-        _list.EndUpdate();
-    }
-
-    private void SelectLastServer()
-    {
-        foreach (ListViewItem item in _list.Items)
-        {
-            if (((ProxyServer)item.Tag!).Link == _data.LastServerLink)
-            {
-                item.Selected = true;
-                item.EnsureVisible();
-                return;
-            }
-        }
+        _logPanel.Visible = visible;
+        _logButton.Active = visible;
     }
 
     private void Save()
@@ -358,12 +559,13 @@ public class MainForm : Form
 
     private void Log(string text)
     {
-        if (IsDisposed || !IsHandleCreated && InvokeRequired)
+        if (IsDisposed)
             return;
 
         if (InvokeRequired)
         {
-            BeginInvoke(new Action(() => Log(text)));
+            if (IsHandleCreated)
+                BeginInvoke(new Action(() => Log(text)));
             return;
         }
 
