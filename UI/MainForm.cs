@@ -15,6 +15,14 @@ public class MainForm : Form, IMessageFilter
     private readonly TrafficMonitor _traffic = new();
     private readonly System.Windows.Forms.Timer _clock = new() { Interval = 1000 };
 
+    private readonly NotifyIcon _tray = new()
+    {
+        Icon = LogoView.CreateAppIcon() ?? SystemIcons.Application,
+        Text = "Tunnelka",
+        ContextMenuStrip = new ContextMenuStrip(),
+        Visible = true
+    };
+
     private readonly HeroView _hero = new() { Dock = DockStyle.Fill };
     private readonly TipBubble _tip = new();
     private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(410), Padding = Theme.Px(22, 20, 14, 10) };
@@ -55,6 +63,7 @@ public class MainForm : Form, IMessageFilter
     private ServerCard? _menuCard;
     private DateTime _connectedAt;
     private bool _proxyEnabledByUs;
+    private bool _exiting;
     private TrafficCounters _lastCounters = new();
     private readonly List<(double Down, double Up)> _speedSamples = new();
     private int _speedTick;
@@ -82,6 +91,22 @@ public class MainForm : Form, IMessageFilter
         _pingPage = new PingPage(_data.RealPing, _data.PingUrl, () => ShowPage(IconKind.Settings));
 
         BuildLayout();
+
+        _tray.MouseClick += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Left)
+                return;
+
+            Show();
+            WindowState = FormWindowState.Normal;
+            Activate();
+        };
+        _tray.ContextMenuStrip.Items.Add("Выход", null, (_, _) =>
+        {
+            _exiting = true;
+            Close();
+        });
+
         BuildCardMenu();
         BuildSubscriptionMenu();
         _autoUpdate.Tick += async (_, _) => await AutoUpdateSubscriptions();
@@ -123,7 +148,17 @@ public class MainForm : Form, IMessageFilter
         _singBox.Output += line => Log("[tun] " + line);
         _singBox.Exited += OnXrayExited;
         KeyDown += OnKeyDown;
-        FormClosing += (_, _) => Disconnect();
+        FormClosing += (_, e) =>
+        {
+            if (!_exiting && e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                Hide();
+                return;
+            }
+
+            Disconnect();
+        };
         Application.AddMessageFilter(this);
         FormClosed += (_, _) =>
         {
@@ -131,6 +166,7 @@ public class MainForm : Form, IMessageFilter
             _autoUpdate.Dispose();
             _clock.Dispose();
             _scaleDelay.Dispose();
+            _tray.Dispose();
             _traffic.Dispose();
         };
 
@@ -166,6 +202,7 @@ public class MainForm : Form, IMessageFilter
 
     public bool PrepareForReplace()
     {
+        _exiting = true;
         var wasConnected = _xray.IsRunning;
         Disconnect();
         return wasConnected;
