@@ -22,6 +22,17 @@ public class ScaleStepper : Control
 
     public int Value => _value;
 
+    public void SetValue(int value)
+    {
+        value = Math.Max(Min, Math.Min(Max, value));
+        if (value == _value)
+            return;
+
+        _value = value;
+        Invalidate();
+        ValueChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     private float W => Width / Theme.S;
     private float H => Height / Theme.S;
 
