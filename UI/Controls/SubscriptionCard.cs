@@ -5,11 +5,8 @@ using VpnClient.Models;
 
 namespace VpnClient.UI.Controls;
 
-public class SubscriptionCard : Control
+public class SubscriptionCard : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     private const float Pad = 16;
     private const float LineHeight = 21;
     private const float SymbolSize = 16;
@@ -27,8 +24,6 @@ public class SubscriptionCard : Control
     public SubscriptionCard(SubscriptionInfo info)
     {
         Info = info;
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Margin = Theme.Px(0, 4, 0, 10);
         Height = Theme.Px(120);
     }
@@ -154,10 +149,8 @@ public class SubscriptionCard : Control
         return lines;
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void Draw(Graphics g)
     {
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.Surface);
         _hits.Clear();
 
         var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);

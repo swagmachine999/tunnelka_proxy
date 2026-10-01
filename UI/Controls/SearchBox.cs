@@ -1,10 +1,7 @@
 namespace VpnClient.UI.Controls;
 
-public class SearchBox : Control
+public class SearchBox : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     private readonly TextBox _box = new()
     {
         BorderStyle = BorderStyle.None,
@@ -33,8 +30,6 @@ public class SearchBox : Control
         Theme.Bind(_box, () => Theme.Card, () => Theme.Text);
         Theme.Bind(_placeholder, () => Theme.Card, () => Theme.TextMuted);
         Theme.Bind(this, () => Theme.Surface);
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BackColor = Theme.Surface;
         Height = Theme.Px(42);
 
@@ -68,11 +63,8 @@ public class SearchBox : Control
         _placeholder.SetBounds(left, top, Width - left - Theme.Px(14), height);
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void Draw(Graphics g)
     {
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.Surface);
-
         var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, Theme.Card, rect, 12);
         Theme.DrawRounded(g, _box.Focused ? Theme.Accent : Theme.Border, rect, 12, _box.Focused ? 1.6f : 1f);
