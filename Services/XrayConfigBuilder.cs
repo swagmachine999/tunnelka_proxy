@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using VpnClient.Models;
@@ -8,9 +9,40 @@ namespace VpnClient.Services;
 
 public static class XrayConfigBuilder
 {
-    public const int SocksPort = 10808;
-    public const int HttpPort = 10809;
-    public const int MetricsPort = 10813;
+    public const int PreferredSocksPort = 10808;
+
+    public static int SocksPort { get; private set; } = PreferredSocksPort;
+    public static int HttpPort { get; private set; } = PreferredSocksPort + 1;
+    public static int MetricsPort { get; private set; } = PreferredSocksPort + 5;
+
+    public static void ChoosePorts()
+    {
+        for (var start = PreferredSocksPort; start < PreferredSocksPort + 200; start += 10)
+        {
+            if (IsFree(start) && IsFree(start + 1) && IsFree(start + 5))
+            {
+                SocksPort = start;
+                HttpPort = start + 1;
+                MetricsPort = start + 5;
+                return;
+            }
+        }
+    }
+
+    private static bool IsFree(int port)
+    {
+        try
+        {
+            var listener = new TcpListener(IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+    }
 
     public static string Build(ProxyServer server, IEnumerable<RoutingRule> rules)
     {
