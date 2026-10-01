@@ -21,7 +21,7 @@ public static class NamePainter
 
         var x = bounds.X;
         var cy = bounds.Y + bounds.Height / 2;
-        var symbolSize = font.Size * 1.05f;
+        var symbolSize = font.Size * 1.15f;
 
         foreach (var part in parts)
         {
@@ -46,28 +46,32 @@ public static class NamePainter
     }
 
     private static float PartWidth(Graphics g, NamePart part, Font font) =>
-        part.IsSymbol ? font.Size * 1.05f : g.MeasureString(part.Text, font).Width - 1;
+        part.IsSymbol ? font.Size * 1.15f : g.MeasureString(part.Text, font).Width - 1;
 
     private static void DrawSymbol(Graphics g, string symbol, RectangleF r, Color textColor)
     {
-        switch (symbol)
+        if (symbol == "\u267E" || symbol == "\u267E\uFE0F")
         {
-            case "⭐":
-            case "\U0001F31F":
-            case "★":
-                DrawStar(g, r);
-                break;
-            case "♾":
-                DrawInfinity(g, r);
-                break;
-            default:
-                using (var font = new Font("Segoe UI Emoji", r.Height * 0.78f, FontStyle.Regular, GraphicsUnit.Pixel))
-                {
-                    TextRenderer.DrawText(g, symbol, font, Rectangle.Round(new RectangleF(r.X - 4, r.Y - 2, r.Width + 8, r.Height + 4)),
-                        textColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-                }
-                break;
+            DrawInfinity(g, r);
+            return;
         }
+
+        var image = Emoji.Get(symbol);
+        if (image != null)
+        {
+            g.DrawImage(image, r);
+            return;
+        }
+
+        if (symbol.StartsWith("\u2B50") || symbol.StartsWith("\u2605"))
+        {
+            DrawStar(g, r);
+            return;
+        }
+
+        using var font = new Font("Segoe UI Emoji", r.Height * 0.78f, FontStyle.Regular, GraphicsUnit.Pixel);
+        TextRenderer.DrawText(g, symbol, font, Rectangle.Round(new RectangleF(r.X - 4, r.Y - 2, r.Width + 8, r.Height + 4)),
+            textColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
     }
 
     private static void DrawStar(Graphics g, RectangleF r)

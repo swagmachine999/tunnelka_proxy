@@ -15,10 +15,19 @@ public class Segmented : Control
         Cursor = Cursors.Hand;
     }
 
+    public event EventHandler? SelectedIndexChanged;
+
     public int SelectedIndex
     {
         get => _selected;
-        set { _selected = value; Invalidate(); }
+        set
+        {
+            if (_selected == value)
+                return;
+            _selected = value;
+            Invalidate();
+            SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private RectangleF Segment(int index)
@@ -31,7 +40,7 @@ public class Segmented : Control
     {
         var g = e.Graphics;
         Theme.Smooth(g);
-        g.Clear(Theme.Surface);
+        g.Clear(Parent?.BackColor ?? Theme.Surface);
 
         var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
         Theme.FillRounded(g, Theme.Card, rect, 12);

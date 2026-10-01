@@ -93,23 +93,6 @@ public class IconButton : Control
                 g.FillEllipse(fill, cx + 7, cy - 9, 4, 4);
                 break;
 
-            case IconKind.Routing:
-                g.DrawLine(pen, cx, cy + 10, cx, cy + 1);
-                g.DrawBezier(pen, cx, cy + 1, cx, cy - 4, cx - 7, cy - 3, cx - 7, cy - 9);
-                g.DrawBezier(pen, cx, cy + 1, cx, cy - 4, cx + 7, cy - 3, cx + 7, cy - 9);
-                g.FillEllipse(fill, cx - 9.5f, cy - 11.5f, 5, 5);
-                g.FillEllipse(fill, cx + 4.5f, cy - 11.5f, 5, 5);
-                break;
-
-            case IconKind.Log:
-                for (var i = -1; i <= 1; i++)
-                {
-                    var y = cy + i * 6;
-                    g.DrawLine(pen, cx - 3, y, cx + 9, y);
-                    g.FillEllipse(fill, cx - 10, y - 1.5f, 3, 3);
-                }
-                break;
-
             case IconKind.Settings:
                 using (var teeth = new Pen(color, 3.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
                 {

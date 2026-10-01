@@ -38,7 +38,7 @@ public class MainForm : Form
     };
 
     private readonly StatsView _stats = new() { Dock = DockStyle.Fill };
-    private readonly LogPage _logPage = new();
+    private readonly LogPage _logPage;
     private readonly RoutingPage _routingPage;
     private readonly SettingsPage _settingsPage;
 
@@ -51,6 +51,8 @@ public class MainForm : Form
     private DateTime _connectedAt;
     private bool _proxyEnabledByUs;
     private TrafficCounters _lastCounters = new();
+    private readonly List<(double Down, double Up)> _speedSamples = new();
+    private int _speedTick;
 
     public MainForm()
     {
@@ -65,8 +67,9 @@ public class MainForm : Form
         Icon = LogoView.CreateAppIcon() ?? Icon;
         Theme.Bind(this, () => Theme.Window);
 
-        _routingPage = new RoutingPage(_data.Rules);
-        _settingsPage = new SettingsPage(_data.DarkTheme, _data.UseSystemProxy);
+        _logPage = new LogPage(() => ShowPage(IconKind.Settings));
+        _routingPage = new RoutingPage(_data.Rules, () => ShowPage(IconKind.Settings));
+        _settingsPage = new SettingsPage(_data.DarkTheme, _data.UseSystemProxy, _data.SpeedInterval);
 
         BuildLayout();
         BuildCardMenu();
@@ -78,6 +81,14 @@ public class MainForm : Form
         _hero.ProxyToggled += (_, _) => SetSystemProxy(!_data.UseSystemProxy);
         _settingsPage.ProxyToggle.CheckedChanged += (_, _) => SetSystemProxy(_settingsPage.ProxyToggle.Checked);
         _settingsPage.DarkToggle.CheckedChanged += (_, _) => SetDarkTheme(_settingsPage.DarkToggle.Checked);
+        _settingsPage.RoutingRow.Click += (_, _) => ShowPage(IconKind.Routing);
+        _settingsPage.LogRow.Click += (_, _) => ShowPage(IconKind.Log);
+        _settingsPage.SpeedSelector.SelectedIndexChanged += (_, _) =>
+        {
+            _data.SpeedInterval = _settingsPage.SpeedInterval;
+            _speedTick = 0;
+            Save();
+        };
         _routingPage.RulesChanged += (_, _) => OnRulesChanged();
         _search.QueryChanged += (_, _) => ApplyFilter();
         _list.Resize += (_, _) => ResizeCards();
@@ -117,9 +128,7 @@ public class MainForm : Form
         var nav = new (IconKind Kind, string Title)[]
         {
             (IconKind.Servers, "Серверы"),
-            (IconKind.Stats, "Статистика"),
-            (IconKind.Routing, "Маршрутизация"),
-            (IconKind.Log, "Журнал")
+            (IconKind.Stats, "Статистика")
         };
 
         for (var i = 0; i < nav.Length; i++)
@@ -188,8 +197,9 @@ public class MainForm : Form
         foreach (var pair in _pages)
             pair.Value.Visible = pair.Key == kind;
 
+        var active = kind is IconKind.Routing or IconKind.Log ? IconKind.Settings : kind;
         foreach (var button in _navButtons)
-            button.Active = button.Kind == kind;
+            button.Active = button.Kind == active;
     }
 
     private void BuildCardMenu()
@@ -497,6 +507,9 @@ public class MainForm : Form
         _active = server;
         _connectedAt = DateTime.Now;
         _lastCounters = new TrafficCounters();
+        _speedSamples.Clear();
+        _speedTick = 0;
+        _hero.SetSpeed(ServerText.Bytes(0) + "/с", ServerText.Bytes(0) + "/с");
         _data.LastServerLink = server.Link;
         Save();
         ApplySystemProxy();
@@ -552,6 +565,7 @@ public class MainForm : Form
             return;
 
         _hero.Connected = false;
+        _hero.SetSpeed(null, null);
         _stats.SetConnected(false);
         UpdateCards();
         UpdateHero();
@@ -584,6 +598,24 @@ public class MainForm : Form
 
         _stats.Push(counters, down, up);
         _stats.SetTotals(_data.TotalDownload, _data.TotalUpload);
+        UpdateSpeed(down, up);
+    }
+
+    private void UpdateSpeed(double down, double up)
+    {
+        var interval = _data.SpeedInterval;
+        _speedSamples.Add((down, up));
+        if (_speedSamples.Count > interval)
+            _speedSamples.RemoveRange(0, _speedSamples.Count - interval);
+
+        _speedTick++;
+        if (_speedTick < interval)
+            return;
+
+        _speedTick = 0;
+        _hero.SetSpeed(
+            ServerText.Bytes(_speedSamples.Average(s => s.Down)) + "/с",
+            ServerText.Bytes(_speedSamples.Average(s => s.Up)) + "/с");
     }
 
     private void UpdateClock()
