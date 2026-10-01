@@ -7,6 +7,7 @@ public enum IconKind
     Add,
     Servers,
     Stats,
+    Gauge,
     Routing,
     Log,
     Settings
@@ -28,6 +29,7 @@ public class IconButton : Control
     }
 
     public IconKind Kind { get; }
+    public Func<Color> Background { get; set; } = () => Theme.Sidebar;
     public string Title { get; }
 
     public bool Active
@@ -54,7 +56,7 @@ public class IconButton : Control
     {
         var g = e.Graphics;
         Theme.Smooth(g);
-        g.Clear(Theme.Sidebar);
+        g.Clear(Background());
 
         var rect = new RectangleF(0, 0, Width - 1, Height - 1);
         if (_active)
@@ -91,6 +93,12 @@ public class IconButton : Control
                     new PointF(cx + 2, cy + 1), new PointF(cx + 9, cy - 7)
                 });
                 g.FillEllipse(fill, cx + 7, cy - 9, 4, 4);
+                break;
+
+            case IconKind.Gauge:
+                g.DrawArc(pen, cx - 10, cy - 8, 20, 20, 180, 180);
+                g.DrawLine(pen, cx, cy + 2, cx + 5, cy - 4);
+                g.FillEllipse(fill, cx - 2.5f, cy - 0.5f, 5, 5);
                 break;
 
             case IconKind.Settings:
