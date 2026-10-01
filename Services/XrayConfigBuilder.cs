@@ -178,11 +178,13 @@ public static class XrayConfigBuilder
         }
     };
 
-    private static JsonObject Outbound(ProxyServer server)
+    private static JsonObject Outbound(ProxyServer server) => Outbound(server, "proxy");
+
+    public static JsonObject Outbound(ProxyServer server, string tag)
     {
         var outbound = new JsonObject
         {
-            ["tag"] = "proxy",
+            ["tag"] = tag,
             ["protocol"] = server.Protocol == "ss" ? "shadowsocks" : server.Protocol,
             ["settings"] = Settings(server)
         };

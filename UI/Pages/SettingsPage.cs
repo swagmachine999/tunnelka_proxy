@@ -80,7 +80,7 @@ public class SettingsPage : Panel
 {
     private static readonly int[] Intervals = { 3, 5, 10 };
 
-    public SettingsPage(bool dark, bool proxy, int speedInterval)
+    public SettingsPage(bool dark, bool proxy, int speedInterval, bool realPing)
     {
         Dock = DockStyle.Fill;
         AutoScroll = true;
@@ -93,12 +93,15 @@ public class SettingsPage : Panel
 
         RoutingRow = new SettingRow("Маршрутизация", "Какие сайты идут напрямую, через VPN или в блок", chevron: true);
         LogRow = new SettingRow("Журнал", "Сообщения приложения и Xray", chevron: true);
+        PingRow = new SettingRow("Пинг", "", chevron: true);
+        ShowPingMode(realPing);
 
         PortsRow = new SettingRow("Порты", "");
         ShowPorts(10808, 10809);
         Controls.Add(PortsRow);
         Controls.Add(LogRow);
         Controls.Add(RoutingRow);
+        Controls.Add(PingRow);
         Controls.Add(new SettingRow("Скорость в окне", "Как часто обновлять", SpeedSelector));
         Controls.Add(new SettingRow("Системный прокси", "Браузер и программы пойдут через VPN", ProxyToggle));
         Controls.Add(new SettingRow("Тёмная тема", "Мягкие тёмные цвета", DarkToggle));
@@ -112,6 +115,13 @@ public class SettingsPage : Panel
     public SettingRow RoutingRow { get; }
     public SettingRow LogRow { get; }
     public SettingRow PortsRow { get; }
+    public SettingRow PingRow { get; }
+
+    public void ShowPingMode(bool real)
+    {
+        PingRow.Subtitle = real ? "Реальный, через VPN" : "Быстрый, TCP";
+        PingRow.Invalidate();
+    }
 
     public void ShowPorts(int socks, int http)
     {
@@ -167,4 +177,56 @@ public class LogPage : Panel
     public TextBox Box => _log;
 
     public void Append(string line) => _log.AppendText(line + Environment.NewLine);
+}
+
+public class PingPage : Panel
+{
+    public event EventHandler? Changed;
+
+    public PingPage(bool real, string url, Action onBack)
+    {
+        Dock = DockStyle.Fill;
+        Theme.Bind(this, () => Theme.Surface);
+
+        Mode = new Segmented("Реальный (через VPN)", "Быстрый (TCP)") { Dock = DockStyle.Top, Height = 40 };
+        Mode.SelectedIndex = real ? 0 : 1;
+        Mode.SelectedIndexChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+
+        Url = new SearchBox(RealPingDefault, false) { Dock = DockStyle.Top };
+        Url.SetText(url);
+        Url.QueryChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+
+        var reset = PageParts.Button("Сбросить адрес", false);
+        reset.Dock = DockStyle.Left;
+        reset.Width = 150;
+        reset.Click += (_, _) => Url.SetText(RealPingDefault);
+        var resetRow = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = 44, Padding = new Padding(0, 8, 0, 2) }, () => Theme.Surface);
+        resetRow.Controls.Add(reset);
+
+        Controls.Add(resetRow);
+        Controls.Add(Url);
+        Controls.Add(PageParts.Caption("Тестовый адрес для реального пинга", 30));
+        Controls.Add(Theme.Bind(new Panel { Dock = DockStyle.Top, Height = 10 }, () => Theme.Surface));
+        Controls.Add(Wrapped("Быстрый: проверяет только, открыт ли порт сервера. Мгновенно, но может показать пинг у сервера, через который VPN не работает.", 54));
+        Controls.Add(Wrapped("Реальный: запрос идёт через сам сервер, как при работе VPN. Делается два запроса, берётся лучший. Нерабочий сервер покажет n/a.", 54));
+        Controls.Add(Theme.Bind(new Panel { Dock = DockStyle.Top, Height = 8 }, () => Theme.Surface));
+        Controls.Add(Mode);
+        Controls.Add(PageParts.Caption("Тип пинга", 30));
+        Controls.Add(PageParts.Header("Пинг", onBack));
+    }
+
+    public const string RealPingDefault = "https://www.gstatic.com/generate_204";
+
+    public Segmented Mode { get; }
+    public SearchBox Url { get; }
+
+    public bool IsReal => Mode.SelectedIndex == 0;
+
+    private static Label Wrapped(string text, int height)
+    {
+        var label = PageParts.Caption(text, height);
+        label.TextAlign = ContentAlignment.TopLeft;
+        label.Padding = new Padding(0, 4, 0, 0);
+        return label;
+    }
 }
