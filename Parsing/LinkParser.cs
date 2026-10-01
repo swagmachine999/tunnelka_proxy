@@ -30,6 +30,23 @@ public static class LinkParser
         return server;
     }
 
+    public static List<ProxyServer> ParseInput(string text)
+    {
+        text = text.Trim();
+        if (!text.Contains("://"))
+        {
+            try
+            {
+                text = Base64Helper.Decode(text);
+            }
+            catch (FormatException)
+            {
+            }
+        }
+
+        return ParseMany(text);
+    }
+
     public static List<ProxyServer> ParseMany(string text)
     {
         var result = new List<ProxyServer>();
