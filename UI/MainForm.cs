@@ -3,6 +3,7 @@ using VpnClient.Parsing;
 using VpnClient.Services;
 using VpnClient.Storage;
 using VpnClient.UI.Controls;
+using VpnClient.UI.Pages;
 
 namespace VpnClient.UI;
 
@@ -10,16 +11,20 @@ public class MainForm : Form
 {
     private readonly AppData _data = AppStorage.Load();
     private readonly XrayRunner _xray = new();
+    private readonly TrafficMonitor _traffic = new();
     private readonly System.Windows.Forms.Timer _clock = new() { Interval = 1000 };
-    private readonly ToolTip _tips = new();
 
     private readonly HeroView _hero = new() { Dock = DockStyle.Fill };
+    private readonly TipBubble _tip = new();
+    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = 410, Padding = new Padding(22, 20, 14, 10) };
+    private readonly Dictionary<IconKind, Control> _pages = new();
+    private readonly List<IconButton> _navButtons = new();
+
     private readonly SearchBox _search = new() { Dock = DockStyle.Top };
     private readonly Label _countLabel = new()
     {
         Dock = DockStyle.Top,
         Height = 34,
-        ForeColor = Theme.TextMuted,
         Font = Theme.CaptionBold,
         TextAlign = ContentAlignment.MiddleLeft
     };
@@ -29,51 +34,39 @@ public class MainForm : Form
         Dock = DockStyle.Fill,
         FlowDirection = FlowDirection.TopDown,
         WrapContents = false,
-        AutoScroll = true,
-        BackColor = Theme.Surface
+        AutoScroll = true
     };
 
-    private readonly Panel _logPanel = new()
-    {
-        Dock = DockStyle.Bottom,
-        Height = 180,
-        BackColor = Theme.LogBack,
-        Padding = new Padding(18, 12, 12, 12),
-        Visible = false
-    };
-
-    private readonly TextBox _log = new()
-    {
-        Dock = DockStyle.Fill,
-        Multiline = true,
-        ReadOnly = true,
-        BorderStyle = BorderStyle.None,
-        ScrollBars = ScrollBars.Vertical,
-        BackColor = Theme.LogBack,
-        ForeColor = Theme.Text,
-        Font = Theme.Log
-    };
+    private readonly StatsView _stats = new() { Dock = DockStyle.Fill };
+    private readonly LogPage _logPage = new();
+    private readonly RoutingPage _routingPage;
+    private readonly SettingsPage _settingsPage;
 
     private readonly ContextMenuStrip _cardMenu = new();
     private readonly List<ServerCard> _cards = new();
-    private IconButton _logButton = null!;
 
     private ProxyServer? _selected;
     private ProxyServer? _active;
     private ServerCard? _menuCard;
     private DateTime _connectedAt;
     private bool _proxyEnabledByUs;
+    private TrafficCounters _lastCounters = new();
 
     public MainForm()
     {
+        Theme.Use(_data.DarkTheme);
+
         Text = "Tunnelka";
         ClientSize = new Size(1080, 720);
-        MinimumSize = new Size(880, 600);
+        MinimumSize = new Size(900, 640);
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = Theme.Window;
         Font = Theme.Body;
         KeyPreview = true;
         Icon = LogoView.CreateAppIcon() ?? Icon;
+        Theme.Bind(this, () => Theme.Window);
+
+        _routingPage = new RoutingPage(_data.Rules);
+        _settingsPage = new SettingsPage(_data.DarkTheme, _data.UseSystemProxy);
 
         BuildLayout();
         BuildCardMenu();
@@ -82,79 +75,121 @@ public class MainForm : Form
         _hero.PowerClicked += (_, _) => ToggleConnection();
         _hero.PingClicked += async (_, _) => await PingAll();
         _hero.RefreshClicked += async (_, _) => await UpdateSubscriptions();
-        _hero.ProxyToggled += (_, _) => ToggleSystemProxy();
+        _hero.ProxyToggled += (_, _) => SetSystemProxy(!_data.UseSystemProxy);
+        _settingsPage.ProxyToggle.CheckedChanged += (_, _) => SetSystemProxy(_settingsPage.ProxyToggle.Checked);
+        _settingsPage.DarkToggle.CheckedChanged += (_, _) => SetDarkTheme(_settingsPage.DarkToggle.Checked);
+        _routingPage.RulesChanged += (_, _) => OnRulesChanged();
         _search.QueryChanged += (_, _) => ApplyFilter();
         _list.Resize += (_, _) => ResizeCards();
         _clock.Tick += (_, _) => UpdateClock();
+        _traffic.Updated += OnTraffic;
         _xray.Output += Log;
         _xray.Exited += OnXrayExited;
         KeyDown += OnKeyDown;
         FormClosing += (_, _) => Disconnect();
 
+        _stats.SetTotals(_data.TotalDownload, _data.TotalUpload);
         _selected = _data.Servers.FirstOrDefault(s => s.Link == _data.LastServerLink) ?? _data.Servers.FirstOrDefault();
         RebuildList();
         UpdateHero();
+        ShowPage(IconKind.Servers);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyNativeTheme();
     }
 
     private void BuildLayout()
     {
-        var sidebar = new Panel { Dock = DockStyle.Left, Width = 68, BackColor = Theme.Sidebar };
+        var sidebar = Theme.Bind(new Panel { Dock = DockStyle.Left, Width = 68 }, () => Theme.Sidebar);
         sidebar.Controls.Add(new LogoView { Location = new Point(12, 18) });
 
-        var buttons = new (IconKind Kind, string Tip, Action OnClick)[]
+        var add = new IconButton(IconKind.Add, "Добавить ключ или подписку") { Location = new Point(12, 84) };
+        add.Click += (_, _) => ShowAddDialog();
+        AttachTip(add);
+        sidebar.Controls.Add(add);
+
+        var separator = Theme.Bind(new Panel { Location = new Point(20, 140), Size = new Size(28, 2) }, () => Theme.Border);
+        sidebar.Controls.Add(separator);
+
+        var nav = new (IconKind Kind, string Title)[]
         {
-            (IconKind.Add, "Добавить ключ или подписку", ShowAddDialog),
-            (IconKind.Log, "Журнал", ToggleLog)
+            (IconKind.Servers, "Серверы"),
+            (IconKind.Stats, "Статистика"),
+            (IconKind.Routing, "Маршрутизация"),
+            (IconKind.Log, "Журнал")
         };
 
-        for (var i = 0; i < buttons.Length; i++)
+        for (var i = 0; i < nav.Length; i++)
+            AddNavButton(sidebar, new IconButton(nav[i].Kind, nav[i].Title) { Location = new Point(12, 156 + i * 54) });
+
+        var settings = new IconButton(IconKind.Settings, "Настройки") { Location = new Point(12, 600) };
+        AddNavButton(sidebar, settings);
+        sidebar.Resize += (_, _) => settings.Top = sidebar.Height - settings.Height - 18;
+
+        Theme.Bind(_middle, () => Theme.Surface);
+        Theme.Bind(_list, () => Theme.Surface);
+        Theme.Bind(_countLabel, () => Theme.Surface, () => Theme.TextMuted);
+
+        var serversPage = Theme.Bind(new Panel { Dock = DockStyle.Fill }, () => Theme.Surface);
+        var gap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = 8 }, () => Theme.Surface);
+        serversPage.Controls.Add(_list);
+        serversPage.Controls.Add(_countLabel);
+        serversPage.Controls.Add(gap);
+        serversPage.Controls.Add(_search);
+        serversPage.Controls.Add(PageParts.Title("Серверы"));
+
+        var statsPage = Theme.Bind(new Panel { Dock = DockStyle.Fill }, () => Theme.Surface);
+        var statsGap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = 10 }, () => Theme.Surface);
+        statsPage.Controls.Add(_stats);
+        statsPage.Controls.Add(statsGap);
+        statsPage.Controls.Add(PageParts.Title("Статистика"));
+
+        _pages[IconKind.Servers] = serversPage;
+        _pages[IconKind.Stats] = statsPage;
+        _pages[IconKind.Routing] = _routingPage;
+        _pages[IconKind.Log] = _logPage;
+        _pages[IconKind.Settings] = _settingsPage;
+
+        foreach (var page in _pages.Values)
         {
-            var (kind, tip, onClick) = buttons[i];
-            var button = new IconButton(kind) { Location = new Point(12, 92 + i * 54) };
-            button.Click += (_, _) => onClick();
-            _tips.SetToolTip(button, tip);
-            sidebar.Controls.Add(button);
-            if (kind == IconKind.Log)
-                _logButton = button;
+            page.Visible = false;
+            _middle.Controls.Add(page);
         }
 
-        var listPanel = new Panel
-        {
-            Dock = DockStyle.Left,
-            Width = 410,
-            BackColor = Theme.Surface,
-            Padding = new Padding(22, 20, 14, 10)
-        };
+        var divider = Theme.Bind(new Panel { Dock = DockStyle.Left, Width = 1 }, () => Theme.Border);
 
-        var title = new Label
-        {
-            Text = "Серверы",
-            Dock = DockStyle.Top,
-            Height = 52,
-            Font = Theme.Title,
-            ForeColor = Theme.Text,
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-
-        var gap = new Panel { Dock = DockStyle.Top, Height = 8 };
-
-        listPanel.Controls.Add(_list);
-        listPanel.Controls.Add(_countLabel);
-        listPanel.Controls.Add(gap);
-        listPanel.Controls.Add(_search);
-        listPanel.Controls.Add(title);
-
-        var divider = new Panel { Dock = DockStyle.Left, Width = 1, BackColor = Theme.Border };
-
-        var right = new Panel { Dock = DockStyle.Fill };
-        _logPanel.Controls.Add(_log);
-        right.Controls.Add(_hero);
-        right.Controls.Add(_logPanel);
-
-        Controls.Add(right);
+        Controls.Add(_hero);
         Controls.Add(divider);
-        Controls.Add(listPanel);
+        Controls.Add(_middle);
         Controls.Add(sidebar);
+        Controls.Add(_tip);
+        _tip.BringToFront();
+    }
+
+    private void AddNavButton(Panel sidebar, IconButton button)
+    {
+        button.Click += (_, _) => ShowPage(button.Kind);
+        AttachTip(button);
+        _navButtons.Add(button);
+        sidebar.Controls.Add(button);
+    }
+
+    private void AttachTip(IconButton button)
+    {
+        button.MouseEnter += (_, _) => _tip.ShowNear(button, button.Title);
+        button.MouseLeave += (_, _) => _tip.Visible = false;
+    }
+
+    private void ShowPage(IconKind kind)
+    {
+        foreach (var pair in _pages)
+            pair.Value.Visible = pair.Key == kind;
+
+        foreach (var button in _navButtons)
+            button.Active = button.Kind == kind;
     }
 
     private void BuildCardMenu()
@@ -172,6 +207,29 @@ public class MainForm : Form
                 Delete(_menuCard.Server);
         });
         _cardMenu.Opening += (_, _) => _menuCard = _cardMenu.SourceControl as ServerCard;
+    }
+
+    private void SetDarkTheme(bool dark)
+    {
+        _data.DarkTheme = dark;
+        Save();
+        Theme.Use(dark);
+        ApplyNativeTheme();
+        InvalidateAll(this);
+    }
+
+    private void ApplyNativeTheme()
+    {
+        NativeTheme.TitleBar(this, Theme.IsDark);
+        NativeTheme.Scrollbars(_list, Theme.IsDark);
+        NativeTheme.Scrollbars(_logPage.Box, Theme.IsDark);
+    }
+
+    private static void InvalidateAll(Control control)
+    {
+        control.Invalidate();
+        foreach (Control child in control.Controls)
+            InvalidateAll(child);
     }
 
     private void RebuildList()
@@ -248,12 +306,12 @@ public class MainForm : Form
         var server = _active ?? _selected;
         if (server == null)
         {
-            _hero.SetServer("", null);
+            _hero.SetServer(Array.Empty<NamePart>(), null);
             _hero.SetPing("", Theme.TextMuted);
             return;
         }
 
-        _hero.SetServer(ServerText.CleanName(server), ServerText.CountryCode(server.Name));
+        _hero.SetServer(ServerText.Parts(server), ServerText.CountryCode(server.Name));
         var ping = server.PingMs switch
         {
             null => "",
@@ -268,7 +326,7 @@ public class MainForm : Form
         if (ActiveControl is TextBoxBase)
             return;
 
-        if (e.KeyCode == Keys.Delete && _selected != null)
+        if (e.KeyCode == Keys.Delete && _selected != null && _pages[IconKind.Servers].Visible)
         {
             Delete(_selected);
             e.Handled = true;
@@ -324,7 +382,7 @@ public class MainForm : Form
         if (servers.Count == 0)
         {
             Log("Не нашёл поддерживаемых ссылок (vless, vmess, trojan, ss)");
-            ShowLog(true);
+            _hero.SetPing("Ключ не распознан", Theme.PingBad);
             return;
         }
 
@@ -333,6 +391,7 @@ public class MainForm : Form
         Save();
         RebuildList();
         UpdateHero();
+        ShowPage(IconKind.Servers);
         Log($"Добавлено серверов: {servers.Count}");
     }
 
@@ -341,6 +400,7 @@ public class MainForm : Form
         if (!_data.Subscriptions.Contains(url))
             _data.Subscriptions.Add(url);
 
+        ShowPage(IconKind.Servers);
         await LoadSubscription(url);
     }
 
@@ -382,7 +442,6 @@ public class MainForm : Form
         catch (Exception ex)
         {
             Log($"Ошибка подписки: {ex.Message}");
-            ShowLog(true);
             return false;
         }
     }
@@ -432,24 +491,12 @@ public class MainForm : Form
         if (server == null)
             return;
 
-        try
-        {
-            _xray.Start(XrayConfigBuilder.Build(server));
-        }
-        catch (FileNotFoundException)
-        {
-            MessageBox.Show(this, $"Не найден {XrayRunner.XrayPath}", "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        if (!StartXray(server))
             return;
-        }
-        catch (Exception ex)
-        {
-            Log($"Не удалось запустить xray: {ex.Message}");
-            ShowLog(true);
-            return;
-        }
 
         _active = server;
         _connectedAt = DateTime.Now;
+        _lastCounters = new TrafficCounters();
         _data.LastServerLink = server.Link;
         Save();
         ApplySystemProxy();
@@ -457,9 +504,31 @@ public class MainForm : Form
         _hero.ElapsedText = "00:00:00";
         _hero.Connected = true;
         _clock.Start();
+        _stats.SetConnected(true);
+        _traffic.Start();
         UpdateCards();
         UpdateHero();
-        Log($"Подключено к {ServerText.CleanName(server)}. SOCKS 127.0.0.1:{XrayConfigBuilder.SocksPort}, HTTP 127.0.0.1:{XrayConfigBuilder.HttpPort}");
+        Log($"Подключено к {ServerText.CleanName(server)}");
+    }
+
+    private bool StartXray(ProxyServer server)
+    {
+        try
+        {
+            _xray.Start(XrayConfigBuilder.Build(server, _data.Rules));
+            return true;
+        }
+        catch (FileNotFoundException)
+        {
+            MessageBox.Show(this, $"Не найден {XrayRunner.XrayPath}", "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch (Exception ex)
+        {
+            Log($"Не удалось запустить xray: {ex.Message}");
+            ShowPage(IconKind.Log);
+        }
+
+        return false;
     }
 
     private void Disconnect()
@@ -467,6 +536,7 @@ public class MainForm : Form
         var wasRunning = _xray.IsRunning;
         _xray.Stop();
         _clock.Stop();
+        _traffic.Stop();
 
         if (_proxyEnabledByUs)
         {
@@ -475,15 +545,45 @@ public class MainForm : Form
         }
 
         _active = null;
+        if (wasRunning)
+            Save();
+
         if (IsDisposed)
             return;
 
         _hero.Connected = false;
+        _stats.SetConnected(false);
         UpdateCards();
         UpdateHero();
 
         if (wasRunning)
             Log("Отключено");
+    }
+
+    private void OnRulesChanged()
+    {
+        Save();
+        if (_active == null || !_xray.IsRunning)
+            return;
+
+        _lastCounters = new TrafficCounters();
+        if (StartXray(_active))
+            Log("Правила применены");
+        else
+            Disconnect();
+    }
+
+    private void OnTraffic(TrafficCounters counters)
+    {
+        var down = Math.Max(0, counters.ProxyDown - _lastCounters.ProxyDown) + Math.Max(0, counters.DirectDown - _lastCounters.DirectDown);
+        var up = Math.Max(0, counters.ProxyUp - _lastCounters.ProxyUp) + Math.Max(0, counters.DirectUp - _lastCounters.DirectUp);
+
+        _data.TotalDownload += Math.Max(0, counters.ProxyDown - _lastCounters.ProxyDown);
+        _data.TotalUpload += Math.Max(0, counters.ProxyUp - _lastCounters.ProxyUp);
+        _lastCounters = counters;
+
+        _stats.Push(counters, down, up);
+        _stats.SetTotals(_data.TotalDownload, _data.TotalUpload);
     }
 
     private void UpdateClock()
@@ -505,13 +605,17 @@ public class MainForm : Form
 
         Log("Xray завершился. Причина обычно видна в строках выше");
         Disconnect();
-        ShowLog(true);
+        ShowPage(IconKind.Log);
     }
 
-    private void ToggleSystemProxy()
+    private void SetSystemProxy(bool enabled)
     {
-        _data.UseSystemProxy = !_data.UseSystemProxy;
-        _hero.ProxyEnabled = _data.UseSystemProxy;
+        if (_data.UseSystemProxy == enabled)
+            return;
+
+        _data.UseSystemProxy = enabled;
+        _hero.ProxyEnabled = enabled;
+        _settingsPage.ProxyToggle.Checked = enabled;
         Save();
 
         if (_xray.IsRunning)
@@ -541,14 +645,6 @@ public class MainForm : Form
         }
     }
 
-    private void ToggleLog() => ShowLog(!_logPanel.Visible);
-
-    private void ShowLog(bool visible)
-    {
-        _logPanel.Visible = visible;
-        _logButton.Active = visible;
-    }
-
     private void Save()
     {
         try
@@ -573,6 +669,6 @@ public class MainForm : Form
             return;
         }
 
-        _log.AppendText($"[{DateTime.Now:HH:mm:ss}] {text}{Environment.NewLine}");
+        _logPage.Append($"[{DateTime.Now:HH:mm:ss}] {text}");
     }
 }

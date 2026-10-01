@@ -27,19 +27,16 @@ public static class AddDialog
             Font = Theme.BodyBold
         };
 
-        var box = new TextBox
+        var box = new Controls.SearchBox("vless://...  или  https://подписка", false)
         {
             Left = 20,
-            Top = 48,
-            Width = 500,
-            BorderStyle = BorderStyle.FixedSingle,
-            BackColor = Color.White,
-            ForeColor = Theme.Text
+            Top = 46,
+            Width = 500
         };
 
         string? result = null;
 
-        var paste = MakeButton("Вставить из буфера", Color.White, Theme.AccentDark, 20, 170);
+        var paste = MakeButton("Вставить из буфера", Theme.Card, Theme.AccentStrong, 20, 170);
         paste.FlatAppearance.BorderSize = 1;
         paste.FlatAppearance.BorderColor = Theme.Accent;
         paste.Click += (_, _) =>
@@ -47,7 +44,6 @@ public static class AddDialog
             var text = Clipboard.GetText().Trim();
             if (text.Length == 0)
             {
-                box.Text = "";
                 label.Text = "Буфер обмена пуст";
                 return;
             }
@@ -59,10 +55,10 @@ public static class AddDialog
         var add = MakeButton("Добавить", Theme.Accent, Color.White, 310, 100);
         add.Click += (_, _) =>
         {
-            if (box.Text.Trim().Length == 0)
+            if (box.Query.Length == 0)
                 return;
 
-            result = box.Text.Trim();
+            result = box.Query;
             form.DialogResult = DialogResult.OK;
         };
 
@@ -82,7 +78,7 @@ public static class AddDialog
         {
             Text = text,
             Left = left,
-            Top = 110,
+            Top = 106,
             Width = width,
             Height = 36,
             FlatStyle = FlatStyle.Flat,

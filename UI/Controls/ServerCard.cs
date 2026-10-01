@@ -11,6 +11,7 @@ public class ServerCard : Control
     public ServerCard(ProxyServer server)
     {
         Server = server;
+        Parts = ServerText.Parts(server);
         DisplayName = ServerText.CleanName(server);
         Code = ServerText.CountryCode(server.Name);
         Description = ServerText.Describe(server);
@@ -24,6 +25,7 @@ public class ServerCard : Control
     }
 
     public ProxyServer Server { get; }
+    public IReadOnlyList<NamePart> Parts { get; }
     public string DisplayName { get; }
     public string? Code { get; }
     public string Description { get; }
@@ -61,6 +63,7 @@ public class ServerCard : Control
 
         var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
         var fill = _selected ? Theme.CardSelected : _hover ? Theme.CardHover : Theme.Card;
+        g.Clear(Theme.Surface);
         Theme.FillRounded(g, fill, rect, 14);
         Theme.DrawRounded(g, _selected ? Color.FromArgb(140, Theme.Accent) : Theme.Border, rect, 14);
 
@@ -72,7 +75,7 @@ public class ServerCard : Control
 
         if (_active)
         {
-            using var ring = new SolidBrush(Color.White);
+            using var ring = new SolidBrush(fill);
             using var dot = new SolidBrush(Theme.Mint);
             g.FillEllipse(ring, badge.Right - 11, badge.Bottom - 11, 13, 13);
             g.FillEllipse(dot, badge.Right - 9, badge.Bottom - 9, 9, 9);
@@ -82,7 +85,7 @@ public class ServerCard : Control
         var pingWidth = 64f;
         var textWidth = Width - textLeft - pingWidth - 8;
 
-        Theme.DrawText(g, DisplayName, Theme.CardTitle, Theme.Text, new RectangleF(textLeft, 12, textWidth, 22));
+        NamePainter.Draw(g, Parts, Theme.CardTitle, Theme.Text, new RectangleF(textLeft, 11, textWidth, 24));
         Theme.DrawText(g, Description, Theme.Caption, Theme.TextMuted, new RectangleF(textLeft, 35, textWidth, 18));
 
         var ping = Theme.PingLabel(Server.PingMs);

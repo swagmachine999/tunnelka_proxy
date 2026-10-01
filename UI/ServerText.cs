@@ -4,6 +4,18 @@ using VpnClient.Models;
 
 namespace VpnClient.UI;
 
+public sealed class NamePart
+{
+    public NamePart(string text, bool isSymbol)
+    {
+        Text = text;
+        IsSymbol = isSymbol;
+    }
+
+    public string Text { get; }
+    public bool IsSymbol { get; }
+}
+
 public static class ServerText
 {
     public static string? CountryCode(string name)
@@ -15,7 +27,7 @@ public static class ServerText
                 continue;
 
             var codePoint = char.ConvertToUtf32(name[i], name[i + 1]);
-            if (codePoint >= 0x1F1E6 && codePoint <= 0x1F1FF)
+            if (IsRegionalIndicator(codePoint))
             {
                 letters.Append((char)('A' + codePoint - 0x1F1E6));
                 if (letters.Length == 2)
@@ -32,27 +44,61 @@ public static class ServerText
         return null;
     }
 
-    public static string CleanName(ProxyServer server)
+    public static List<NamePart> Parts(ProxyServer server)
     {
-        var result = new StringBuilder();
+        var parts = new List<NamePart>();
+        var text = new StringBuilder();
         var name = server.Name;
+
+        void FlushText()
+        {
+            var value = string.Join(" ", text.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+            if (value.Length > 0)
+                parts.Add(new NamePart(value, false));
+            text.Clear();
+        }
 
         for (var i = 0; i < name.Length; i++)
         {
             var c = name[i];
-            if (char.IsSurrogate(c) || c == '️' || c == '‍')
-                continue;
+            string symbol;
 
-            var category = char.GetUnicodeCategory(c);
-            if (category is UnicodeCategory.OtherSymbol or UnicodeCategory.Format or UnicodeCategory.NonSpacingMark)
+            if (char.IsHighSurrogate(c) && i + 1 < name.Length && char.IsLowSurrogate(name[i + 1]))
+            {
+                var codePoint = char.ConvertToUtf32(c, name[i + 1]);
+                i++;
+                if (IsRegionalIndicator(codePoint) || (codePoint >= 0x1F3FB && codePoint <= 0x1F3FF))
+                    continue;
+                symbol = char.ConvertFromUtf32(codePoint);
+            }
+            else if (c == '️' || c == '︎' || c == '‍' || char.IsSurrogate(c))
+            {
                 continue;
+            }
+            else if (char.GetUnicodeCategory(c) == UnicodeCategory.OtherSymbol)
+            {
+                symbol = c.ToString();
+            }
+            else
+            {
+                text.Append(char.IsWhiteSpace(c) ? ' ' : c);
+                continue;
+            }
 
-            result.Append(char.IsWhiteSpace(c) ? ' ' : c);
+            FlushText();
+            parts.Add(new NamePart(symbol, true));
         }
 
-        var clean = string.Join(" ", result.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
-        return clean.Length > 0 ? clean : $"{server.Address}:{server.Port}";
+        FlushText();
+
+        if (!parts.Any(p => !p.IsSymbol))
+            parts.Add(new NamePart($"{server.Address}:{server.Port}", false));
+
+        return parts;
     }
+
+    public static string CleanName(ProxyServer server) =>
+        string.Join(" ", Parts(server).Where(p => !p.IsSymbol).Select(p => p.Text));
 
     public static string Describe(ProxyServer server)
     {
@@ -80,4 +126,19 @@ public static class ServerText
         };
         return $"{count} {word}";
     }
+
+    public static string Bytes(double bytes)
+    {
+        string[] units = { "Б", "КБ", "МБ", "ГБ", "ТБ" };
+        var unit = 0;
+        while (bytes >= 1024 && unit < units.Length - 1)
+        {
+            bytes /= 1024;
+            unit++;
+        }
+
+        return unit == 0 ? $"{bytes:0} {units[unit]}" : $"{bytes:0.#} {units[unit]}";
+    }
+
+    private static bool IsRegionalIndicator(int codePoint) => codePoint >= 0x1F1E6 && codePoint <= 0x1F1FF;
 }
