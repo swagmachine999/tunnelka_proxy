@@ -106,7 +106,7 @@ public class SettingsPage : Panel
         Controls.Add(RoutingRow);
         Controls.Add(PingRow);
         Controls.Add(new SettingRow("Скорость в окне", "Как часто обновлять", SpeedSelector));
-        Controls.Add(new SettingRow("Режим", "Прокси: браузер и программы. TUN: весь трафик", ModeSelector));
+        Controls.Add(new SettingRow("Режим", "Режим туннелирования", ModeSelector));
         ScaleSelector = new ScaleStepper(uiScale);
         Controls.Add(new SettingRow("Масштаб интерфейса", "Ctrl + колесо мыши, Ctrl и +/−, Ctrl+0", ScaleSelector));
         Controls.Add(new SettingRow("Тёмная тема", "Мягкие тёмные цвета", DarkToggle));
