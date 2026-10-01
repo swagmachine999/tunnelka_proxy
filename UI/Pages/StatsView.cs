@@ -5,6 +5,9 @@ namespace VpnClient.UI.Pages;
 
 public class StatsView : Control
 {
+    private float W => Width / Theme.S;
+    private float H => Height / Theme.S;
+
     private const int HistorySize = 60;
 
     private readonly List<double> _down = new();
@@ -55,10 +58,9 @@ public class StatsView : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        Theme.Smooth(g);
-        g.Clear(Theme.Surface);
+        Theme.Begin(g, Theme.Surface);
 
-        float w = Width - 4;
+        float w = W - 4;
         var tileWidth = (w - 12) / 2;
 
         DrawTile(g, new RectangleF(0, 0, tileWidth, 92), "Загрузка", Last(_down), Theme.Accent, true);

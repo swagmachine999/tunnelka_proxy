@@ -70,8 +70,7 @@ public static class NamePainter
         }
 
         using var font = new Font("Segoe UI Emoji", r.Height * 0.78f, FontStyle.Regular, GraphicsUnit.Pixel);
-        TextRenderer.DrawText(g, symbol, font, Rectangle.Round(new RectangleF(r.X - 4, r.Y - 2, r.Width + 8, r.Height + 4)),
-            textColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+        Theme.DrawText(g, symbol, font, textColor, new RectangleF(r.X - 4, r.Y - 2, r.Width + 8, r.Height + 4), StringAlignment.Center);
     }
 
     private static void DrawStar(Graphics g, RectangleF r)

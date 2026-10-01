@@ -60,7 +60,7 @@ public class HeroView : Control
     public string ElapsedText
     {
         get => _elapsed;
-        set { _elapsed = value; Invalidate(Rectangle.Ceiling(_powerRect)); }
+        set { _elapsed = value; Invalidate(ToDevice(_powerRect)); }
     }
 
     public void SetServer(IReadOnlyList<NamePart> parts, string? code)
@@ -74,7 +74,7 @@ public class HeroView : Control
     {
         _speedDown = down;
         _speedUp = up;
-        Invalidate(new Rectangle(0, 0, ClientSize.Width / 2, 80));
+        Invalidate(new Rectangle(0, 0, ClientSize.Width / 2, Theme.Px(80)));
     }
 
     public void SetPing(string text, Color color)
@@ -97,13 +97,13 @@ public class HeroView : Control
         _tick++;
 
         var area = RectangleF.Union(Inflate(_powerRect, 70), _kittenRect);
-        Invalidate(Rectangle.Ceiling(area));
+        Invalidate(ToDevice(area));
     }
 
     private void ComputeLayout()
     {
-        float w = ClientSize.Width;
-        float h = ClientSize.Height;
+        var w = ClientSize.Width / Theme.S;
+        var h = ClientSize.Height / Theme.S;
         var scale = Math.Max(0.55f, Math.Min(1f, h / 660f));
 
         var diameter = 150 * scale;
@@ -131,7 +131,7 @@ public class HeroView : Control
 
         ComputeLayout();
         var g = e.Graphics;
-        Theme.Smooth(g);
+        Theme.Begin(g, Theme.HeroBottom);
 
         DrawBackground(g);
         DrawToggle(g);
@@ -144,7 +144,7 @@ public class HeroView : Control
 
     private void DrawBackground(Graphics g)
     {
-        var rect = new Rectangle(Point.Empty, ClientSize);
+        var rect = new RectangleF(0, 0, ClientSize.Width / Theme.S, ClientSize.Height / Theme.S);
         using (var brush = new LinearGradientBrush(rect, Theme.HeroTop, Theme.HeroBottom, 90f))
             g.FillRectangle(brush, rect);
 
@@ -302,10 +302,11 @@ public class HeroView : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        var power = InCircle(_powerRect, e.Location);
-        var ping = _pingRect.Contains(e.Location);
-        var refresh = _refreshRect.Contains(e.Location);
-        var toggle = _toggleRect.Contains(e.Location);
+        var point = Theme.Design(e.Location);
+        var power = InCircle(_powerRect, point);
+        var ping = _pingRect.Contains(point);
+        var refresh = _refreshRect.Contains(point);
+        var toggle = _toggleRect.Contains(point);
 
         if (power != _hoverPower || ping != _hoverPing || refresh != _hoverRefresh || toggle != _hoverToggle)
         {
@@ -332,17 +333,21 @@ public class HeroView : Control
         if (e.Button != MouseButtons.Left)
             return;
 
-        if (InCircle(_powerRect, e.Location))
+        var point = Theme.Design(e.Location);
+        if (InCircle(_powerRect, point))
             PowerClicked?.Invoke(this, EventArgs.Empty);
-        else if (_pingRect.Contains(e.Location))
+        else if (_pingRect.Contains(point))
             PingClicked?.Invoke(this, EventArgs.Empty);
-        else if (_refreshRect.Contains(e.Location))
+        else if (_refreshRect.Contains(point))
             RefreshClicked?.Invoke(this, EventArgs.Empty);
-        else if (_toggleRect.Contains(e.Location))
+        else if (_toggleRect.Contains(point))
             ProxyToggled?.Invoke(this, EventArgs.Empty);
     }
 
-    private static bool InCircle(RectangleF r, Point p)
+    private static Rectangle ToDevice(RectangleF r) =>
+        Rectangle.Ceiling(new RectangleF(r.X * Theme.S, r.Y * Theme.S, r.Width * Theme.S, r.Height * Theme.S));
+
+    private static bool InCircle(RectangleF r, PointF p)
     {
         var dx = p.X - (r.X + r.Width / 2);
         var dy = p.Y - (r.Y + r.Height / 2);

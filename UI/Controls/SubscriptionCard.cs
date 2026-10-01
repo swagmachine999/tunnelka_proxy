@@ -7,6 +7,9 @@ namespace VpnClient.UI.Controls;
 
 public class SubscriptionCard : Control
 {
+    private float W => Width / Theme.S;
+    private float H => Height / Theme.S;
+
     private const float Pad = 16;
     private const float LineHeight = 21;
     private const float SymbolSize = 16;
@@ -26,8 +29,8 @@ public class SubscriptionCard : Control
         Info = info;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        Margin = new Padding(0, 4, 0, 10);
-        Height = 120;
+        Margin = Theme.Px(0, 4, 0, 10);
+        Height = Theme.Px(120);
     }
 
     public SubscriptionInfo Info { get; }
@@ -57,13 +60,14 @@ public class SubscriptionCard : Control
             return;
 
         _layoutWidth = Width;
-        _lines = Wrap(Tokenize(Info.Announce), Width - Pad * 2);
+        _lines = Wrap(Tokenize(Info.Announce), W - Pad * 2);
 
         var height = (int)(InfoTop + InfoRows * 22 + 8);
         if (_lines.Count > 0)
             height += (int)(14 + _lines.Count * LineHeight + 6);
-        if (Height != height)
-            Height = height;
+        var device = Theme.Px(height);
+        if (Height != device)
+            Height = device;
     }
 
     private const float InfoTop = 66;
@@ -153,17 +157,16 @@ public class SubscriptionCard : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        Theme.Smooth(g);
-        g.Clear(Theme.Surface);
+        Theme.Begin(g, Theme.Surface);
         _hits.Clear();
 
-        var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         using (var brush = new LinearGradientBrush(rect, Theme.Card, Theme.Lighten(Theme.CardSelected, Theme.IsDark ? 0f : 0.3f), 90f))
         using (var path = Theme.RoundedRect(rect, 16))
             g.FillPath(brush, path);
         Theme.DrawRounded(g, Theme.Border, rect, 16);
 
-        var refreshRect = new RectangleF(Width - Pad - 32, 14, 32, 32);
+        var refreshRect = new RectangleF(W - Pad - 32, 14, 32, 32);
         DrawRefresh(g, refreshRect);
         _hits.Add((refreshRect, () => RefreshClicked?.Invoke(this, EventArgs.Empty)));
 
@@ -196,7 +199,7 @@ public class SubscriptionCard : Control
 
         y += 30;
         using (var pen = new Pen(Theme.Border))
-            g.DrawLine(pen, Pad, y - 8, Width - Pad, y - 8);
+            g.DrawLine(pen, Pad, y - 8, W - Pad, y - 8);
 
         DrawAnnounce(g, y);
     }
@@ -212,7 +215,7 @@ public class SubscriptionCard : Control
             g.FillRectangle(brush, icon.X + 7.1f, icon.Y + 7, 2f, 5.5f);
         }
 
-        Theme.DrawText(g, text, Theme.CaptionBold, color, new RectangleF(Pad + 24, y, Width - Pad * 2 - 24, 18));
+        Theme.DrawText(g, text, Theme.CaptionBold, color, new RectangleF(Pad + 24, y, W - Pad * 2 - 24, 18));
     }
 
     private void DrawAnnounce(Graphics g, float top)
@@ -223,7 +226,7 @@ public class SubscriptionCard : Control
         {
             var line = _lines[i];
             var lineWidth = line.Sum(t => t.Width) + space * Math.Max(0, line.Count - 1);
-            var x = (Width - lineWidth) / 2;
+            var x = (W - lineWidth) / 2;
             var y = top + i * LineHeight;
 
             foreach (var token in line)
@@ -329,7 +332,7 @@ public class SubscriptionCard : Control
         var hover = RectangleF.Empty;
         foreach (var (rect, _) in _hits)
         {
-            if (rect.Contains(e.Location))
+            if (rect.Contains(Theme.Design(e.Location)))
                 hover = rect;
         }
 
@@ -356,7 +359,7 @@ public class SubscriptionCard : Control
 
         foreach (var (rect, action) in _hits)
         {
-            if (rect.Contains(e.Location))
+            if (rect.Contains(Theme.Design(e.Location)))
             {
                 action();
                 return;
