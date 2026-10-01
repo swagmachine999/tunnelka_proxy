@@ -44,11 +44,13 @@ public static class ServerText
         return null;
     }
 
-    public static List<NamePart> Parts(ProxyServer server)
+    public static List<NamePart> Parts(ProxyServer server) =>
+        Parts(server.Name, $"{server.Address}:{server.Port}");
+
+    public static List<NamePart> Parts(string name, string? fallback)
     {
         var parts = new List<NamePart>();
         var text = new StringBuilder();
-        var name = server.Name;
 
         void FlushText()
         {
@@ -117,8 +119,8 @@ public static class ServerText
 
         FlushText();
 
-        if (!parts.Any(p => !p.IsSymbol))
-            parts.Add(new NamePart($"{server.Address}:{server.Port}", false));
+        if (fallback != null && !parts.Any(p => !p.IsSymbol))
+            parts.Add(new NamePart(fallback, false));
 
         return parts;
     }

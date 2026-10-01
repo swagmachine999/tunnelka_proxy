@@ -63,7 +63,7 @@ public static class NamePainter
             return;
         }
 
-        if (symbol.StartsWith("\u2B50") || symbol.StartsWith("\u2605"))
+        if (symbol.StartsWith("\u2B50", StringComparison.Ordinal) || symbol.StartsWith("\u2605", StringComparison.Ordinal))
         {
             DrawStar(g, r);
             return;

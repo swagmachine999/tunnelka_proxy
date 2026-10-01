@@ -43,6 +43,9 @@ public class MainForm : Form
     private readonly SettingsPage _settingsPage;
 
     private readonly ContextMenuStrip _cardMenu = new();
+    private readonly ContextMenuStrip _subscriptionMenu = new();
+    private readonly System.Windows.Forms.Timer _autoUpdate = new() { Interval = 60_000 };
+    private SubscriptionCard? _menuSubscription;
     private readonly List<ServerCard> _cards = new();
 
     private ProxyServer? _selected;
@@ -73,6 +76,10 @@ public class MainForm : Form
 
         BuildLayout();
         BuildCardMenu();
+        BuildSubscriptionMenu();
+        _autoUpdate.Tick += async (_, _) => await AutoUpdateSubscriptions();
+        _autoUpdate.Start();
+        Shown += async (_, _) => await AutoUpdateSubscriptions();
 
         _hero.ProxyEnabled = _data.UseSystemProxy;
         _hero.PowerClicked += (_, _) => ToggleConnection();
@@ -233,6 +240,21 @@ public class MainForm : Form
         _cardMenu.Opening += (_, _) => _menuCard = _cardMenu.SourceControl as ServerCard;
     }
 
+    private void BuildSubscriptionMenu()
+    {
+        _subscriptionMenu.Items.Add("Обновить", null, async (_, _) =>
+        {
+            if (_menuSubscription != null)
+                await RefreshSubscription(_menuSubscription.Info.Url);
+        });
+        _subscriptionMenu.Items.Add("Удалить подписку", null, (_, _) =>
+        {
+            if (_menuSubscription != null)
+                DeleteSubscription(_menuSubscription.Info.Url);
+        });
+        _subscriptionMenu.Opening += (_, _) => _menuSubscription = _subscriptionMenu.SourceControl as SubscriptionCard;
+    }
+
     private void SetDarkTheme(bool dark)
     {
         _data.DarkTheme = dark;
@@ -259,24 +281,30 @@ public class MainForm : Form
     private void RebuildList()
     {
         _list.SuspendLayout();
-        foreach (var card in _cards)
-            card.Dispose();
+        foreach (Control control in _list.Controls.Cast<Control>().ToList())
+            control.Dispose();
         _list.Controls.Clear();
         _cards.Clear();
 
-        foreach (var server in _data.Servers)
+        var controls = new List<Control>();
+        foreach (var url in _data.Subscriptions)
         {
-            var card = new ServerCard(server) { ContextMenuStrip = _cardMenu };
-            card.Click += (_, _) => Select(server);
-            card.DoubleClick += (_, _) =>
+            var info = _data.Profiles.FirstOrDefault(p => p.Url == url);
+            if (info != null)
             {
-                Select(server);
-                Connect();
-            };
-            _cards.Add(card);
+                var header = new SubscriptionCard(info) { ContextMenuStrip = _subscriptionMenu };
+                header.RefreshClicked += async (_, _) => await RefreshSubscription(url);
+                controls.Add(header);
+            }
+
+            controls.AddRange(_data.Servers.Where(s => s.SubscriptionUrl == url).Select(CreateCard));
         }
 
-        _list.Controls.AddRange(_cards.ToArray());
+        controls.AddRange(_data.Servers
+            .Where(s => s.SubscriptionUrl == null || !_data.Subscriptions.Contains(s.SubscriptionUrl))
+            .Select(CreateCard));
+
+        _list.Controls.AddRange(controls.ToArray());
         UpdateCards();
         ApplyFilter();
         ResizeCards();
@@ -285,6 +313,19 @@ public class MainForm : Form
         _countLabel.Text = _data.Servers.Count == 0
             ? "Нажми + или Ctrl+V, чтобы добавить ключ"
             : ServerText.Plural(_data.Servers.Count, "сервер", "сервера", "серверов").ToUpperInvariant();
+    }
+
+    private ServerCard CreateCard(ProxyServer server)
+    {
+        var card = new ServerCard(server) { ContextMenuStrip = _cardMenu };
+        card.Click += (_, _) => Select(server);
+        card.DoubleClick += (_, _) =>
+        {
+            Select(server);
+            Connect();
+        };
+        _cards.Add(card);
+        return card;
     }
 
     private void UpdateCards()
@@ -303,13 +344,16 @@ public class MainForm : Form
         if (width <= 0)
             return;
 
-        foreach (var card in _cards)
-            card.Width = width;
+        foreach (Control control in _list.Controls)
+            control.Width = width;
     }
 
     private void ApplyFilter()
     {
         var query = _search.Query;
+        foreach (var header in _list.Controls.OfType<SubscriptionCard>())
+            header.Visible = query.Length == 0;
+
         foreach (var card in _cards)
         {
             card.Visible = query.Length == 0
@@ -451,16 +495,23 @@ public class MainForm : Form
     {
         try
         {
-            Log($"Загружаю подписку: {url}");
-            var servers = await SubscriptionLoader.LoadAsync(url);
+            Log("Обновляю подписку");
+            var result = await SubscriptionLoader.LoadAsync(url);
+            if (!_data.Subscriptions.Contains(url))
+                return false;
+
             _data.Servers.RemoveAll(s => s.SubscriptionUrl == url && s != _active);
-            _data.Servers.AddRange(servers);
+            _data.Servers.AddRange(result.Servers);
+            _data.Profiles.RemoveAll(p => p.Url == url);
+            _data.Profiles.Add(result.Info);
+
             if (_selected == null || !_data.Servers.Contains(_selected))
-                _selected = servers.FirstOrDefault() ?? _data.Servers.FirstOrDefault();
+                _selected = result.Servers.FirstOrDefault() ?? _data.Servers.FirstOrDefault();
+
             Save();
             RebuildList();
             UpdateHero();
-            Log($"Из подписки получено серверов: {servers.Count}");
+            Log($"{result.Info.Title}: серверов {result.Servers.Count}");
             return true;
         }
         catch (Exception ex)
@@ -468,6 +519,44 @@ public class MainForm : Form
             Log($"Ошибка подписки: {ex.Message}");
             return false;
         }
+    }
+
+    private async Task RefreshSubscription(string url)
+    {
+        _hero.SetPing("Обновляю подписку...", Theme.TextMuted);
+        if (await LoadSubscription(url))
+            _hero.SetPing("Подписка обновлена", Theme.PingGood);
+        else
+            _hero.SetPing("Не удалось обновить подписку", Theme.PingBad);
+    }
+
+    private async Task AutoUpdateSubscriptions()
+    {
+        foreach (var url in _data.Subscriptions.ToList())
+        {
+            var info = _data.Profiles.FirstOrDefault(p => p.Url == url);
+            if (info == null || DateTime.Now - info.UpdatedAt >= TimeSpan.FromHours(info.UpdateIntervalHours))
+                await LoadSubscription(url);
+        }
+
+        foreach (var header in _list.Controls.OfType<SubscriptionCard>())
+            header.Invalidate();
+    }
+
+    private void DeleteSubscription(string url)
+    {
+        if (_active?.SubscriptionUrl == url)
+            Disconnect();
+
+        _data.Subscriptions.Remove(url);
+        _data.Profiles.RemoveAll(p => p.Url == url);
+        _data.Servers.RemoveAll(s => s.SubscriptionUrl == url);
+        if (_selected != null && !_data.Servers.Contains(_selected))
+            _selected = _data.Servers.FirstOrDefault();
+
+        Save();
+        RebuildList();
+        UpdateHero();
     }
 
     private async Task PingAll()
