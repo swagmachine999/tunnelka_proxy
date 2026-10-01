@@ -12,11 +12,13 @@ public class HeroView : Control
     private RectangleF _kittenRect;
     private RectangleF _nameRect;
     private RectangleF _pingRect;
+    private RectangleF _refreshRect;
     private RectangleF _pingResultRect;
     private RectangleF _toggleRect;
 
     private bool _hoverPower;
     private bool _hoverPing;
+    private bool _hoverRefresh;
     private bool _hoverToggle;
 
     private bool _connected;
@@ -29,6 +31,7 @@ public class HeroView : Control
 
     public event EventHandler? PowerClicked;
     public event EventHandler? PingClicked;
+    public event EventHandler? RefreshClicked;
     public event EventHandler? ProxyToggled;
 
     public HeroView()
@@ -106,7 +109,9 @@ public class HeroView : Control
         _powerRect = new RectangleF(cx - diameter / 2, top, diameter, diameter);
         _kittenRect = new RectangleF(cx - kittenW / 2, _powerRect.Bottom + gap, kittenW, kittenH);
         _nameRect = new RectangleF(16, _kittenRect.Bottom + 12, w - 32, 34);
-        _pingRect = new RectangleF(cx - 100, _nameRect.Bottom + 18, 200, 44);
+        var buttonWidth = Math.Min(180f, (w - 48) / 2);
+        _refreshRect = new RectangleF(cx - buttonWidth - 6, _nameRect.Bottom + 18, buttonWidth, 44);
+        _pingRect = new RectangleF(cx + 6, _nameRect.Bottom + 18, buttonWidth, 44);
         _pingResultRect = new RectangleF(16, _pingRect.Bottom + 4, w - 32, 22);
         _toggleRect = new RectangleF(w - 24 - 208, 24, 208, 40);
     }
@@ -125,7 +130,7 @@ public class HeroView : Control
         DrawPower(g);
         KittenPainter.Draw(g, _kittenRect, _connected, _time, _connected && _tick % 110 < 4);
         DrawServer(g);
-        DrawPingButton(g);
+        DrawButtons(g);
     }
 
     private void DrawBackground(Graphics g)
@@ -241,8 +246,13 @@ public class HeroView : Control
         Theme.DrawText(g, _serverName, Theme.ServerName, Theme.Text, new RectangleF(x + badge + spacing, _nameRect.Y, textWidth + 4, _nameRect.Height));
     }
 
-    private void DrawPingButton(Graphics g)
+    private void DrawButtons(Graphics g)
     {
+        var refresh = _refreshRect;
+        Theme.FillRounded(g, _hoverRefresh ? Color.White : Color.FromArgb(215, Color.White), refresh, refresh.Height / 2);
+        Theme.DrawRounded(g, _hoverRefresh ? Theme.Accent : Theme.Border, refresh, refresh.Height / 2, 1.4f);
+        Theme.DrawText(g, "Обновить подписку", Theme.BodyBold, Theme.AccentDark, refresh, StringAlignment.Center);
+
         var r = _pingRect;
         using (var brush = new LinearGradientBrush(r, _hoverPing ? Theme.AccentDark : Theme.Accent, _hoverPing ? Theme.Accent : Theme.Pink, 0f))
         using (var path = Theme.RoundedRect(r, r.Height / 2))
@@ -259,14 +269,16 @@ public class HeroView : Control
         base.OnMouseMove(e);
         var power = InCircle(_powerRect, e.Location);
         var ping = _pingRect.Contains(e.Location);
+        var refresh = _refreshRect.Contains(e.Location);
         var toggle = _toggleRect.Contains(e.Location);
 
-        if (power != _hoverPower || ping != _hoverPing || toggle != _hoverToggle)
+        if (power != _hoverPower || ping != _hoverPing || refresh != _hoverRefresh || toggle != _hoverToggle)
         {
             _hoverPower = power;
             _hoverPing = ping;
+            _hoverRefresh = refresh;
             _hoverToggle = toggle;
-            Cursor = power || ping || toggle ? Cursors.Hand : Cursors.Default;
+            Cursor = power || ping || refresh || toggle ? Cursors.Hand : Cursors.Default;
             Invalidate();
         }
     }
@@ -274,7 +286,7 @@ public class HeroView : Control
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
-        _hoverPower = _hoverPing = _hoverToggle = false;
+        _hoverPower = _hoverPing = _hoverRefresh = _hoverToggle = false;
         Cursor = Cursors.Default;
         Invalidate();
     }
@@ -289,6 +301,8 @@ public class HeroView : Control
             PowerClicked?.Invoke(this, EventArgs.Empty);
         else if (_pingRect.Contains(e.Location))
             PingClicked?.Invoke(this, EventArgs.Empty);
+        else if (_refreshRect.Contains(e.Location))
+            RefreshClicked?.Invoke(this, EventArgs.Empty);
         else if (_toggleRect.Contains(e.Location))
             ProxyToggled?.Invoke(this, EventArgs.Empty);
     }
