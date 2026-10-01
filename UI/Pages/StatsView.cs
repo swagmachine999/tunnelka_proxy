@@ -165,8 +165,11 @@ public class StatsView : Control
             var (title, down, up) = rows[i];
             var row = new RectangleF(r.X + 16, y, r.Width - 32, 50);
             Theme.DrawText(g, title, Theme.Caption, Theme.TextMuted, new RectangleF(row.X, row.Y, row.Width, 20));
-            Theme.DrawText(g, $"↓ {ServerText.Bytes(down)}", Theme.BodyBold, Theme.Text, new RectangleF(row.X, row.Y + 20, row.Width / 2, 24));
-            Theme.DrawText(g, $"↑ {ServerText.Bytes(up)}", Theme.BodyBold, Theme.Text, new RectangleF(row.X + row.Width / 2, row.Y + 20, row.Width / 2, 24));
+            var cy = row.Y + 32;
+            Theme.DrawArrow(g, row.X, cy, true, Theme.AccentStrong);
+            Theme.DrawText(g, ServerText.Bytes(down), Theme.BodyBold, Theme.Text, new RectangleF(row.X + 16, row.Y + 20, row.Width / 2 - 16, 24));
+            Theme.DrawArrow(g, row.X + row.Width / 2, cy, false, Theme.PingBad);
+            Theme.DrawText(g, ServerText.Bytes(up), Theme.BodyBold, Theme.Text, new RectangleF(row.X + row.Width / 2 + 16, row.Y + 20, row.Width / 2 - 16, 24));
 
             if (i < rows.Length - 1)
             {

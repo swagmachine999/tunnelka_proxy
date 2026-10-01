@@ -188,20 +188,21 @@ public class HeroView : Control
         if (!_connected || _speedDown == null || _speedUp == null)
             return;
 
-        var arrowWidth = g.MeasureString("↓", Theme.BodyBold).Width - 4;
+        const float arrowWidth = 10;
         var downWidth = g.MeasureString(_speedDown, Theme.BodyBold).Width;
         var upWidth = g.MeasureString(_speedUp, Theme.BodyBold).Width;
-        var r = new RectangleF(24, 24, arrowWidth * 2 + downWidth + upWidth + 54, 40);
+        var r = new RectangleF(24, 24, arrowWidth * 2 + downWidth + upWidth + 52, 40);
 
         Theme.FillRounded(g, Color.FromArgb(225, Theme.Card), r, r.Height / 2);
         Theme.DrawRounded(g, Theme.Border, r, r.Height / 2);
 
-        var x = r.X + 14;
-        Theme.DrawText(g, "↓", Theme.BodyBold, Theme.AccentStrong, new RectangleF(x, r.Y, arrowWidth + 4, r.Height));
+        var cy = r.Y + r.Height / 2;
+        var x = r.X + 15;
+        Theme.DrawArrow(g, x, cy, true, Theme.AccentStrong);
         x += arrowWidth + 5;
         Theme.DrawText(g, _speedDown, Theme.BodyBold, Theme.Text, new RectangleF(x, r.Y, downWidth + 4, r.Height));
-        x += downWidth + 12;
-        Theme.DrawText(g, "↑", Theme.BodyBold, Theme.PingBad, new RectangleF(x, r.Y, arrowWidth + 4, r.Height));
+        x += downWidth + 10;
+        Theme.DrawArrow(g, x, cy, false, Theme.PingBad);
         x += arrowWidth + 5;
         Theme.DrawText(g, _speedUp, Theme.BodyBold, Theme.Text, new RectangleF(x, r.Y, upWidth + 4, r.Height));
     }

@@ -115,16 +115,16 @@ public static class Theme
     private static readonly FontFamily Family = LoadFamily();
     private static readonly Dictionary<string, Image?> Flags = new();
 
-    public static readonly Font Title = MakeFont(25, FontStyle.Bold);
-    public static readonly Font Body = MakeFont(13);
-    public static readonly Font BodyBold = MakeFont(13, FontStyle.Bold);
-    public static readonly Font CardTitle = MakeFont(14, FontStyle.Bold);
-    public static readonly Font Caption = MakeFont(11);
-    public static readonly Font CaptionBold = MakeFont(11, FontStyle.Bold);
-    public static readonly Font Status = MakeFont(11, FontStyle.Bold);
-    public static readonly Font Timer = MakeFont(17, FontStyle.Bold);
-    public static readonly Font ServerName = MakeFont(16, FontStyle.Bold);
-    public static readonly Font Big = MakeFont(22, FontStyle.Bold);
+    public static readonly Font Title = MakeFont(26, FontStyle.Bold);
+    public static readonly Font Body = MakeFont(14);
+    public static readonly Font BodyBold = MakeFont(14, FontStyle.Bold);
+    public static readonly Font CardTitle = MakeFont(15, FontStyle.Bold);
+    public static readonly Font Caption = MakeFont(12);
+    public static readonly Font CaptionBold = MakeFont(12, FontStyle.Bold);
+    public static readonly Font Status = MakeFont(12, FontStyle.Bold);
+    public static readonly Font Timer = MakeFont(18, FontStyle.Bold);
+    public static readonly Font ServerName = MakeFont(17, FontStyle.Bold);
+    public static readonly Font Big = MakeFont(23, FontStyle.Bold);
     public static readonly Font Log = new("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel);
 
     public static Font MakeFont(float pixels, FontStyle style = FontStyle.Regular) =>
@@ -158,7 +158,7 @@ public static class Theme
     {
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
     }
 
@@ -248,7 +248,19 @@ public static class Theme
         return image;
     }
 
-    public static Color Lighten(Color c, float amount) => Color.FromArgb(
+    public static void DrawArrow(Graphics g, float x, float cy, bool down, Color color)
+    {
+        using var pen = new Pen(color, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        var top = cy - 6;
+        var bottom = cy + 6;
+        g.DrawLine(pen, x + 5, top, x + 5, bottom);
+        var tip = down ? bottom : top;
+        var back = down ? -4.5f : 4.5f;
+        g.DrawLine(pen, x + 5, tip, x + 1, tip + back);
+        g.DrawLine(pen, x + 5, tip, x + 9, tip + back);
+    }
+
+        public static Color Lighten(Color c, float amount) => Color.FromArgb(
         c.A,
         (int)(c.R + (255 - c.R) * amount),
         (int)(c.G + (255 - c.G) * amount),
@@ -275,7 +287,7 @@ public static class Theme
         try
         {
             var dir = Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts");
-            foreach (var file in new[] { "Inter-Regular.ttf", "Inter-Bold.ttf" })
+            foreach (var file in new[] { "Nunito-Regular.ttf", "Nunito-Bold.ttf" })
             {
                 var path = Path.Combine(dir, file);
                 if (!File.Exists(path))
