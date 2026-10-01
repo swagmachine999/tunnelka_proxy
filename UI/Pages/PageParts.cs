@@ -1,3 +1,5 @@
+using VpnClient.UI.Controls;
+
 namespace VpnClient.UI.Pages;
 
 public static class PageParts
@@ -51,42 +53,19 @@ public static class PageParts
     }
 }
 
-public class BackButton : Control
+public class BackButton : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
-    private bool _hover;
 
     public BackButton()
     {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Size = new Size(Theme.Px(36), Theme.Px(36));
         Cursor = Cursors.Hand;
     }
 
-    protected override void OnMouseEnter(EventArgs e)
+    protected override void Draw(Graphics g)
     {
-        base.OnMouseEnter(e);
-        _hover = true;
-        Invalidate();
-    }
-
-    protected override void OnMouseLeave(EventArgs e)
-    {
-        base.OnMouseLeave(e);
-        _hover = false;
-        Invalidate();
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.Surface);
-
         var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
-        Theme.FillRounded(g, _hover ? Theme.CardHover : Theme.Card, rect, 10);
+        Theme.FillRounded(g, IsHovered ? Theme.CardHover : Theme.Card, rect, 10);
         Theme.DrawRounded(g, Theme.Border, rect, 10);
 
         using var pen = new Pen(Theme.Text, 2f)

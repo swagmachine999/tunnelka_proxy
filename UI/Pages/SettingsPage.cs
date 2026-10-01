@@ -2,14 +2,10 @@ using VpnClient.UI.Controls;
 
 namespace VpnClient.UI.Pages;
 
-public class SettingRow : Control
+public class SettingRow : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     private readonly Control? _accessory;
     private readonly bool _chevron;
-    private bool _hover;
 
     public SettingRow(string title, string subtitle, Control? accessory = null, bool chevron = false)
     {
@@ -17,8 +13,6 @@ public class SettingRow : Control
         Subtitle = subtitle;
         _accessory = accessory;
         _chevron = chevron;
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Dock = DockStyle.Top;
         Height = Theme.Px(76);
         Theme.Bind(this, () => Theme.Card);
@@ -35,27 +29,10 @@ public class SettingRow : Control
 
     public string Subtitle { get; set; }
 
-    protected override void OnMouseEnter(EventArgs e)
+    protected override void Draw(Graphics g)
     {
-        base.OnMouseEnter(e);
-        _hover = _chevron;
-        Invalidate();
-    }
-
-    protected override void OnMouseLeave(EventArgs e)
-    {
-        base.OnMouseLeave(e);
-        _hover = false;
-        Invalidate();
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.Surface);
-
         var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 9.5f);
-        Theme.FillRounded(g, _hover ? Theme.CardHover : Theme.Card, rect, 14);
+        Theme.FillRounded(g, IsHovered && _chevron ? Theme.CardHover : Theme.Card, rect, 14);
         Theme.DrawRounded(g, Theme.Border, rect, 14);
 
         var right = _accessory != null ? _accessory.Width / Theme.S + 16 : _chevron ? 30 : 0;

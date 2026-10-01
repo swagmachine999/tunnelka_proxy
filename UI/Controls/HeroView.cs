@@ -2,7 +2,7 @@ using System.Drawing.Drawing2D;
 
 namespace VpnClient.UI.Controls;
 
-public class HeroView : Control
+public class HeroView : ThemedControl
 {
     private readonly System.Windows.Forms.Timer _animation = new() { Interval = 40 };
     private float _time;
@@ -39,8 +39,6 @@ public class HeroView : Control
 
     public HeroView()
     {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
 
         _animation.Tick += (_, _) => Animate();
         _animation.Start();
@@ -48,7 +46,6 @@ public class HeroView : Control
 
     public bool Connected
     {
-        get => _connected;
         set { _connected = value; Invalidate(); }
     }
 
@@ -134,14 +131,14 @@ public class HeroView : Control
         _toggleRect = new RectangleF(w - 24 - 190, 24, 190, 40);
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override Color Background => Theme.HeroBottom;
+
+    protected override void Draw(Graphics g)
     {
         if (ClientSize.Width < 10 || ClientSize.Height < 10)
             return;
 
         ComputeLayout();
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.HeroBottom);
 
         DrawBackground(g);
         DrawToggle(g);
@@ -290,7 +287,7 @@ public class HeroView : Control
         const float badge = 28;
         const float spacing = 10;
         var maxText = _nameRect.Width - badge - spacing;
-        var textWidth = Math.Min(maxText, NamePainter.Measure(g, _serverParts, Theme.ServerName));
+        var textWidth = Math.Min(maxText, NamePainter.Measure(_serverParts, Theme.ServerName));
         var x = _nameRect.X + (_nameRect.Width - badge - spacing - textWidth) / 2;
 
         Theme.DrawBadge(g, new RectangleF(x, _nameRect.Y + (_nameRect.Height - badge) / 2, badge, badge), _serverCode);
@@ -321,15 +318,7 @@ public class HeroView : Control
     {
         var cx = _pingResultRect.X + _pingResultRect.Width / 2;
         var cy = _pingResultRect.Y + _pingResultRect.Height / 2;
-
-        for (var i = 0; i < 3; i++)
-        {
-            var phase = (float)Math.Sin(_time * 6 - i * 0.9);
-            var lift = Math.Max(0, phase) * 4;
-            var alpha = (int)(170 + 85 * Math.Max(0, phase));
-            using var brush = new SolidBrush(Color.FromArgb(alpha, i == 1 ? Theme.Pink : Theme.Accent));
-            g.FillEllipse(brush, cx - 16 + i * 13, cy - 3.5f - lift, 7, 7);
-        }
+        Theme.DrawBusyDots(g, cx - 16, cy, _time, 7);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)

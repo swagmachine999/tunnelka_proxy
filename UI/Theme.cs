@@ -319,7 +319,18 @@ public static class Theme
         g.DrawLine(pen, x + 5, tip, x + 9, tip + back);
     }
 
-        public static Color Lighten(Color c, float amount) => Color.FromArgb(
+        public static void DrawBusyDots(Graphics g, float left, float cy, float time, float size)
+    {
+        var step = size * 1.85f;
+        for (var i = 0; i < 3; i++)
+        {
+            var phase = (float)Math.Max(0, Math.Sin(time * 6 - i * 0.9));
+            using var brush = new SolidBrush(Color.FromArgb((int)(170 + 85 * phase), i == 1 ? Pink : Accent));
+            g.FillEllipse(brush, left + i * step, cy - size / 2 - phase * size * 0.55f, size, size);
+        }
+    }
+
+    public static Color Lighten(Color c, float amount) => Color.FromArgb(
         c.A,
         (int)(c.R + (255 - c.R) * amount),
         (int)(c.G + (255 - c.G) * amount),
