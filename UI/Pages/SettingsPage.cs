@@ -107,7 +107,7 @@ public class SettingsPage : Panel
         Controls.Add(new SettingRow("Скорость в окне", "Как часто обновлять", SpeedSelector));
         Controls.Add(new SettingRow("Системный прокси", "Браузер и программы пойдут через VPN", ProxyToggle));
         ScaleSelector = new ScaleStepper(uiScale);
-        Controls.Add(new SettingRow("Масштаб интерфейса", "Окно перестроится сразу", ScaleSelector));
+        Controls.Add(new SettingRow("Масштаб интерфейса", "Размер всего внутри окна", ScaleSelector));
         Controls.Add(new SettingRow("Тёмная тема", "Мягкие тёмные цвета", DarkToggle));
         Controls.Add(Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(10) }, () => Theme.Surface));
         Controls.Add(PageParts.Title("Настройки"));

@@ -60,16 +60,15 @@ public class MainForm : Form
 
     private readonly System.Windows.Forms.Timer _scaleDelay = new() { Interval = 700 };
 
-    public bool RestartRequested { get; private set; }
-    public bool WasConnected { get; private set; }
+    public event EventHandler? ScaleChangeRequested;
 
-    public MainForm(bool reconnect = false, bool openSettings = false, Rectangle? bounds = null)
+    public MainForm(bool reconnect = false, bool openSettings = false, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal)
     {
         Theme.Use(_data.DarkTheme);
 
         Text = "Tunnelka";
-        ClientSize = new Size(Theme.Px(1080), Theme.Px(720));
-        MinimumSize = new Size(Theme.Px(900), Theme.Px(640));
+        ClientSize = new Size(1000, 660);
+        MinimumSize = new Size(760, 540);
         StartPosition = FormStartPosition.CenterScreen;
         Font = Theme.Scaled(Theme.Body);
         KeyPreview = true;
@@ -139,7 +138,8 @@ public class MainForm : Form
         if (bounds != null)
         {
             StartPosition = FormStartPosition.Manual;
-            Location = bounds.Value.Location;
+            Bounds = bounds.Value;
+            WindowState = state;
         }
 
         _settingsPage.ScaleSelector.ValueChanged += (_, _) =>
@@ -152,13 +152,18 @@ public class MainForm : Form
             _scaleDelay.Stop();
             _data.UiScale = _settingsPage.ScaleSelector.Value;
             Save();
-            WasConnected = _xray.IsRunning;
-            RestartRequested = true;
-            Close();
+            ScaleChangeRequested?.Invoke(this, EventArgs.Empty);
         };
 
         if (reconnect)
             Shown += (_, _) => Connect();
+    }
+
+    public bool PrepareForReplace()
+    {
+        var wasConnected = _xray.IsRunning;
+        Disconnect();
+        return wasConnected;
     }
 
     protected override void OnHandleCreated(EventArgs e)
