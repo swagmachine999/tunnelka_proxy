@@ -1,4 +1,5 @@
 using VpnClient.Models;
+using VpnClient.Services;
 using VpnClient.UI.Controls;
 
 namespace VpnClient.UI.Pages;
@@ -23,6 +24,17 @@ public class RuleCard : Control
     }
 
     public RoutingRule Rule { get; }
+
+    private static string Describe(string values) => string.Join(", ", XrayConfigBuilder.SplitValues(values).Select(value =>
+    {
+        if (!value.StartsWith(XrayConfigBuilder.ProcessPrefix, StringComparison.OrdinalIgnoreCase))
+            return value;
+
+        var target = value.Substring(XrayConfigBuilder.ProcessPrefix.Length).Trim();
+        return target.Contains('/') || target.Contains('\\')
+            ? $"{Path.GetFileName(target.Replace('/', '\\'))} (файл)"
+            : $"{target} (процесс)";
+    }));
 
     public static string ActionTitle(string action) => action switch
     {
@@ -52,7 +64,7 @@ public class RuleCard : Control
         _toggleRect = new RectangleF(Width - 82, 10, 40, 22);
 
         var textColor = Rule.Enabled ? Theme.Text : Theme.TextMuted;
-        Theme.DrawText(g, Rule.Values, Theme.BodyBold, textColor, new RectangleF(16, 9, Width - 112, 24));
+        Theme.DrawText(g, Describe(Rule.Values), Theme.BodyBold, textColor, new RectangleF(16, 9, Width - 112, 24));
 
         var title = ActionTitle(Rule.Action);
         var color = ActionColor(Rule.Action);
@@ -145,7 +157,7 @@ public class RoutingPage : Panel
         var title = PageParts.Header("Маршрутизация", onBack);
         var subtitle = PageParts.Caption("Правила проверяются сверху вниз. Всё остальное идёт через VPN.", 34);
 
-        var form = new Panel { Dock = DockStyle.Top, Height = 140 };
+        var form = new Panel { Dock = DockStyle.Top, Height = 184 };
         Theme.Bind(form, () => Theme.Surface);
 
         _input.SetBounds(0, 0, 360, 42);
@@ -156,14 +168,33 @@ public class RoutingPage : Panel
         var preset = PageParts.Button("Российские сайты напрямую", false);
         preset.Click += (_, _) => AddRule("domain:ru, domain:su, domain:рф", RoutingRule.Direct);
 
-        form.Controls.AddRange(new Control[] { _input, _action, add, preset });
+        var process = PageParts.Button("Процесс", false);
+        process.Click += (_, _) =>
+        {
+            var name = ProcessPicker.Show(FindForm());
+            if (name != null)
+                AddRule(XrayConfigBuilder.ProcessPrefix + name, SelectedAction());
+        };
+
+        var file = PageParts.Button("Файл .exe", false);
+        file.Click += (_, _) =>
+        {
+            using var dialog = new OpenFileDialog { Filter = "Программы (*.exe)|*.exe", Title = "Выбери программу" };
+            if (dialog.ShowDialog(FindForm()) == DialogResult.OK)
+                AddRule(XrayConfigBuilder.ProcessPrefix + dialog.FileName, SelectedAction());
+        };
+
+        form.Controls.AddRange(new Control[] { _input, _action, add, process, file, preset });
         form.Resize += (_, _) =>
         {
             var width = form.Width - 6;
             _input.SetBounds(0, 0, width, 42);
             _action.SetBounds(0, 52, width - 120, 38);
             add.SetBounds(width - 110, 52, 110, 38);
-            preset.SetBounds(0, 100, width, 34);
+            var half = (width - 10) / 2;
+            process.SetBounds(0, 100, half, 34);
+            file.SetBounds(half + 10, 100, width - half - 10, 34);
+            preset.SetBounds(0, 144, width, 34);
         };
 
         var gap = new Panel { Dock = DockStyle.Top, Height = 12 };
@@ -184,16 +215,16 @@ public class RoutingPage : Panel
         if (_input.Query.Length == 0)
             return;
 
-        var action = _action.SelectedIndex switch
-        {
-            1 => RoutingRule.Proxy,
-            2 => RoutingRule.Block,
-            _ => RoutingRule.Direct
-        };
-
-        AddRule(_input.Query, action);
+        AddRule(_input.Query, SelectedAction());
         _input.Clear();
     }
+
+    private string SelectedAction() => _action.SelectedIndex switch
+    {
+        1 => RoutingRule.Proxy,
+        2 => RoutingRule.Block,
+        _ => RoutingRule.Direct
+    };
 
     private void AddRule(string values, string action)
     {
