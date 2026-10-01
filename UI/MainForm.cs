@@ -76,7 +76,7 @@ public class MainForm : Form
 
         _hero.ProxyEnabled = _data.UseSystemProxy;
         _hero.PowerClicked += (_, _) => ToggleConnection();
-        _hero.PingClicked += async (_, _) => await PingAll();
+        _hero.PingClicked += async (_, _) => await PingCurrent();
         _hero.RefreshClicked += async (_, _) => await UpdateSubscriptions();
         _hero.ProxyToggled += (_, _) => SetSystemProxy(!_data.UseSystemProxy);
         _settingsPage.ProxyToggle.CheckedChanged += (_, _) => SetSystemProxy(_settingsPage.ProxyToggle.Checked);
@@ -147,7 +147,21 @@ public class MainForm : Form
         serversPage.Controls.Add(_list);
         serversPage.Controls.Add(_countLabel);
         serversPage.Controls.Add(gap);
-        serversPage.Controls.Add(_search);
+        var pingAll = new IconButton(IconKind.Gauge, "Проверить пинг всех серверов")
+        {
+            Dock = DockStyle.Right,
+            Background = () => Theme.Surface
+        };
+        pingAll.Click += async (_, _) => await PingAll();
+        AttachTip(pingAll);
+
+        var searchRow = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = 42 }, () => Theme.Surface);
+        var searchGap = Theme.Bind(new Panel { Dock = DockStyle.Right, Width = 8 }, () => Theme.Surface);
+        _search.Dock = DockStyle.Fill;
+        searchRow.Controls.Add(_search);
+        searchRow.Controls.Add(searchGap);
+        searchRow.Controls.Add(pingAll);
+        serversPage.Controls.Add(searchRow);
         serversPage.Controls.Add(PageParts.Title("Серверы"));
 
         var statsPage = Theme.Bind(new Panel { Dock = DockStyle.Fill }, () => Theme.Surface);
@@ -463,6 +477,18 @@ public class MainForm : Form
 
         _hero.SetPing("Проверяю пинг...", Theme.TextMuted);
         await Task.WhenAll(_data.Servers.Select(PingServer));
+        UpdateCards();
+        UpdateHero();
+    }
+
+    private async Task PingCurrent()
+    {
+        var server = _active ?? _selected;
+        if (server == null)
+            return;
+
+        _hero.SetPing("Проверяю пинг...", Theme.TextMuted);
+        await PingServer(server);
         UpdateCards();
         UpdateHero();
     }

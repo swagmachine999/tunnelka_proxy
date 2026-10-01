@@ -292,7 +292,7 @@ public class HeroView : Control
         using (var path = Theme.RoundedRect(r, r.Height / 2))
             g.FillPath(brush, path);
 
-        Theme.DrawText(g, "Тест пинга", Theme.BodyBold, Color.White, r, StringAlignment.Center);
+        Theme.DrawText(g, "Проверка пинга", Theme.BodyBold, Color.White, r, StringAlignment.Center);
 
         if (_pingText.Length > 0)
             Theme.DrawText(g, _pingText, Theme.CaptionBold, _pingColor, _pingResultRect, StringAlignment.Center);
