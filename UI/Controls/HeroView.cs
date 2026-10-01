@@ -22,7 +22,7 @@ public class HeroView : Control
     private bool _hoverToggle;
 
     private bool _connected;
-    private bool _proxyEnabled = true;
+    private bool _tun;
     private string _elapsed = "00:00:00";
     private IReadOnlyList<NamePart> _serverParts = Array.Empty<NamePart>();
     private string? _serverCode;
@@ -34,7 +34,7 @@ public class HeroView : Control
     public event EventHandler? PowerClicked;
     public event EventHandler? PingClicked;
     public event EventHandler? RefreshClicked;
-    public event EventHandler? ProxyToggled;
+    public event Action<bool>? ModeSelected;
 
     public HeroView()
     {
@@ -51,10 +51,10 @@ public class HeroView : Control
         set { _connected = value; Invalidate(); }
     }
 
-    public bool ProxyEnabled
+    public bool Tun
     {
-        get => _proxyEnabled;
-        set { _proxyEnabled = value; Invalidate(); }
+        get => _tun;
+        set { _tun = value; Invalidate(); }
     }
 
     public string ElapsedText
@@ -121,7 +121,7 @@ public class HeroView : Control
         _refreshRect = new RectangleF(cx - buttonWidth - 6, _nameRect.Bottom + 18, buttonWidth, 44);
         _pingRect = new RectangleF(cx + 6, _nameRect.Bottom + 18, buttonWidth, 44);
         _pingResultRect = new RectangleF(16, _pingRect.Bottom + 4, w - 32, 22);
-        _toggleRect = new RectangleF(w - 24 - 208, 24, 208, 40);
+        _toggleRect = new RectangleF(w - 24 - 190, 24, 190, 40);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -167,20 +167,26 @@ public class HeroView : Control
         g.FillPath(brush, path);
     }
 
+    private RectangleF ModeSegment(bool tun)
+    {
+        var half = (_toggleRect.Width - 8) / 2;
+        return new RectangleF(_toggleRect.X + 4 + (tun ? half : 0), _toggleRect.Y + 4, half, _toggleRect.Height - 8);
+    }
+
     private void DrawToggle(Graphics g)
     {
         var r = _toggleRect;
         Theme.FillRounded(g, Color.FromArgb(_hoverToggle ? 250 : 215, Theme.Card), r, r.Height / 2);
         Theme.DrawRounded(g, Theme.Border, r, r.Height / 2);
 
-        Theme.DrawText(g, "Системный прокси", Theme.Body, Theme.Text, new RectangleF(r.X + 16, r.Y, r.Width - 70, r.Height));
-
-        var track = new RectangleF(r.Right - 54, r.Y + (r.Height - 22) / 2, 40, 22);
-        Theme.FillRounded(g, _proxyEnabled ? Theme.Accent : Theme.TrackOff, track, 11);
-
-        var knobX = _proxyEnabled ? track.Right - 19 : track.X + 3;
-        using var knob = new SolidBrush(Color.White);
-        g.FillEllipse(knob, knobX, track.Y + 3, 16, 16);
+        foreach (var tun in new[] { false, true })
+        {
+            var segment = ModeSegment(tun);
+            var active = tun == _tun;
+            if (active)
+                Theme.FillRounded(g, Theme.Accent, segment, segment.Height / 2);
+            Theme.DrawText(g, tun ? "TUN" : "Прокси", Theme.BodyBold, active ? Color.White : Theme.TextMuted, segment, StringAlignment.Center);
+        }
     }
 
     private void DrawSpeed(Graphics g)
@@ -341,7 +347,11 @@ public class HeroView : Control
         else if (_refreshRect.Contains(point))
             RefreshClicked?.Invoke(this, EventArgs.Empty);
         else if (_toggleRect.Contains(point))
-            ProxyToggled?.Invoke(this, EventArgs.Empty);
+        {
+            var tun = ModeSegment(true).Contains(point);
+            if (tun != _tun)
+                ModeSelected?.Invoke(tun);
+        }
     }
 
     private static Rectangle ToDevice(RectangleF r) =>

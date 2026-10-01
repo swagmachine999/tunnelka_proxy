@@ -8,7 +8,7 @@ public class AppData
     public List<ProxyServer> Servers { get; set; } = new();
     public List<string> Subscriptions { get; set; } = new();
     public List<SubscriptionInfo> Profiles { get; set; } = new();
-    public bool UseSystemProxy { get; set; } = true;
+    public bool Tun { get; set; }
     public string LastServerLink { get; set; } = "";
     public bool DarkTheme { get; set; }
     public int SpeedInterval { get; set; } = 3;
