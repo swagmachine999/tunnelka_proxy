@@ -35,7 +35,7 @@ public static class NamePainter
             }
             else
             {
-                var measured = g.MeasureString(part.Text, font).Width;
+                var measured = Theme.Measure(part.Text, font).Width;
                 var width = Math.Min(bounds.Right - x, measured + 2);
                 Theme.DrawText(g, part.Text, font, color, new RectangleF(x, bounds.Y, width, bounds.Height));
                 x += measured + 1 + Gap;
@@ -46,7 +46,7 @@ public static class NamePainter
     }
 
     private static float PartWidth(Graphics g, NamePart part, Font font) =>
-        part.IsSymbol ? font.Size * 1.15f : g.MeasureString(part.Text, font).Width + 1;
+        part.IsSymbol ? font.Size * 1.15f : Theme.Measure(part.Text, font).Width + 1;
 
     private static void DrawSymbol(Graphics g, string symbol, RectangleF r, Color textColor)
     {

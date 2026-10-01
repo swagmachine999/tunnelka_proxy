@@ -12,11 +12,7 @@ public class TipBubble : Control
     public void ShowNear(Control anchor, string text)
     {
         Text = text;
-        using (var g = CreateGraphics())
-        {
-            var size = g.MeasureString(text, Theme.BodyBold);
-            Size = new Size((int)size.Width + 30, 34);
-        }
+        Size = new Size(Theme.Measure(text, Theme.BodyBold).Width + 32, 34);
 
         var form = FindForm();
         if (form == null)
