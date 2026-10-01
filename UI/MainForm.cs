@@ -761,7 +761,7 @@ public class MainForm : Form, IMessageFilter
                 Log($"Порт {XrayConfigBuilder.PreferredSocksPort} занят другой программой (например, Happ или v2rayN), беру {XrayConfigBuilder.SocksPort}");
 
             _xray.Start(XrayConfigBuilder.Build(server, _data.Rules));
-            _settingsPage.ShowPorts(XrayConfigBuilder.SocksPort, XrayConfigBuilder.HttpPort);
+            Log($"Порты: SOCKS5 127.0.0.1:{XrayConfigBuilder.SocksPort}, HTTP 127.0.0.1:{XrayConfigBuilder.HttpPort}");
             return true;
         }
         catch (FileNotFoundException)
