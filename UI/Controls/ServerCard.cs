@@ -7,7 +7,12 @@ public class ServerCard : Control
     private float W => Width / Theme.S;
     private float H => Height / Theme.S;
 
+    private static readonly HashSet<ServerCard> BusyCards = new();
+    private static readonly System.Windows.Forms.Timer BusyTimer = CreateBusyTimer();
+    private static float _busyTime;
+
     private bool _hover;
+    private bool _busy;
     private bool _selected;
     private bool _active;
 
@@ -37,6 +42,49 @@ public class ServerCard : Control
     {
         get => _selected;
         set { if (_selected != value) { _selected = value; Invalidate(); } }
+    }
+
+    public bool IsBusy
+    {
+        get => _busy;
+        set
+        {
+            if (_busy == value)
+                return;
+
+            _busy = value;
+            if (value)
+                BusyCards.Add(this);
+            else
+                BusyCards.Remove(this);
+
+            BusyTimer.Enabled = BusyCards.Count > 0;
+            Invalidate();
+        }
+    }
+
+    private static System.Windows.Forms.Timer CreateBusyTimer()
+    {
+        var timer = new System.Windows.Forms.Timer { Interval = 40 };
+        timer.Tick += (_, _) =>
+        {
+            _busyTime += 0.04f;
+            foreach (var card in BusyCards.ToList())
+            {
+                if (card.IsDisposed)
+                    BusyCards.Remove(card);
+                else if (card.Visible)
+                    card.Invalidate();
+            }
+        };
+        return timer;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            IsBusy = false;
+        base.Dispose(disposing);
     }
 
     public bool IsActive
@@ -89,6 +137,21 @@ public class ServerCard : Control
 
         NamePainter.Draw(g, Parts, Theme.CardTitle, Theme.Text, new RectangleF(textLeft, 11, textWidth, 24));
         Theme.DrawText(g, Description, Theme.Caption, Theme.TextMuted, new RectangleF(textLeft, 35, textWidth, 18));
+
+        if (_busy)
+        {
+            var right = W - 20;
+            var cy = H / 2;
+            for (var i = 0; i < 3; i++)
+            {
+                var phase = (float)Math.Sin(_busyTime * 6 - i * 0.9);
+                var lift = Math.Max(0, phase) * 3;
+                var alpha = (int)(170 + 85 * Math.Max(0, phase));
+                using var brush = new SolidBrush(Color.FromArgb(alpha, i == 1 ? Theme.Pink : Theme.Accent));
+                g.FillEllipse(brush, right - 34 + i * 11, cy - 3 - lift, 6, 6);
+            }
+            return;
+        }
 
         var ping = Theme.PingLabel(Server.PingMs);
         if (ping.Length > 0)
