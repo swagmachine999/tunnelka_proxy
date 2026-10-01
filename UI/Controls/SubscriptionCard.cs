@@ -175,8 +175,9 @@ public class SubscriptionCard : ThemedControl
         var titleParts = ServerText.Parts(Info.Title, Info.Title);
         NamePainter.Draw(g, titleParts, Theme.CardTitle, Theme.Text, new RectangleF(Pad, 13, titleRight - Pad, 24));
 
-        var updated = Info.UpdatedAt.Date == DateTime.Today ? $"{Info.UpdatedAt:HH:mm}" : $"{Info.UpdatedAt:dd.MM HH:mm}";
-        Theme.DrawText(g, $"Обновлено в {updated} · раз в {Info.UpdateIntervalHours} ч",
+        var updated = Info.UpdatedAt == default ? "никогда"
+            : Info.UpdatedAt.Date == DateTime.Today ? $"в {Info.UpdatedAt:HH:mm}" : $"{Info.UpdatedAt:dd.MM HH:mm}";
+        Theme.DrawText(g, $"Обновлено {updated} · раз в {Info.UpdateIntervalHours} ч",
             Theme.Caption, Theme.TextMuted, new RectangleF(Pad, 37, titleRight - Pad, 18));
 
         var y = InfoTop;

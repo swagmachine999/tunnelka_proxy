@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using VpnClient.Models;
 
 namespace VpnClient.Storage;
@@ -6,7 +7,6 @@ namespace VpnClient.Storage;
 public class AppData
 {
     public List<ProxyServer> Servers { get; set; } = new();
-    public List<string> Subscriptions { get; set; } = new();
     public List<SubscriptionInfo> Profiles { get; set; } = new();
     public bool Tun { get; set; }
     public string LastServerLink { get; set; } = "";
@@ -18,6 +18,10 @@ public class AppData
     public List<RoutingRule> Rules { get; set; } = new();
     public long TotalDownload { get; set; }
     public long TotalUpload { get; set; }
+
+    [JsonPropertyName("Subscriptions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? LegacySubscriptions { get; set; }
 }
 
 public static class AppStorage
@@ -31,7 +35,9 @@ public static class AppStorage
 
         try
         {
-            return JsonSerializer.Deserialize<AppData>(File.ReadAllText(FilePath)) ?? new AppData();
+            var data = JsonSerializer.Deserialize<AppData>(File.ReadAllText(FilePath)) ?? new AppData();
+            Migrate(data);
+            return data;
         }
         catch (JsonException)
         {
@@ -43,5 +49,19 @@ public static class AppStorage
     {
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(FilePath, json);
+    }
+
+    private static void Migrate(AppData data)
+    {
+        if (data.LegacySubscriptions == null)
+            return;
+
+        var ordered = new List<SubscriptionInfo>();
+        foreach (var url in data.LegacySubscriptions)
+            ordered.Add(data.Profiles.FirstOrDefault(p => p.Url == url) ?? SubscriptionInfo.Placeholder(url));
+
+        ordered.AddRange(data.Profiles.Where(p => !data.LegacySubscriptions.Contains(p.Url)));
+        data.Profiles = ordered;
+        data.LegacySubscriptions = null;
     }
 }
