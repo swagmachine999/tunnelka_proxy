@@ -130,7 +130,7 @@ public class HeroView : Control
         var buttonWidth = Math.Min(180f, (w - 48) / 2);
         _refreshRect = new RectangleF(cx - buttonWidth - 6, _nameRect.Bottom + 18, buttonWidth, 44);
         _pingRect = new RectangleF(cx + 6, _nameRect.Bottom + 18, buttonWidth, 44);
-        _pingResultRect = new RectangleF(16, _pingRect.Bottom + 4, w - 32, 22);
+        _pingResultRect = new RectangleF(16, _pingRect.Bottom + 16, w - 32, 22);
         _toggleRect = new RectangleF(w - 24 - 190, 24, 190, 40);
     }
 
@@ -326,7 +326,7 @@ public class HeroView : Control
         {
             var phase = (float)Math.Sin(_time * 6 - i * 0.9);
             var lift = Math.Max(0, phase) * 4;
-            var alpha = (int)(120 + 135 * Math.Max(0, phase));
+            var alpha = (int)(170 + 85 * Math.Max(0, phase));
             using var brush = new SolidBrush(Color.FromArgb(alpha, i == 1 ? Theme.Pink : Theme.Accent));
             g.FillEllipse(brush, cx - 16 + i * 13, cy - 3.5f - lift, 7, 7);
         }
