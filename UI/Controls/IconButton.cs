@@ -5,7 +5,11 @@ namespace VpnClient.UI.Controls;
 public enum IconKind
 {
     Add,
-    Log
+    Servers,
+    Stats,
+    Routing,
+    Log,
+    Settings
 }
 
 public class IconButton : Control
@@ -13,17 +17,18 @@ public class IconButton : Control
     private bool _hover;
     private bool _active;
 
-    public IconButton(IconKind kind)
+    public IconButton(IconKind kind, string title)
     {
         Kind = kind;
+        Title = title;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        BackColor = Theme.Sidebar;
         Size = new Size(44, 44);
         Cursor = Cursors.Hand;
     }
 
     public IconKind Kind { get; }
+    public string Title { get; }
 
     public bool Active
     {
@@ -49,15 +54,17 @@ public class IconButton : Control
     {
         var g = e.Graphics;
         Theme.Smooth(g);
+        g.Clear(Theme.Sidebar);
 
         var rect = new RectangleF(0, 0, Width - 1, Height - 1);
         if (_active)
-            Theme.FillRounded(g, Color.FromArgb(70, Theme.Accent), rect, 12);
+            Theme.FillRounded(g, Color.FromArgb(Theme.IsDark ? 90 : 70, Theme.Accent), rect, 12);
         else if (_hover)
             Theme.FillRounded(g, Theme.SidebarHover, rect, 12);
 
-        var color = _active || _hover ? Theme.AccentDark : Theme.Text;
+        var color = _active || _hover ? Theme.AccentStrong : Theme.Text;
         using var pen = new Pen(color, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        using var fill = new SolidBrush(color);
         var cx = Width / 2f;
         var cy = Height / 2f;
 
@@ -70,14 +77,52 @@ public class IconButton : Control
                 g.DrawLine(pen, cx, cy - 4.5f, cx, cy + 4.5f);
                 break;
 
+            case IconKind.Servers:
+                g.DrawEllipse(pen, cx - 10, cy - 10, 20, 20);
+                g.DrawEllipse(pen, cx - 4.5f, cy - 10, 9, 20);
+                g.DrawLine(pen, cx - 10, cy, cx + 10, cy);
+                break;
+
+            case IconKind.Stats:
+                g.DrawLine(pen, cx - 10, cy + 9, cx + 10, cy + 9);
+                g.DrawLines(pen, new[]
+                {
+                    new PointF(cx - 9, cy + 3), new PointF(cx - 3, cy - 3),
+                    new PointF(cx + 2, cy + 1), new PointF(cx + 9, cy - 7)
+                });
+                g.FillEllipse(fill, cx + 7, cy - 9, 4, 4);
+                break;
+
+            case IconKind.Routing:
+                g.DrawLine(pen, cx, cy + 10, cx, cy + 1);
+                g.DrawBezier(pen, cx, cy + 1, cx, cy - 4, cx - 7, cy - 3, cx - 7, cy - 9);
+                g.DrawBezier(pen, cx, cy + 1, cx, cy - 4, cx + 7, cy - 3, cx + 7, cy - 9);
+                g.FillEllipse(fill, cx - 9.5f, cy - 11.5f, 5, 5);
+                g.FillEllipse(fill, cx + 4.5f, cy - 11.5f, 5, 5);
+                break;
+
             case IconKind.Log:
                 for (var i = -1; i <= 1; i++)
                 {
                     var y = cy + i * 6;
                     g.DrawLine(pen, cx - 3, y, cx + 9, y);
-                    using var dot = new SolidBrush(color);
-                    g.FillEllipse(dot, cx - 10, y - 1.5f, 3, 3);
+                    g.FillEllipse(fill, cx - 10, y - 1.5f, 3, 3);
                 }
+                break;
+
+            case IconKind.Settings:
+                using (var teeth = new Pen(color, 3.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                {
+                    for (var i = 0; i < 8; i++)
+                    {
+                        var angle = Math.PI / 4 * i;
+                        var cos = (float)Math.Cos(angle);
+                        var sin = (float)Math.Sin(angle);
+                        g.DrawLine(teeth, cx + cos * 7.5f, cy + sin * 7.5f, cx + cos * 9.5f, cy + sin * 9.5f);
+                    }
+                }
+                g.DrawEllipse(pen, cx - 7, cy - 7, 14, 14);
+                g.DrawEllipse(pen, cx - 3, cy - 3, 6, 6);
                 break;
         }
     }

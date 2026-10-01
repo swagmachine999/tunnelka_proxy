@@ -15,6 +15,7 @@ public class LogoView : Control
         var g = e.Graphics;
         Theme.Smooth(g);
 
+        g.Clear(Theme.Sidebar);
         var rect = new RectangleF(0, 0, Width - 1, Height - 1);
         using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(rect, Theme.Pink, Theme.Accent, 45f))
         using (var path = Theme.RoundedRect(rect, 13))

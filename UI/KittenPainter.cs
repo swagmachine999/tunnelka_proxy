@@ -160,7 +160,7 @@ public static class KittenPainter
         {
             var phase = (float)((time * 0.45 + i / 3.0) % 1.0);
             var alpha = (int)(210 * Math.Sin(phase * Math.PI));
-            using var brush = new SolidBrush(Color.FromArgb(Math.Max(0, alpha), Theme.AccentDark));
+            using var brush = new SolidBrush(Color.FromArgb(Math.Max(0, alpha), Theme.AccentStrong));
             g.DrawString("z", SleepFonts[i], brush, 146 + phase * 22, 46 - phase * 46);
         }
     }

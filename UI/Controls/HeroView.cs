@@ -24,7 +24,7 @@ public class HeroView : Control
     private bool _connected;
     private bool _proxyEnabled = true;
     private string _elapsed = "00:00:00";
-    private string _serverName = "";
+    private IReadOnlyList<NamePart> _serverParts = Array.Empty<NamePart>();
     private string? _serverCode;
     private string _pingText = "";
     private Color _pingColor = Theme.TextMuted;
@@ -38,7 +38,6 @@ public class HeroView : Control
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-        BackColor = Theme.HeroBottom;
 
         _animation.Tick += (_, _) => Animate();
         _animation.Start();
@@ -62,9 +61,9 @@ public class HeroView : Control
         set { _elapsed = value; Invalidate(Rectangle.Ceiling(_powerRect)); }
     }
 
-    public void SetServer(string name, string? code)
+    public void SetServer(IReadOnlyList<NamePart> parts, string? code)
     {
-        _serverName = name;
+        _serverParts = parts;
         _serverCode = code;
         Invalidate();
     }
@@ -98,10 +97,10 @@ public class HeroView : Control
         float h = ClientSize.Height;
         var scale = Math.Max(0.55f, Math.Min(1f, h / 660f));
 
-        var diameter = 200 * scale;
-        var kittenW = 200 * scale;
-        var kittenH = 160 * scale;
-        var gap = 46 * scale;
+        var diameter = 150 * scale;
+        var kittenW = 190 * scale;
+        var kittenH = 152 * scale;
+        var gap = 44 * scale;
         var total = diameter + gap + kittenH + 12 + 34 + 18 + 44 + 26;
         var top = Math.Max(76, (h - total) / 2 + 24);
         var cx = w / 2;
@@ -141,8 +140,9 @@ public class HeroView : Control
 
         float w = rect.Width;
         float h = rect.Height;
-        DrawGlow(g, new RectangleF(w * 0.55f, -h * 0.25f, w * 0.8f, w * 0.8f), Color.FromArgb(90, Theme.Pink));
-        DrawGlow(g, new RectangleF(-w * 0.35f, h * 0.45f, w * 0.9f, w * 0.9f), Color.FromArgb(80, Theme.Accent));
+        var glow = Theme.IsDark ? 45 : 90;
+        DrawGlow(g, new RectangleF(w * 0.55f, -h * 0.25f, w * 0.8f, w * 0.8f), Color.FromArgb(glow, Theme.Pink));
+        DrawGlow(g, new RectangleF(-w * 0.35f, h * 0.45f, w * 0.9f, w * 0.9f), Color.FromArgb(glow, Theme.Accent));
     }
 
     private static void DrawGlow(Graphics g, RectangleF r, Color center)
@@ -160,13 +160,13 @@ public class HeroView : Control
     private void DrawToggle(Graphics g)
     {
         var r = _toggleRect;
-        Theme.FillRounded(g, Color.FromArgb(_hoverToggle ? 245 : 210, Color.White), r, r.Height / 2);
+        Theme.FillRounded(g, Color.FromArgb(_hoverToggle ? 250 : 215, Theme.Card), r, r.Height / 2);
         Theme.DrawRounded(g, Theme.Border, r, r.Height / 2);
 
         Theme.DrawText(g, "Системный прокси", Theme.Body, Theme.Text, new RectangleF(r.X + 16, r.Y, r.Width - 70, r.Height));
 
         var track = new RectangleF(r.Right - 54, r.Y + (r.Height - 22) / 2, 40, 22);
-        Theme.FillRounded(g, _proxyEnabled ? Theme.Accent : Color.FromArgb(221, 212, 234), track, 11);
+        Theme.FillRounded(g, _proxyEnabled ? Theme.Accent : Theme.TrackOff, track, 11);
 
         var knobX = _proxyEnabled ? track.Right - 19 : track.X + 3;
         using var knob = new SolidBrush(Color.White);
@@ -183,10 +183,10 @@ public class HeroView : Control
         {
             var alpha = _connected ? 80 - i * 24 : 40 - i * 12;
             using var pen = new Pen(Color.FromArgb(alpha, ringColor), 2f);
-            g.DrawEllipse(pen, Inflate(r, 16 + i * 18 + pulse * 7));
+            g.DrawEllipse(pen, Inflate(r, 13 + i * 14 + pulse * 6));
         }
 
-        DrawGlow(g, Inflate(r, 30), Color.FromArgb(_connected ? 110 : 60, ringColor));
+        DrawGlow(g, Inflate(r, 26), Color.FromArgb(_connected ? 110 : 60, ringColor));
 
         if (_connected)
         {
@@ -195,7 +195,8 @@ public class HeroView : Control
         }
         else
         {
-            g.FillEllipse(Brushes.White, r);
+            using (var fill = new SolidBrush(Theme.PowerOff))
+                g.FillEllipse(fill, r);
             using var border = new Pen(Theme.Border, 2f);
             g.DrawEllipse(border, r);
         }
@@ -216,11 +217,11 @@ public class HeroView : Control
             g.DrawLine(pen, cx, cy - size * 0.62f, cx, cy - size * 0.08f);
         }
 
-        var textTop = r.Y + r.Height * 0.6f;
+        var textTop = r.Y + r.Height * 0.58f;
         if (_connected)
         {
             Theme.DrawText(g, "ПОДКЛЮЧЕНО", Theme.Status, Color.FromArgb(235, Color.White), new RectangleF(r.X, textTop, r.Width, 18), StringAlignment.Center);
-            Theme.DrawText(g, _elapsed, Theme.Timer, Color.White, new RectangleF(r.X, textTop + 18, r.Width, 28), StringAlignment.Center);
+            Theme.DrawText(g, _elapsed, Theme.Timer, Color.White, new RectangleF(r.X, textTop + 16, r.Width, 24), StringAlignment.Center);
         }
         else
         {
@@ -230,7 +231,7 @@ public class HeroView : Control
 
     private void DrawServer(Graphics g)
     {
-        if (_serverName.Length == 0)
+        if (_serverParts.Count == 0)
         {
             Theme.DrawText(g, "Выбери сервер", Theme.ServerName, Theme.TextMuted, _nameRect, StringAlignment.Center);
             return;
@@ -239,22 +240,22 @@ public class HeroView : Control
         const float badge = 28;
         const float spacing = 10;
         var maxText = _nameRect.Width - badge - spacing;
-        var textWidth = Math.Min(maxText, g.MeasureString(_serverName, Theme.ServerName).Width);
+        var textWidth = Math.Min(maxText, NamePainter.Measure(g, _serverParts, Theme.ServerName));
         var x = _nameRect.X + (_nameRect.Width - badge - spacing - textWidth) / 2;
 
         Theme.DrawBadge(g, new RectangleF(x, _nameRect.Y + (_nameRect.Height - badge) / 2, badge, badge), _serverCode);
-        Theme.DrawText(g, _serverName, Theme.ServerName, Theme.Text, new RectangleF(x + badge + spacing, _nameRect.Y, textWidth + 4, _nameRect.Height));
+        NamePainter.Draw(g, _serverParts, Theme.ServerName, Theme.Text, new RectangleF(x + badge + spacing, _nameRect.Y, textWidth + 6, _nameRect.Height));
     }
 
     private void DrawButtons(Graphics g)
     {
         var refresh = _refreshRect;
-        Theme.FillRounded(g, _hoverRefresh ? Color.White : Color.FromArgb(215, Color.White), refresh, refresh.Height / 2);
+        Theme.FillRounded(g, _hoverRefresh ? Theme.Card : Color.FromArgb(215, Theme.Card), refresh, refresh.Height / 2);
         Theme.DrawRounded(g, _hoverRefresh ? Theme.Accent : Theme.Border, refresh, refresh.Height / 2, 1.4f);
-        Theme.DrawText(g, "Обновить подписку", Theme.BodyBold, Theme.AccentDark, refresh, StringAlignment.Center);
+        Theme.DrawText(g, "Обновить подписку", Theme.BodyBold, Theme.AccentStrong, refresh, StringAlignment.Center);
 
         var r = _pingRect;
-        using (var brush = new LinearGradientBrush(r, _hoverPing ? Theme.AccentDark : Theme.Accent, _hoverPing ? Theme.Accent : Theme.Pink, 0f))
+        using (var brush = new LinearGradientBrush(r, _hoverPing ? Theme.Lighten(Theme.Accent, 0.15f) : Theme.Accent, _hoverPing ? Theme.Lighten(Theme.Pink, 0.15f) : Theme.Pink, 0f))
         using (var path = Theme.RoundedRect(r, r.Height / 2))
             g.FillPath(brush, path);
 

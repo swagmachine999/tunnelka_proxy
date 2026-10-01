@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <None Update="core\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

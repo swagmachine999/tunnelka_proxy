@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using VpnClient.Models;
@@ -8,12 +10,39 @@ public static class XrayConfigBuilder
 {
     public const int SocksPort = 10808;
     public const int HttpPort = 10809;
+    public const int MetricsPort = 10813;
 
-    public static string Build(ProxyServer server)
+    public static string Build(ProxyServer server, IEnumerable<RoutingRule> rules)
     {
+        var routingRules = new JsonArray
+        {
+            new JsonObject
+            {
+                ["type"] = "field",
+                ["ip"] = new JsonArray("127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"),
+                ["outboundTag"] = "direct"
+            }
+        };
+
+        foreach (var rule in rules.Where(r => r.Enabled))
+        {
+            foreach (var node in RuleNodes(rule))
+                routingRules.Add(node);
+        }
+
         var config = new JsonObject
         {
-            ["log"] = new JsonObject { ["loglevel"] = "warning" },
+            ["log"] = new JsonObject { ["loglevel"] = "warning", ["access"] = "none" },
+            ["stats"] = new JsonObject(),
+            ["metrics"] = new JsonObject { ["tag"] = "metrics", ["listen"] = $"127.0.0.1:{MetricsPort}" },
+            ["policy"] = new JsonObject
+            {
+                ["system"] = new JsonObject
+                {
+                    ["statsOutboundUplink"] = true,
+                    ["statsOutboundDownlink"] = true
+                }
+            },
             ["inbounds"] = new JsonArray
             {
                 Inbound("socks-in", "socks", SocksPort, new JsonObject { ["udp"] = true }),
@@ -28,19 +57,79 @@ public static class XrayConfigBuilder
             ["routing"] = new JsonObject
             {
                 ["domainStrategy"] = "AsIs",
-                ["rules"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["type"] = "field",
-                        ["ip"] = new JsonArray("127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"),
-                        ["outboundTag"] = "direct"
-                    }
-                }
+                ["rules"] = routingRules
             }
         };
 
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static IEnumerable<JsonObject> RuleNodes(RoutingRule rule)
+    {
+        var domains = new JsonArray();
+        var ips = new JsonArray();
+
+        foreach (var raw in rule.Values.Split(new[] { ',', ';', ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var value = raw.Trim().ToLowerInvariant();
+            if (value.Length == 0)
+                continue;
+
+            if (IsIp(value))
+                ips.Add(JsonValue.Create(value));
+            else
+                domains.Add(JsonValue.Create(Domain(value)));
+        }
+
+        var tag = rule.Action switch
+        {
+            RoutingRule.Proxy => "proxy",
+            RoutingRule.Block => "block",
+            _ => "direct"
+        };
+
+        if (domains.Count > 0)
+            yield return new JsonObject { ["type"] = "field", ["domain"] = domains, ["outboundTag"] = tag };
+        if (ips.Count > 0)
+            yield return new JsonObject { ["type"] = "field", ["ip"] = ips, ["outboundTag"] = tag };
+    }
+
+    private static bool IsIp(string value)
+    {
+        if (value.StartsWith("geoip:"))
+            return true;
+
+        var address = value.Split('/')[0];
+        return IPAddress.TryParse(address, out _) && (address.Contains('.') || address.Contains(':'));
+    }
+
+    private static string Domain(string value)
+    {
+        foreach (var prefix in new[] { "regexp:", "keyword:", "geosite:" })
+        {
+            if (value.StartsWith(prefix))
+                return value;
+        }
+
+        var kind = "domain:";
+        foreach (var prefix in new[] { "domain:", "full:" })
+        {
+            if (value.StartsWith(prefix))
+            {
+                kind = prefix;
+                value = value[prefix.Length..];
+            }
+        }
+
+        if (value.Contains("://"))
+            value = value[(value.IndexOf("://", StringComparison.Ordinal) + 3)..];
+
+        value = value.Split('/')[0].TrimStart('*').TrimStart('.');
+
+        if (value.Any(c => c > 127))
+            value = new IdnMapping().GetAscii(value);
+
+        return kind + value;
     }
 
     private static JsonObject Inbound(string tag, string protocol, int port, JsonObject settings) => new()
