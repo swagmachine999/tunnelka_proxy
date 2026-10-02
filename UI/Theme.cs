@@ -145,6 +145,13 @@ public static class Theme
         return new Size((int)Math.Ceiling(size.Width / S), (int)Math.Ceiling(size.Height / S));
     }
 
+    public static float MeasureWrapped(string text, Font font, float width)
+    {
+        var size = TextRenderer.MeasureText(text, ScaledFont(font, S), new Size((int)(width * S), int.MaxValue),
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak);
+        return size.Height / S;
+    }
+
     public static T Bind<T>(T control, Func<Color>? back = null, Func<Color>? fore = null) where T : Control
     {
         Bindings.Add((control, back, fore));

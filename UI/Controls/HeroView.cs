@@ -54,6 +54,8 @@ public class HeroView : ThemedControl
         _animation.Start();
     }
 
+    public string EmptyText { get; set; } = L.T("Выбери сервер");
+
     public bool Connected
     {
         set { _connected = value; Invalidate(); }
@@ -410,7 +412,7 @@ public class HeroView : ThemedControl
     {
         if (_serverParts.Count == 0)
         {
-            Theme.DrawText(g, L.T("Выбери сервер"), Theme.ServerName, Theme.TextMuted, _nameRect, StringAlignment.Center);
+            Theme.DrawText(g, EmptyText, Theme.ServerName, Theme.TextMuted, _nameRect, StringAlignment.Center);
             return;
         }
 
