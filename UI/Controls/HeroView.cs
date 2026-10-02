@@ -6,15 +6,17 @@ namespace VpnClient.UI.Controls;
 public class HeroView : ThemedControl
 {
     private const int RippleCount = 5;
-    private const float RippleDelay = 0.22f;
-    private const float RippleLife = 1.8f;
+    private const float RippleDelay = 0.3f;
+    private const float RippleLife = 2.6f;
     private const float RippleReach = 132;
+    private const float KittenDrop = 120;
 
     private readonly System.Windows.Forms.Timer _animation = new() { Interval = 25 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private float _time;
     private float _hoverAmount;
     private float _rippleStart = -100;
+    private float _scale = 1;
 
     private RectangleF _powerRect;
     private RectangleF _kittenRect;
@@ -110,8 +112,9 @@ public class HeroView : ThemedControl
     {
         _time = (float)_clock.Elapsed.TotalSeconds;
         _hoverAmount += ((_hoverPower ? 1f : 0f) - _hoverAmount) * 0.15f;
+        _animation.Interval = Rippling ? 15 : 25;
 
-        var area = RectangleF.Union(Inflate(_powerRect, Rippling ? RippleReach + 10 : 70), _kittenRect);
+        var area = RectangleF.Union(Inflate(_powerRect, Rippling ? RippleReach * _scale + 12 : 70), _kittenRect);
         Invalidate(ToDevice(area));
         if (_busy)
             Invalidate(ToDevice(_pingResultRect));
@@ -121,14 +124,17 @@ public class HeroView : ThemedControl
     {
         var w = ClientSize.Width / Theme.S;
         var h = ClientSize.Height / Theme.S;
-        var scale = Math.Max(0.55f, Math.Min(1f, h / 660f));
+        const float fixedHeight = 12 + 34 + 18 + 44 + 26;
+        const float scaledHeight = 200 + RippleReach + 10 + KittenDrop + 152;
+        var scale = Math.Max(0.55f, Math.Min(1f, (h - 72 - fixedHeight) / scaledHeight));
+        _scale = scale;
 
         var diameter = 200 * scale;
         var kittenW = 190 * scale;
         var kittenH = 152 * scale;
-        var gap = (RippleReach + 10) * scale;
-        var total = diameter + gap + kittenH + 12 + 34 + 18 + 44 + 26;
-        var top = Math.Max(64, (h - total) / 2 - 8);
+        var gap = (RippleReach + 10 + KittenDrop) * scale;
+        var total = diameter + gap + kittenH + fixedHeight;
+        var top = Math.Max(56, (h - total) / 2);
         var cx = w / 2;
 
         _powerRect = new RectangleF(cx - diameter / 2, top, diameter, diameter);
@@ -244,10 +250,13 @@ public class HeroView : ThemedControl
             if (t <= 0 || t >= 1)
                 continue;
 
-            var eased = 1 - (1 - t) * (1 - t) * (1 - t);
-            var fade = (1 - t) * (1 - t);
-            using var pen = new Pen(Color.FromArgb((int)(120 * fade), color), 0.8f + 2.6f * (1 - t));
-            g.DrawEllipse(pen, Inflate(_powerRect, 4 + eased * RippleReach));
+            var eased = 1 - (1 - t) * (1 - t);
+            var alpha = 110 * Math.Min(1f, t / 0.12f) * (float)Math.Pow(1 - t, 1.6);
+            var ring = Inflate(_powerRect, 4 + eased * RippleReach * _scale);
+            using (var glow = new Pen(Color.FromArgb((int)(alpha * 0.25f), color), 9f))
+                g.DrawEllipse(glow, ring);
+            using (var pen = new Pen(Color.FromArgb((int)alpha, color), 1.2f + 1.4f * (1 - t)))
+                g.DrawEllipse(pen, ring);
         }
     }
 
