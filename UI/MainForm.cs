@@ -82,7 +82,7 @@ public class MainForm : Form, IMessageFilter
     {
         _settings = new Settings(_log);
         _connection = new ConnectionService(_log);
-        _subscriptions = new SubscriptionService(_settings, _log);
+        _subscriptions = new SubscriptionService(_settings, _log, () => _connection.IsRunning ? XrayConfigBuilder.HttpPort : null);
         _pinger = new PingService(_settings);
         _trafficTracker = new TrafficTracker(_settings);
         _history = new TrafficHistory(_settings);
