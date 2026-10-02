@@ -28,7 +28,7 @@ public class MainForm : Form, IMessageFilter
 
     private readonly HeroView _hero = new() { Dock = DockStyle.Fill };
     private readonly TipBubble _tip = new();
-    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(410), Padding = Theme.Px(22, 20, 14, 10) };
+    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(535), Padding = Theme.Px(22, 20, 14, 10) };
     private readonly Dictionary<IconKind, Control> _pages = new();
     private readonly List<IconButton> _navButtons = new();
 
@@ -82,8 +82,8 @@ public class MainForm : Form, IMessageFilter
         Theme.Use(Data.DarkTheme);
 
         Text = "Tunnelka";
-        ClientSize = new Size(1000, 660);
-        MinimumSize = new Size(760, 540);
+        ClientSize = new Size(1110, 660);
+        MinimumSize = new Size(870, 540);
         StartPosition = FormStartPosition.CenterScreen;
         Font = Theme.Scaled(Theme.Body);
         KeyPreview = true;
