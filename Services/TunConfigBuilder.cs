@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public static class TunConfigBuilder
 {

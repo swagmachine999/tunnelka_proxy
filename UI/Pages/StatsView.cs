@@ -1,8 +1,8 @@
 using System.Drawing.Drawing2D;
-using VpnClient.Services;
-using VpnClient.UI.Controls;
+using Tunnelka.Services;
+using Tunnelka.UI.Controls;
 
-namespace VpnClient.UI.Pages;
+namespace Tunnelka.UI.Pages;
 
 public class StatsView : ThemedControl
 {

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace VpnClient.Models;
+namespace Tunnelka.Models;
 
 public class ProxyServer
 {

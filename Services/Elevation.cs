@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Security.Principal;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public static class Elevation
 {

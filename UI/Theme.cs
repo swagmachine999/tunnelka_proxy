@@ -1,7 +1,7 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public static class Theme
 {

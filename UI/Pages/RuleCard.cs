@@ -1,8 +1,8 @@
-using VpnClient.Models;
-using VpnClient.Services;
-using VpnClient.UI.Controls;
+using Tunnelka.Models;
+using Tunnelka.Services;
+using Tunnelka.UI.Controls;
 
-namespace VpnClient.UI.Pages;
+namespace Tunnelka.UI.Pages;
 
 public class RuleCard : ThemedControl
 {

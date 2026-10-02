@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text;
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.Parsing;
+namespace Tunnelka.Parsing;
 
 public static class SubscriptionLoader
 {

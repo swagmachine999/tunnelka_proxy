@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public static class NativeTheme
 {

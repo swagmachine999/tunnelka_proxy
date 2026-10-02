@@ -1,4 +1,4 @@
-namespace VpnClient.Models;
+namespace Tunnelka.Models;
 
 public class TrafficMinute
 {

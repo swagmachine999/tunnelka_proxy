@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Text.RegularExpressions;
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.UI.Controls;
+namespace Tunnelka.UI.Controls;
 
 public class SubscriptionCard : ThemedControl
 {

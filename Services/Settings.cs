@@ -1,6 +1,6 @@
-using VpnClient.Storage;
+using Tunnelka.Storage;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public sealed class Settings
 {

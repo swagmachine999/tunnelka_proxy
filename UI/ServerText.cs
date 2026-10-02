@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text;
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public static class ServerText
 {

@@ -1,4 +1,4 @@
-namespace VpnClient;
+namespace Tunnelka;
 
 public static class L
 {
@@ -71,6 +71,7 @@ public static class L
         ["Подписка закончилась. Продлите её, чтобы VPN снова заработал."] = "The subscription has ended. Renew it to get VPN working again.",
         ["До конца подписки меньше 3 дней. Продлите её, иначе доступ будет приостановлен."] = "Less than 3 days left on the subscription. Renew it, or access will be suspended.",
         ["Продлить подписку →"] = "Renew subscription →",
+        ["Подписки {0} скоро закончатся. Продлите их, иначе доступ будет приостановлен."] = "Subscriptions {0} end soon. Renew them, or access will be suspended.",
         ["Подписка «{0}» скоро закончится. Продлите её, иначе доступ будет приостановлен."] = "The subscription \"{0}\" ends soon. Renew it, or access will be suspended.",
         ["Ввести вручную"] = "Enter manually",
         ["Выход"] = "Exit",

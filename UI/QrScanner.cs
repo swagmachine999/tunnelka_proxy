@@ -2,7 +2,7 @@ using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using ZXing;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public static class QrScanner
 {

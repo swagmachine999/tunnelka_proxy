@@ -1,6 +1,6 @@
 using System.Drawing.Drawing2D;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public static class NamePainter
 {

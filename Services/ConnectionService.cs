@@ -1,6 +1,6 @@
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public enum ConnectResult
 {

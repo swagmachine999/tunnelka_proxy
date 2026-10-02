@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace VpnClient.Parsing;
+namespace Tunnelka.Parsing;
 
 public static class Base64Helper
 {
