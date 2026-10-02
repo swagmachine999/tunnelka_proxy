@@ -42,36 +42,19 @@ public class MainForm : Form, IMessageFilter
         TextAlign = ContentAlignment.MiddleLeft
     };
 
-    private readonly FlowLayoutPanel _list = new()
-    {
-        Dock = DockStyle.Fill,
-        FlowDirection = FlowDirection.TopDown,
-        WrapContents = false,
-        AutoScroll = true
-    };
+    private readonly ServerListView _list;
 
-    private readonly StatsView _stats = new() { Dock = DockStyle.Fill };
     private readonly LogPage _logPage;
     private readonly RoutingPage _routingPage;
     private readonly SettingsPage _settingsPage;
     private readonly PingPage _pingPage;
     private readonly InterfacePage _interfacePage;
+    private readonly StatsPage _statsPage;
 
-    private static readonly int[] StatsPeriods = { 3, 10, 30, 60, 180, 300, 1440, TrafficHistory.AllTime };
-    private readonly Segmented _periodSelector = new(L.T("3 мин"), L.T("10 мин"), L.T("30 мин"), L.T("1 ч"), L.T("3 ч"), L.T("5 ч"), L.T("24 ч"), L.T("Всё")) { Dock = DockStyle.Top };
-    private double _lastDown;
-    private double _lastUp;
-
-    private readonly ContextMenuStrip _cardMenu = new();
-    private readonly ContextMenuStrip _subscriptionMenu = new();
     private readonly System.Windows.Forms.Timer _autoUpdate = new() { Interval = 60_000 };
-    private SubscriptionCard? _menuSubscription;
-    private readonly List<ServerCard> _cards = new();
-    private readonly HashSet<string> _warnedSubscriptions = new();
 
     private ProxyServer? _selected;
     private ProxyServer? _active;
-    private ServerCard? _menuCard;
     private DateTime _connectedAt;
     private bool _exiting;
 
@@ -84,9 +67,11 @@ public class MainForm : Form, IMessageFilter
         _settings = new Settings(_log);
         _connection = new ConnectionService(_log);
         _subscriptions = new SubscriptionService(_settings, _log, () => _connection.IsRunning ? XrayConfigBuilder.HttpPort : null);
+        _list = new ServerListView(_subscriptions);
         _pinger = new PingService(_settings);
         _trafficTracker = new TrafficTracker(_settings);
         _history = new TrafficHistory(_settings);
+        _statsPage = new StatsPage(_history, Data.StatsPeriod);
 
         Theme.Use(Data.DarkTheme);
 
@@ -123,8 +108,18 @@ public class MainForm : Form, IMessageFilter
             Close();
         });
 
-        BuildCardMenu();
-        BuildSubscriptionMenu();
+        _list.ServerSelected += Select;
+        _list.ServerConnectRequested += server =>
+        {
+            Select(server);
+            Connect();
+        };
+        _list.ServerDeleteRequested += Delete;
+        _list.SubscriptionRefreshRequested += async url => await RefreshSubscription(url);
+        _list.SubscriptionPingRequested += async url => await PingSubscription(url);
+        _list.SubscriptionDeleteRequested += DeleteSubscription;
+        _list.PasteRequested += (_, _) => PasteFromClipboard();
+        _list.AddRequested += (_, _) => ShowAddDialog();
         _autoUpdate.Tick += async (_, _) => await RefreshDueSubscriptions();
         _autoUpdate.Start();
         Shown += async (_, _) => await RunStartupTasks();
@@ -153,12 +148,10 @@ public class MainForm : Form, IMessageFilter
             Data.PingOnStart = _settingsPage.PingToggle.Checked;
             Save();
         };
-        _periodSelector.SelectedIndex = Math.Max(0, Array.IndexOf(StatsPeriods, Data.StatsPeriod));
-        _periodSelector.SelectedIndexChanged += (_, _) =>
+        _statsPage.PeriodChanged += minutes =>
         {
-            Data.StatsPeriod = StatsPeriods[_periodSelector.SelectedIndex];
+            Data.StatsPeriod = minutes;
             Save();
-            RefreshStats();
         };
         _settingsPage.RoutingRow.Click += (_, _) => ShowPage(IconKind.Routing);
         _settingsPage.LogRow.Click += (_, _) => ShowPage(IconKind.Log);
@@ -179,8 +172,7 @@ public class MainForm : Form, IMessageFilter
             Save();
         };
         _routingPage.RulesChanged += (_, _) => OnRulesChanged();
-        _search.QueryChanged += (_, _) => ApplyFilter();
-        _list.Resize += (_, _) => ResizeCards();
+        _search.QueryChanged += (_, _) => _list.Filter(_search.Query);
         _clock.Tick += (_, _) => UpdateClock();
         _traffic.Updated += OnTraffic;
         _connection.Exited += OnCoreExited;
@@ -208,7 +200,6 @@ public class MainForm : Form, IMessageFilter
             _connection.Dispose();
         };
 
-        RefreshStats();
         _selected = Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink) ?? Data.Servers.FirstOrDefault();
         RebuildList();
         UpdateHero();
@@ -279,7 +270,6 @@ public class MainForm : Form, IMessageFilter
         sidebar.Resize += (_, _) => settings.Top = sidebar.Height - settings.Height - Theme.Px(18);
 
         Theme.Bind(_middle, () => Theme.Surface);
-        Theme.Bind(_list, () => Theme.Surface);
         Theme.Bind(_countLabel, () => Theme.Surface, () => Theme.TextMuted);
 
         var serversPage = Theme.Bind(new Panel { Dock = DockStyle.Fill }, () => Theme.Surface);
@@ -319,26 +309,8 @@ public class MainForm : Form, IMessageFilter
         serversPage.Controls.Add(searchRow);
         serversPage.Controls.Add(PageParts.Title(L.T("Серверы")));
 
-        var statsPage = Theme.Bind(new Panel { Dock = DockStyle.Fill }, () => Theme.Surface);
-        var statsGap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(10) }, () => Theme.Surface);
-        var reset = PageParts.Button(L.T("Сбросить"), false);
-        reset.Dock = DockStyle.Right;
-        reset.Width = Theme.Px(120);
-        reset.Click += (_, _) => ResetStats();
-        var statsHeader = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(52), Padding = Theme.Px(0, 10, 6, 8) }, () => Theme.Surface);
-        var statsTitle = PageParts.Title(L.T("Статистика"));
-        statsTitle.Dock = DockStyle.Fill;
-        statsHeader.Controls.Add(statsTitle);
-        statsHeader.Controls.Add(reset);
-        var periodGap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(12) }, () => Theme.Surface);
-        statsPage.Controls.Add(_stats);
-        statsPage.Controls.Add(statsGap);
-        statsPage.Controls.Add(_periodSelector);
-        statsPage.Controls.Add(periodGap);
-        statsPage.Controls.Add(statsHeader);
-
         _pages[IconKind.Servers] = serversPage;
-        _pages[IconKind.Stats] = statsPage;
+        _pages[IconKind.Stats] = _statsPage;
         _pages[IconKind.Routing] = _routingPage;
         _pages[IconKind.Log] = _logPage;
         _pages[IconKind.Settings] = _settingsPage;
@@ -384,47 +356,8 @@ public class MainForm : Form, IMessageFilter
             pair.Value.Visible = pair.Key == kind;
 
         var active = kind is IconKind.Routing or IconKind.Log or IconKind.Ping or IconKind.Interface ? IconKind.Settings : kind;
-        if (kind == IconKind.Stats)
-            RefreshStats();
         foreach (var button in _navButtons)
             button.Active = button.Kind == active;
-    }
-
-    private void BuildCardMenu()
-    {
-        _cardMenu.Items.Add(L.T("Подключиться"), null, (_, _) =>
-        {
-            if (_menuCard == null)
-                return;
-            Select(_menuCard.Server);
-            Connect();
-        });
-        _cardMenu.Items.Add(L.T("Удалить"), null, (_, _) =>
-        {
-            if (_menuCard != null)
-                Delete(_menuCard.Server);
-        });
-        _cardMenu.Opening += (_, _) => _menuCard = _cardMenu.SourceControl as ServerCard;
-    }
-
-    private void BuildSubscriptionMenu()
-    {
-        _subscriptionMenu.Items.Add(L.T("Показать ключ"), null, (_, _) =>
-        {
-            if (_menuSubscription != null)
-                LinkDialog.Show(this, _menuSubscription.Info.Title, new[] { (_menuSubscription.Info.Title, _menuSubscription.Info.Url) }, false);
-        });
-        _subscriptionMenu.Items.Add(L.T("Удалить ключ"), null, (_, _) =>
-        {
-            if (_menuSubscription == null)
-                return;
-
-            var answer = MessageBox.Show(this, L.F("Удалить ключ «{0}» и все его серверы?", _menuSubscription.Info.Title),
-                "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (answer == DialogResult.Yes)
-                DeleteSubscription(_menuSubscription.Info.Url);
-        });
-        _subscriptionMenu.Opening += (_, _) => _menuSubscription = _subscriptionMenu.SourceControl as SubscriptionCard;
     }
 
     private void SetDarkTheme(bool dark)
@@ -452,101 +385,13 @@ public class MainForm : Form, IMessageFilter
 
     private void RebuildList()
     {
-        _list.SuspendLayout();
-        foreach (Control control in _list.Controls.Cast<Control>().ToList())
-            control.Dispose();
-        _list.Controls.Clear();
-        _cards.Clear();
-
-        var controls = new List<Control>();
-        if (Data.Servers.Count == 0 && _subscriptions.Profiles.Count == 0)
-        {
-            var welcome = new WelcomeCard();
-            welcome.PasteClicked += (_, _) => PasteFromClipboard();
-            welcome.ManualClicked += (_, _) => ShowAddDialog();
-            controls.Add(welcome);
-        }
-
-        foreach (var info in _subscriptions.Profiles)
-        {
-            var url = info.Url;
-            var servers = _subscriptions.Servers(url);
-            var header = new SubscriptionCard(info) { ContextMenuStrip = _subscriptionMenu, ServerCount = servers.Count };
-            header.RefreshClicked += async (_, _) => await RefreshSubscription(url);
-            header.PingClicked += async (_, _) => await PingSubscription(url);
-            header.MenuClicked += (_, point) => _subscriptionMenu.Show(header, point);
-            header.CollapseClicked += (_, _) =>
-            {
-                _subscriptions.ToggleCollapsed(info);
-                header.Invalidate();
-                ApplyFilter();
-            };
-            controls.Add(header);
-            controls.AddRange(servers.Select(CreateCard));
-        }
-
-        controls.AddRange(Data.Servers
-            .Where(s => s.SubscriptionUrl == null || !_subscriptions.IsKnown(s.SubscriptionUrl))
-            .Select(CreateCard));
-
-        _list.Controls.AddRange(controls.ToArray());
-        UpdateCards();
-        ApplyFilter();
-        ResizeCards();
-        _list.ResumeLayout();
-
+        _list.Rebuild(Data.Servers, _selected, _active);
         _countLabel.Text = Data.Servers.Count == 0
             ? L.T("Ключей пока нет").ToUpperInvariant()
             : ServerText.Plural(Data.Servers.Count, L.T("сервер"), L.T("сервера"), L.T("серверов")).ToUpperInvariant();
     }
 
-    private ServerCard CreateCard(ProxyServer server)
-    {
-        var card = new ServerCard(server) { ContextMenuStrip = _cardMenu };
-        card.Click += (_, _) => Select(server);
-        card.DoubleClick += (_, _) =>
-        {
-            Select(server);
-            Connect();
-        };
-        _cards.Add(card);
-        return card;
-    }
-
-    private void UpdateCards()
-    {
-        foreach (var card in _cards)
-        {
-            card.IsSelected = card.Server == _selected;
-            card.IsActive = card.Server == _active;
-            card.Invalidate();
-        }
-    }
-
-    private void ResizeCards()
-    {
-        var width = _list.Width - SystemInformation.VerticalScrollBarWidth - Theme.Px(6);
-        if (width <= 0)
-            return;
-
-        foreach (Control control in _list.Controls)
-            control.Width = width;
-    }
-
-    private void ApplyFilter()
-    {
-        var query = _search.Query;
-        foreach (var header in _list.Controls.OfType<SubscriptionCard>())
-            header.Visible = query.Length == 0;
-
-        foreach (var card in _cards)
-        {
-            card.Visible = query.Length == 0
-                ? !_subscriptions.IsCollapsed(card.Server.SubscriptionUrl)
-                : card.DisplayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
-                || card.Server.Address.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
-        }
-    }
+    private void UpdateCards() => _list.Mark(_selected, _active);
 
     private void Select(ProxyServer server)
     {
@@ -770,21 +615,14 @@ public class MainForm : Form, IMessageFilter
         if (await _subscriptions.RefreshDue(_active))
             AfterServersChanged();
 
-        foreach (var header in _list.Controls.OfType<SubscriptionCard>())
-        {
-            header.UpdateLayout();
-            header.Invalidate();
-        }
+        _list.RefreshSubscriptionCards();
 
         WarnAboutExpiring();
     }
 
     private void WarnAboutExpiring()
     {
-        var titles = _subscriptions.Profiles
-            .Where(p => p.ExpiresSoon && _warnedSubscriptions.Add(p.Url))
-            .Select(p => p.Title)
-            .ToList();
+        var titles = _subscriptions.TakeNewlyExpiring();
         if (titles.Count == 0)
             return;
 
@@ -833,28 +671,18 @@ public class MainForm : Form, IMessageFilter
             return;
 
         _hero.SetBusy(true);
-        SetBusy(servers, true);
+        _list.SetBusy(servers, true);
         try
         {
-            await _pinger.Ping(servers, server => SetBusy(new[] { server }, false));
+            await _pinger.Ping(servers, server => _list.SetBusy(new[] { server }, false));
         }
         finally
         {
-            SetBusy(servers, false);
+            _list.SetBusy(servers, false);
         }
 
         UpdateCards();
         UpdateHero();
-    }
-
-    private void SetBusy(IEnumerable<ProxyServer> servers, bool busy)
-    {
-        var set = new HashSet<ProxyServer>(servers);
-        foreach (var card in _cards)
-        {
-            if (set.Contains(card.Server))
-                card.IsBusy = busy;
-        }
     }
 
     private void Delete(ProxyServer server)
@@ -901,8 +729,7 @@ public class MainForm : Form, IMessageFilter
         _hero.ElapsedText = "00:00:00";
         _hero.Connected = true;
         _clock.Start();
-        _lastDown = _lastUp = 0;
-        RefreshStats();
+        _statsPage.SetSpeed(0, 0, true);
         _traffic.Start();
         UpdateCards();
         UpdateHero();
@@ -970,8 +797,7 @@ public class MainForm : Form, IMessageFilter
 
         _hero.Connected = false;
         _hero.SetSpeed(null, null);
-        _lastDown = _lastUp = 0;
-        RefreshStats();
+        _statsPage.SetSpeed(0, 0, false);
         UpdateCards();
         UpdateHero();
 
@@ -992,27 +818,6 @@ public class MainForm : Form, IMessageFilter
             Disconnect();
     }
 
-    private void RefreshStats()
-    {
-        if (CurrentPage != IconKind.Stats)
-            return;
-
-        var minutes = StatsPeriods[_periodSelector.SelectedIndex];
-        var period = minutes == TrafficHistory.AllTime ? L.T("всё время") : ServerText.Duration(minutes * 60);
-        var graphPeriod = minutes == TrafficHistory.AllTime ? ServerText.Duration(24 * 3600) : period;
-        _stats.SetData(period, graphPeriod, _history.Sum(minutes), _history.Speeds(minutes, 120), _lastDown, _lastUp, _connection.IsRunning);
-    }
-
-    private void ResetStats()
-    {
-        var answer = MessageBox.Show(this, L.T("Сбросить всю статистику трафика?"), "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-        if (answer != DialogResult.Yes)
-            return;
-
-        _history.Reset();
-        RefreshStats();
-    }
-
     private async Task RunStartupTasks()
     {
         if (Data.RefreshOnStart && _subscriptions.Profiles.Count > 0)
@@ -1028,9 +833,7 @@ public class MainForm : Form, IMessageFilter
     {
         var delta = _trafficTracker.Process(counters);
         _history.Add(delta);
-        _lastDown = delta.ProxyDown + delta.DirectDown;
-        _lastUp = delta.ProxyUp + delta.DirectUp;
-        RefreshStats();
+        _statsPage.SetSpeed(delta.ProxyDown + delta.DirectDown, delta.ProxyUp + delta.DirectUp, true);
 
         if (_trafficTracker.TryGetAverage(out var averageDown, out var averageUp))
             _hero.SetSpeed(ServerText.Bytes(averageDown) + L.T("/с"), ServerText.Bytes(averageUp) + L.T("/с"));
