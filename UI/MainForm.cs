@@ -458,6 +458,14 @@ public class MainForm : Form, IMessageFilter
         _cards.Clear();
 
         var controls = new List<Control>();
+        if (Data.Servers.Count == 0 && _subscriptions.Profiles.Count == 0)
+        {
+            var welcome = new WelcomeCard();
+            welcome.PasteClicked += (_, _) => PasteFromClipboard();
+            welcome.ManualClicked += (_, _) => ShowAddDialog();
+            controls.Add(welcome);
+        }
+
         foreach (var info in _subscriptions.Profiles)
         {
             var url = info.Url;
@@ -487,7 +495,7 @@ public class MainForm : Form, IMessageFilter
         _list.ResumeLayout();
 
         _countLabel.Text = Data.Servers.Count == 0
-            ? L.T("Нажми + или Ctrl+V, чтобы добавить ключ")
+            ? L.T("Ключей пока нет").ToUpperInvariant()
             : ServerText.Plural(Data.Servers.Count, L.T("сервер"), L.T("сервера"), L.T("серверов")).ToUpperInvariant();
     }
 
@@ -551,8 +559,9 @@ public class MainForm : Form, IMessageFilter
         var server = _active ?? _selected;
         if (server == null)
         {
+            _hero.EmptyText = Data.Servers.Count == 0 ? L.T("Сначала добавь ключ") : L.T("Выбери сервер");
             _hero.SetServer(Array.Empty<NamePart>(), null);
-            _hero.SetPing("", Theme.TextMuted);
+            _hero.SetPing(Data.Servers.Count == 0 ? L.T("Нажми на кнопку или на +, чтобы добавить ключ") : "", Theme.TextMuted);
             return;
         }
 
@@ -680,6 +689,7 @@ public class MainForm : Form, IMessageFilter
         if (text.Length == 0)
         {
             Log(L.T("Буфер обмена пуст"));
+            _hero.SetPing(L.T("Буфер обмена пуст: сначала скопируй ключ"), Theme.PingBad);
             return;
         }
 
@@ -704,6 +714,7 @@ public class MainForm : Form, IMessageFilter
             return;
         }
 
+        var first = Data.Servers.Count == 0;
         Data.Servers.AddRange(servers);
         _selected ??= servers[0];
         Save();
@@ -711,13 +722,18 @@ public class MainForm : Form, IMessageFilter
         UpdateHero();
         ShowPage(IconKind.Servers);
         Log(L.F("Добавлено серверов: {0}", servers.Count));
+        if (first)
+            _hero.SetPing(L.T("Готово! Нажми большую кнопку, чтобы подключиться"), Theme.PingGood);
     }
 
     private async Task AddSubscriptionUrl(string url)
     {
+        var first = Data.Servers.Count == 0;
         _subscriptions.Add(url);
         ShowPage(IconKind.Servers);
         await RefreshSubscription(url);
+        if (first && Data.Servers.Count > 0)
+            _hero.SetPing(L.T("Готово! Нажми большую кнопку, чтобы подключиться"), Theme.PingGood);
     }
 
     private async Task UpdateSubscriptions()
@@ -835,6 +851,12 @@ public class MainForm : Form, IMessageFilter
 
     private void ToggleConnection()
     {
+        if (!_connection.IsRunning && Data.Servers.Count == 0)
+        {
+            ShowAddDialog();
+            return;
+        }
+
         if (_connection.IsRunning)
             Disconnect();
         else
