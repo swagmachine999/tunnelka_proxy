@@ -18,6 +18,17 @@ public sealed class SubscriptionService
 
     public bool IsKnown(string url) => Profiles.Any(p => p.Url == url);
 
+    public bool IsCollapsed(string? url) => Profiles.Any(p => p.Url == url && p.Collapsed);
+
+    public List<ProxyServer> Servers(string url) =>
+        _settings.Data.Servers.Where(s => s.SubscriptionUrl == url).ToList();
+
+    public void ToggleCollapsed(SubscriptionInfo info)
+    {
+        info.Collapsed = !info.Collapsed;
+        _settings.Save();
+    }
+
     public void Add(string url)
     {
         if (IsKnown(url))
@@ -40,6 +51,7 @@ public sealed class SubscriptionService
             var servers = _settings.Data.Servers;
             servers.RemoveAll(s => s.SubscriptionUrl == url && s != keep);
             servers.AddRange(result.Servers);
+            result.Info.Collapsed = _settings.Data.Profiles[index].Collapsed;
             _settings.Data.Profiles[index] = result.Info;
             _settings.Save();
 
