@@ -56,13 +56,22 @@ public class SubscriptionCard : ThemedControl
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
-        if (Width == _layoutWidth)
+        UpdateLayout();
+    }
+
+    public void UpdateLayout()
+    {
+        var warning = WarningText();
+        if (Width == _layoutWidth && warning == _layoutWarning)
             return;
 
         _layoutWidth = Width;
+        _layoutWarning = warning;
         _lines = Wrap(Tokenize(Info.Announce), W - Pad * 2);
+        _warningHeight = warning == null ? 0
+            : Theme.MeasureWrapped(warning, Theme.CaptionBold, W - Pad * 2 - WarningIndent - 12) + 20 + (Info.SupportUrl.Length > 0 ? 22 : 0);
 
-        var height = (int)(InfoTop + InfoRows * 22 + 8);
+        var height = (int)(InfoTop + InfoRows * 22 + 8 + (_warningHeight > 0 ? _warningHeight + 10 : 0));
         if (_lines.Count > 0)
             height += (int)(14 + _lines.Count * LineHeight + 6);
         var device = Theme.Px(height);
@@ -71,6 +80,9 @@ public class SubscriptionCard : ThemedControl
     }
 
     private const float InfoTop = 70;
+    private const float WarningIndent = 40;
+    private string? _layoutWarning;
+    private float _warningHeight;
     private int InfoRows => Info.Total > 0 ? 2 : 1;
 
     private static List<Token> Tokenize(string announce)
@@ -196,6 +208,12 @@ public class SubscriptionCard : ThemedControl
         {
             y += 22;
             DrawInfoRow(g, y, L.F("Трафик: {0} из {1}", ServerText.Bytes(Info.Upload + Info.Download), ServerText.Bytes(Info.Total)), Theme.Text);
+        }
+
+        if (_layoutWarning != null)
+        {
+            DrawWarning(g, new RectangleF(Pad, y + 28, W - Pad * 2, _warningHeight), _layoutWarning);
+            y += _warningHeight + 10;
         }
 
         if (_lines.Count == 0)
@@ -345,6 +363,49 @@ public class SubscriptionCard : ThemedControl
             ? ServerText.Plural((int)left.TotalDays, L.T("день"), L.T("дня"), L.T("дней"))
             : ServerText.Plural(Math.Max(1, (int)left.TotalHours), L.T("час"), L.T("часа"), L.T("часов"));
         return L.F("Истекает {0:dd.MM.yyyy} · осталось {1}", expire, tail);
+    }
+
+    private string? WarningText()
+    {
+        if (!Info.ExpiresSoon)
+            return null;
+
+        return Info.Expire <= DateTime.Now
+            ? L.T("Подписка закончилась. Продлите её, чтобы VPN снова заработал.")
+            : L.T("До конца подписки меньше 3 дней. Продлите её, иначе доступ будет приостановлен.");
+    }
+
+    private void DrawWarning(Graphics g, RectangleF r, string text)
+    {
+        var expired = Info.Expire <= DateTime.Now;
+        var color = expired ? Theme.PingBad : Theme.PingMid;
+        Theme.FillRounded(g, Color.FromArgb(Theme.IsDark ? 40 : 34, color), r, 12);
+        Theme.DrawRounded(g, Color.FromArgb(150, color), r, 12, 1.2f);
+
+        var cx = r.X + 20;
+        var top = r.Y + 12;
+        var triangle = new[] { new PointF(cx, top), new PointF(cx + 9, top + 16), new PointF(cx - 9, top + 16) };
+        using (var fill = new SolidBrush(color))
+            g.FillPolygon(fill, triangle);
+        using (var mark = new Pen(Color.White, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+        {
+            g.DrawLine(mark, cx, top + 5, cx, top + 10);
+            g.DrawLine(mark, cx, top + 13, cx, top + 13.2f);
+        }
+
+        var textRect = new RectangleF(r.X + WarningIndent, r.Y + 10, r.Width - WarningIndent - 12, r.Height - 20);
+        Theme.DrawText(g, text, Theme.CaptionBold, Theme.Text, textRect, StringAlignment.Near, StringAlignment.Near, true);
+
+        if (Info.SupportUrl.Length == 0)
+            return;
+
+        var label = L.T("Продлить подписку →");
+        var width = Theme.Measure(label, Theme.CaptionBold).Width;
+        var link = new RectangleF(r.X + WarningIndent, r.Bottom - 28, width + 2, 20);
+        Theme.DrawText(g, label, Theme.CaptionBold, Theme.AccentStrong, link);
+        using (var pen = new Pen(Color.FromArgb(140, Theme.AccentStrong)))
+            g.DrawLine(pen, link.X, link.Bottom - 2, link.X + width, link.Bottom - 2);
+        _hits.Add((link, () => Open(Info.SupportUrl)));
     }
 
     private Color ExpireColor()

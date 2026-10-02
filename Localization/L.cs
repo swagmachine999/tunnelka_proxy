@@ -68,6 +68,10 @@ public static class L
         ["Появится список серверов. Выберите любой и нажмите большую круглую кнопку справа."] =
             "A list of servers will appear. Pick any and press the big round button on the right.",
         ["Вставить ключ"] = "Paste key",
+        ["Подписка закончилась. Продлите её, чтобы VPN снова заработал."] = "The subscription has ended. Renew it to get VPN working again.",
+        ["До конца подписки меньше 3 дней. Продлите её, иначе доступ будет приостановлен."] = "Less than 3 days left on the subscription. Renew it, or access will be suspended.",
+        ["Продлить подписку →"] = "Renew subscription →",
+        ["Подписка «{0}» скоро закончится. Продлите её, иначе доступ будет приостановлен."] = "The subscription \"{0}\" ends soon. Renew it, or access will be suspended.",
         ["Ввести вручную"] = "Enter manually",
         ["Выход"] = "Exit",
         ["Подключиться"] = "Connect",
