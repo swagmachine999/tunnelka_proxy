@@ -2,15 +2,6 @@ using Tunnelka.Models;
 
 namespace Tunnelka.Services;
 
-public enum ConnectResult
-{
-    Ok,
-    XrayMissing,
-    SingBoxMissing,
-    NeedsAdministrator,
-    Failed
-}
-
 public sealed class ConnectionService : IDisposable
 {
     private readonly AppLog _log;

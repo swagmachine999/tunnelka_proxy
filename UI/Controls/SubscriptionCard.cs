@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
-using System.Text.RegularExpressions;
 using Tunnelka.Models;
 
 namespace Tunnelka.UI.Controls;
@@ -9,13 +8,12 @@ public class SubscriptionCard : ThemedControl
 {
     private const float Pad = 16;
     private const float LineHeight = 21;
-    private const float SymbolSize = 16;
+    private const float SymbolSize = AnnounceLayout.SymbolSize;
 
-    private static readonly Regex UrlPattern = new(@"https?://\S+", RegexOptions.Compiled);
     private static readonly string[] RefreshSymbols = { "\U0001F504", "\U0001F503", "♻" };
 
     private readonly List<(RectangleF Rect, Action Action)> _hits = new();
-    private List<List<Token>> _lines = new();
+    private List<List<AnnounceToken>> _lines = new();
     private RectangleF _hoverRect = RectangleF.Empty;
     private int _layoutWidth = -1;
 
@@ -35,24 +33,6 @@ public class SubscriptionCard : ThemedControl
 
     public int ServerCount { get; set; }
 
-    private sealed class Token
-    {
-        public Token(string text, bool symbol, string? url, float width, bool lineBreak = false)
-        {
-            Text = text;
-            Symbol = symbol;
-            Url = url;
-            Width = width;
-            LineBreak = lineBreak;
-        }
-
-        public string Text { get; }
-        public bool Symbol { get; }
-        public string? Url { get; }
-        public float Width { get; }
-        public bool LineBreak { get; }
-    }
-
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
@@ -67,7 +47,7 @@ public class SubscriptionCard : ThemedControl
 
         _layoutWidth = Width;
         _layoutWarning = warning;
-        _lines = Wrap(Tokenize(Info.Announce), W - Pad * 2);
+        _lines = AnnounceLayout.Build(Info.Announce, W - Pad * 2);
         _warningHeight = warning == null ? 0
             : Theme.MeasureWrapped(warning, Theme.CaptionBold, W - Pad * 2 - WarningIndent - 12) + 20 + (Info.SupportUrl.Length > 0 ? 22 : 0);
 
@@ -84,87 +64,6 @@ public class SubscriptionCard : ThemedControl
     private string? _layoutWarning;
     private float _warningHeight;
     private int InfoRows => Info.Total > 0 ? 2 : 1;
-
-    private static List<Token> Tokenize(string announce)
-    {
-        var tokens = new List<Token>();
-        if (announce.Length == 0)
-            return tokens;
-
-        var paragraphs = announce.Replace("\r", "").Split('\n');
-        for (var p = 0; p < paragraphs.Length; p++)
-        {
-            if (p > 0)
-                tokens.Add(new Token("", false, null, 0, true));
-
-            var line = paragraphs[p];
-            var position = 0;
-            foreach (Match match in UrlPattern.Matches(line))
-            {
-                AddText(tokens, line.Substring(position, match.Index - position));
-                var url = match.Value.TrimEnd('.', ',', ')', '!');
-                tokens.Add(new Token(url, false, url, Theme.Measure(url, Theme.CaptionBold).Width));
-                position = match.Index + match.Value.Length;
-            }
-            AddText(tokens, line.Substring(position));
-        }
-
-        return tokens;
-    }
-
-    private static void AddText(List<Token> tokens, string text)
-    {
-        if (text.Trim().Length == 0)
-            return;
-
-        foreach (var part in ServerText.Parts(text, null))
-        {
-            if (part.IsSymbol)
-            {
-                tokens.Add(new Token(part.Text, true, null, SymbolSize));
-                continue;
-            }
-
-            foreach (var word in part.Text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
-                tokens.Add(new Token(word, false, null, Theme.Measure(word, Theme.Caption).Width));
-        }
-    }
-
-    private static List<List<Token>> Wrap(List<Token> tokens, float maxWidth)
-    {
-        var lines = new List<List<Token>>();
-        if (tokens.Count == 0)
-            return lines;
-
-        var space = Theme.Measure(" ", Theme.Caption).Width + 1;
-        var current = new List<Token>();
-        var width = 0f;
-
-        foreach (var token in tokens)
-        {
-            if (token.LineBreak)
-            {
-                lines.Add(current);
-                current = new List<Token>();
-                width = 0;
-                continue;
-            }
-
-            var needed = current.Count == 0 ? token.Width : width + space + token.Width;
-            if (current.Count > 0 && needed > maxWidth)
-            {
-                lines.Add(current);
-                current = new List<Token>();
-                needed = token.Width;
-            }
-
-            current.Add(token);
-            width = needed;
-        }
-
-        lines.Add(current);
-        return lines;
-    }
 
     protected override void Draw(Graphics g)
     {
