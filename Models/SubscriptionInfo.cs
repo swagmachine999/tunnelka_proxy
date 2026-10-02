@@ -12,6 +12,7 @@ public class SubscriptionInfo
     public string Announce { get; set; } = "";
     public string SupportUrl { get; set; } = "";
     public DateTime UpdatedAt { get; set; }
+    public bool Collapsed { get; set; }
 
     public static SubscriptionInfo Placeholder(string url) => new()
     {
