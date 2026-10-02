@@ -1,3 +1,4 @@
+using System.Net.NetworkInformation;
 using Tunnelka.Models;
 
 namespace Tunnelka.Services;
@@ -98,7 +99,14 @@ public sealed class ConnectionService : IDisposable
         {
             XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
             _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, rules));
+            if (_singBox.WaitForExit(1500))
+            {
+                _log.Write(L.F("sing-box сразу завершился, код {0}", _singBox.ExitCode ?? -1));
+                return ConnectResult.Failed;
+            }
+
             _log.Write(L.T("TUN включён"));
+            _ = Task.Run(CheckAdapter);
             return ConnectResult.Ok;
         }
         catch (Exception ex)
@@ -106,6 +114,26 @@ public sealed class ConnectionService : IDisposable
             _log.Write(L.F("Не удалось запустить TUN: {0}", ex.Message));
             return ConnectResult.Failed;
         }
+    }
+
+    private async Task CheckAdapter()
+    {
+        for (var i = 0; i < 20; i++)
+        {
+            await Task.Delay(500);
+            if (!_singBox.IsRunning)
+                return;
+
+            var adapter = NetworkInterface.GetAllNetworkInterfaces()
+                .FirstOrDefault(n => n.Name == TunConfigBuilder.InterfaceName);
+            if (adapter is { OperationalStatus: OperationalStatus.Up })
+            {
+                _log.Write(L.T("Адаптер TUN создан"));
+                return;
+            }
+        }
+
+        _log.Write(L.T("Адаптер TUN не появился за 10 секунд. Его может блокировать антивирус или другой VPN"));
     }
 
     private void ApplySystemProxy(bool enable)

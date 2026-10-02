@@ -6,6 +6,8 @@ namespace Tunnelka.Services;
 
 public static class TunConfigBuilder
 {
+    public const string InterfaceName = "Tunnelka";
+
     public static string Build(int socksPort, IEnumerable<RoutingRule> rules)
     {
         var routeRules = new JsonArray
@@ -61,7 +63,7 @@ public static class TunConfigBuilder
                 {
                     ["type"] = "tun",
                     ["tag"] = "tun-in",
-                    ["interface_name"] = "Tunnelka",
+                    ["interface_name"] = InterfaceName,
                     ["address"] = new JsonArray(JsonValue.Create("172.19.0.1/30")),
                     ["mtu"] = 9000,
                     ["auto_route"] = true,

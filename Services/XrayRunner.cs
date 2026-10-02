@@ -29,6 +29,10 @@ public sealed class XrayRunner : IDisposable
 
     public bool IsRunning => _process is { HasExited: false };
 
+    public int? ExitCode => _process is { HasExited: true } process ? process.ExitCode : null;
+
+    public bool WaitForExit(int milliseconds) => _process == null || _process.WaitForExit(milliseconds);
+
     public void Start(string configJson)
     {
         Stop();
