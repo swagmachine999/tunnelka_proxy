@@ -3,31 +3,6 @@ using System.Drawing.Text;
 
 namespace VpnClient.UI;
 
-public sealed class Palette
-{
-    public Color Window;
-    public Color Sidebar;
-    public Color SidebarHover;
-    public Color Surface;
-    public Color Card;
-    public Color CardHover;
-    public Color CardSelected;
-    public Color Border;
-    public Color Accent;
-    public Color AccentStrong;
-    public Color Pink;
-    public Color Mint;
-    public Color Text;
-    public Color TextMuted;
-    public Color HeroTop;
-    public Color HeroBottom;
-    public Color PowerOff;
-    public Color TrackOff;
-    public Color PingGood;
-    public Color PingMid;
-    public Color PingBad;
-}
-
 public static class Theme
 {
     public static readonly Palette Light = new()
@@ -319,7 +294,18 @@ public static class Theme
         g.DrawLine(pen, x + 5, tip, x + 9, tip + back);
     }
 
-        public static Color Lighten(Color c, float amount) => Color.FromArgb(
+        public static void DrawBusyDots(Graphics g, float left, float cy, float time, float size)
+    {
+        var step = size * 1.85f;
+        for (var i = 0; i < 3; i++)
+        {
+            var phase = (float)Math.Max(0, Math.Sin(time * 6 - i * 0.9));
+            using var brush = new SolidBrush(Color.FromArgb((int)(170 + 85 * phase), i == 1 ? Pink : Accent));
+            g.FillEllipse(brush, left + i * step, cy - size / 2 - phase * size * 0.55f, size, size);
+        }
+    }
+
+    public static Color Lighten(Color c, float amount) => Color.FromArgb(
         c.A,
         (int)(c.R + (255 - c.R) * amount),
         (int)(c.G + (255 - c.G) * amount),

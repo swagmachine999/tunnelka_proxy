@@ -64,8 +64,6 @@ public sealed class XrayRunner : IDisposable
         process.BeginErrorReadLine();
     }
 
-    public static void KillOrphans() => KillOrphans(XrayPath);
-
     public static void KillOrphans(string exePath)
     {
         foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exePath)))

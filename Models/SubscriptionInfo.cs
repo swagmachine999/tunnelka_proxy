@@ -12,4 +12,10 @@ public class SubscriptionInfo
     public string Announce { get; set; } = "";
     public string SupportUrl { get; set; } = "";
     public DateTime UpdatedAt { get; set; }
+
+    public static SubscriptionInfo Placeholder(string url) => new()
+    {
+        Url = url,
+        Title = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : url
+    };
 }

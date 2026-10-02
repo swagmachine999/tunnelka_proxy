@@ -9,9 +9,12 @@ namespace VpnClient.UI;
 
 public class MainForm : Form, IMessageFilter
 {
-    private readonly AppData _data = AppStorage.Load();
-    private readonly XrayRunner _xray = new();
-    private readonly XrayRunner _singBox = new(XrayRunner.SingBoxPath, "tun.json");
+    private readonly AppLog _log = new();
+    private readonly Settings _settings;
+    private readonly ConnectionService _connection;
+    private readonly SubscriptionService _subscriptions;
+    private readonly PingService _pinger;
+    private readonly TrafficTracker _trafficTracker;
     private readonly TrafficMonitor _traffic = new();
     private readonly System.Windows.Forms.Timer _clock = new() { Interval = 1000 };
 
@@ -62,11 +65,7 @@ public class MainForm : Form, IMessageFilter
     private ProxyServer? _active;
     private ServerCard? _menuCard;
     private DateTime _connectedAt;
-    private bool _proxyEnabledByUs;
     private bool _exiting;
-    private TrafficCounters _lastCounters = new();
-    private readonly List<(double Down, double Up)> _speedSamples = new();
-    private int _speedTick;
 
     private readonly System.Windows.Forms.Timer _scaleDelay = new() { Interval = 350 };
 
@@ -74,7 +73,13 @@ public class MainForm : Form, IMessageFilter
 
     public MainForm(bool reconnect = false, bool openSettings = false, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal)
     {
-        Theme.Use(_data.DarkTheme);
+        _settings = new Settings(_log);
+        _connection = new ConnectionService(_log);
+        _subscriptions = new SubscriptionService(_settings, _log);
+        _pinger = new PingService(_settings);
+        _trafficTracker = new TrafficTracker(_settings);
+
+        Theme.Use(Data.DarkTheme);
 
         Text = "Tunnelka";
         ClientSize = new Size(1000, 660);
@@ -85,10 +90,11 @@ public class MainForm : Form, IMessageFilter
         Icon = LogoView.CreateAppIcon() ?? Icon;
         Theme.Bind(this, () => Theme.Window);
 
+        _log.Written += Log;
         _logPage = new LogPage(() => ShowPage(IconKind.Settings));
-        _routingPage = new RoutingPage(_data.Rules, () => ShowPage(IconKind.Settings));
-        _settingsPage = new SettingsPage(_data.DarkTheme, _data.Tun, _data.SpeedInterval, _data.RealPing, _data.UiScale);
-        _pingPage = new PingPage(_data.RealPing, _data.PingUrl, () => ShowPage(IconKind.Settings));
+        _routingPage = new RoutingPage(Data.Rules, () => ShowPage(IconKind.Settings));
+        _settingsPage = new SettingsPage(Data.DarkTheme, Data.Tun, Data.SpeedInterval, Data.RealPing, Data.UiScale);
+        _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
 
         BuildLayout();
 
@@ -109,11 +115,11 @@ public class MainForm : Form, IMessageFilter
 
         BuildCardMenu();
         BuildSubscriptionMenu();
-        _autoUpdate.Tick += async (_, _) => await AutoUpdateSubscriptions();
+        _autoUpdate.Tick += async (_, _) => await RefreshDueSubscriptions();
         _autoUpdate.Start();
-        Shown += async (_, _) => await AutoUpdateSubscriptions();
+        Shown += async (_, _) => await RefreshDueSubscriptions();
 
-        _hero.Tun = _data.Tun;
+        _hero.Tun = Data.Tun;
         _hero.PowerClicked += (_, _) => ToggleConnection();
         _hero.PingClicked += async (_, _) => await PingCurrent();
         _hero.RefreshClicked += async (_, _) => await UpdateSubscriptions();
@@ -125,17 +131,17 @@ public class MainForm : Form, IMessageFilter
         _settingsPage.PingRow.Click += (_, _) => ShowPage(IconKind.Ping);
         _pingPage.Changed += (_, _) =>
         {
-            _data.RealPing = _pingPage.IsReal;
+            Data.RealPing = _pingPage.IsReal;
             var url = _pingPage.Url.Query;
             if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https"))
-                _data.PingUrl = url;
-            _settingsPage.ShowPingMode(_data.RealPing);
+                Data.PingUrl = url;
+            _settingsPage.ShowPingMode(Data.RealPing);
             Save();
         };
         _settingsPage.SpeedSelector.SelectedIndexChanged += (_, _) =>
         {
-            _data.SpeedInterval = _settingsPage.SpeedInterval;
-            _speedTick = 0;
+            Data.SpeedInterval = _settingsPage.SpeedInterval;
+            _trafficTracker.RestartAveraging();
             Save();
         };
         _routingPage.RulesChanged += (_, _) => OnRulesChanged();
@@ -143,10 +149,7 @@ public class MainForm : Form, IMessageFilter
         _list.Resize += (_, _) => ResizeCards();
         _clock.Tick += (_, _) => UpdateClock();
         _traffic.Updated += OnTraffic;
-        _xray.Output += Log;
-        _xray.Exited += OnXrayExited;
-        _singBox.Output += line => Log("[tun] " + line);
-        _singBox.Exited += OnXrayExited;
+        _connection.Exited += OnCoreExited;
         KeyDown += OnKeyDown;
         FormClosing += (_, e) =>
         {
@@ -168,10 +171,11 @@ public class MainForm : Form, IMessageFilter
             _scaleDelay.Dispose();
             _tray.Dispose();
             _traffic.Dispose();
+            _connection.Dispose();
         };
 
-        _stats.SetTotals(_data.TotalDownload, _data.TotalUpload);
-        _selected = _data.Servers.FirstOrDefault(s => s.Link == _data.LastServerLink) ?? _data.Servers.FirstOrDefault();
+        _stats.SetTotals(Data.TotalDownload, Data.TotalUpload);
+        _selected = Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink) ?? Data.Servers.FirstOrDefault();
         RebuildList();
         UpdateHero();
         ShowPage(openSettings ? IconKind.Settings : IconKind.Servers);
@@ -191,7 +195,7 @@ public class MainForm : Form, IMessageFilter
         _scaleDelay.Tick += (_, _) =>
         {
             _scaleDelay.Stop();
-            _data.UiScale = _settingsPage.ScaleSelector.Value;
+            Data.UiScale = _settingsPage.ScaleSelector.Value;
             Save();
             ScaleChangeRequested?.Invoke(this, EventArgs.Empty);
         };
@@ -203,7 +207,7 @@ public class MainForm : Form, IMessageFilter
     public bool PrepareForReplace()
     {
         _exiting = true;
-        var wasConnected = _xray.IsRunning;
+        var wasConnected = _connection.IsRunning;
         Disconnect();
         return wasConnected;
     }
@@ -252,7 +256,7 @@ public class MainForm : Form, IMessageFilter
         var pingAll = new IconButton(IconKind.Gauge, "Проверить пинг всех серверов")
         {
             Dock = DockStyle.Right,
-            Background = () => Theme.Surface
+            Backdrop = () => Theme.Surface
         };
         pingAll.Click += async (_, _) => await PingAll();
         AttachTip(pingAll);
@@ -353,7 +357,7 @@ public class MainForm : Form, IMessageFilter
 
     private void SetDarkTheme(bool dark)
     {
-        _data.DarkTheme = dark;
+        Data.DarkTheme = dark;
         Save();
         Theme.Use(dark);
         ApplyNativeTheme();
@@ -383,21 +387,17 @@ public class MainForm : Form, IMessageFilter
         _cards.Clear();
 
         var controls = new List<Control>();
-        foreach (var url in _data.Subscriptions)
+        foreach (var info in _subscriptions.Profiles)
         {
-            var info = _data.Profiles.FirstOrDefault(p => p.Url == url);
-            if (info != null)
-            {
-                var header = new SubscriptionCard(info) { ContextMenuStrip = _subscriptionMenu };
-                header.RefreshClicked += async (_, _) => await RefreshSubscription(url);
-                controls.Add(header);
-            }
-
-            controls.AddRange(_data.Servers.Where(s => s.SubscriptionUrl == url).Select(CreateCard));
+            var url = info.Url;
+            var header = new SubscriptionCard(info) { ContextMenuStrip = _subscriptionMenu };
+            header.RefreshClicked += async (_, _) => await RefreshSubscription(url);
+            controls.Add(header);
+            controls.AddRange(Data.Servers.Where(s => s.SubscriptionUrl == url).Select(CreateCard));
         }
 
-        controls.AddRange(_data.Servers
-            .Where(s => s.SubscriptionUrl == null || !_data.Subscriptions.Contains(s.SubscriptionUrl))
+        controls.AddRange(Data.Servers
+            .Where(s => s.SubscriptionUrl == null || !_subscriptions.IsKnown(s.SubscriptionUrl))
             .Select(CreateCard));
 
         _list.Controls.AddRange(controls.ToArray());
@@ -406,9 +406,9 @@ public class MainForm : Form, IMessageFilter
         ResizeCards();
         _list.ResumeLayout();
 
-        _countLabel.Text = _data.Servers.Count == 0
+        _countLabel.Text = Data.Servers.Count == 0
             ? "Нажми + или Ctrl+V, чтобы добавить ключ"
-            : ServerText.Plural(_data.Servers.Count, "сервер", "сервера", "серверов").ToUpperInvariant();
+            : ServerText.Plural(Data.Servers.Count, "сервер", "сервера", "серверов").ToUpperInvariant();
     }
 
     private ServerCard CreateCard(ProxyServer server)
@@ -566,18 +566,7 @@ public class MainForm : Form, IMessageFilter
             return;
         }
 
-        if (!text.Contains("://"))
-        {
-            try
-            {
-                text = Base64Helper.Decode(text);
-            }
-            catch (FormatException)
-            {
-            }
-        }
-
-        var servers = LinkParser.ParseMany(text);
+        var servers = LinkParser.ParseInput(text);
         if (servers.Count == 0)
         {
             Log("Не нашёл поддерживаемых ссылок (vless, vmess, trojan, ss)");
@@ -585,7 +574,7 @@ public class MainForm : Form, IMessageFilter
             return;
         }
 
-        _data.Servers.AddRange(servers);
+        Data.Servers.AddRange(servers);
         _selected ??= servers[0];
         Save();
         RebuildList();
@@ -596,79 +585,42 @@ public class MainForm : Form, IMessageFilter
 
     private async Task AddSubscriptionUrl(string url)
     {
-        if (!_data.Subscriptions.Contains(url))
-            _data.Subscriptions.Add(url);
-
+        _subscriptions.Add(url);
         ShowPage(IconKind.Servers);
-        await LoadSubscription(url);
+        await RefreshSubscription(url);
     }
 
     private async Task UpdateSubscriptions()
     {
-        if (_data.Subscriptions.Count == 0)
+        if (_subscriptions.Profiles.Count == 0)
         {
             _hero.SetPing("Подписок нет: добавь её через +", Theme.TextMuted);
             return;
         }
 
         _hero.SetBusy(true);
-        var ok = true;
-        foreach (var url in _data.Subscriptions.ToList())
-            ok &= await LoadSubscription(url);
+        ShowSubscriptionResult(await _subscriptions.RefreshAll(_active));
+    }
 
+    private async Task RefreshSubscription(string url)
+    {
+        _hero.SetBusy(true);
+        ShowSubscriptionResult(await _subscriptions.Refresh(url, _active));
+    }
+
+    private void ShowSubscriptionResult(bool ok)
+    {
+        AfterServersChanged();
         if (ok)
             _hero.SetPing("Подписка обновлена", Theme.PingGood);
         else
             _hero.SetPing("Не удалось обновить подписку", Theme.PingBad);
     }
 
-    private async Task<bool> LoadSubscription(string url)
+    private async Task RefreshDueSubscriptions()
     {
-        try
-        {
-            Log("Обновляю подписку");
-            var result = await SubscriptionLoader.LoadAsync(url);
-            if (!_data.Subscriptions.Contains(url))
-                return false;
-
-            _data.Servers.RemoveAll(s => s.SubscriptionUrl == url && s != _active);
-            _data.Servers.AddRange(result.Servers);
-            _data.Profiles.RemoveAll(p => p.Url == url);
-            _data.Profiles.Add(result.Info);
-
-            if (_selected == null || !_data.Servers.Contains(_selected))
-                _selected = result.Servers.FirstOrDefault() ?? _data.Servers.FirstOrDefault();
-
-            Save();
-            RebuildList();
-            UpdateHero();
-            Log($"{result.Info.Title}: серверов {result.Servers.Count}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log($"Ошибка подписки: {ex.Message}");
-            return false;
-        }
-    }
-
-    private async Task RefreshSubscription(string url)
-    {
-        _hero.SetBusy(true);
-        if (await LoadSubscription(url))
-            _hero.SetPing("Подписка обновлена", Theme.PingGood);
-        else
-            _hero.SetPing("Не удалось обновить подписку", Theme.PingBad);
-    }
-
-    private async Task AutoUpdateSubscriptions()
-    {
-        foreach (var url in _data.Subscriptions.ToList())
-        {
-            var info = _data.Profiles.FirstOrDefault(p => p.Url == url);
-            if (info == null || DateTime.Now - info.UpdatedAt >= TimeSpan.FromHours(info.UpdateIntervalHours))
-                await LoadSubscription(url);
-        }
+        if (await _subscriptions.RefreshDue(_active))
+            AfterServersChanged();
 
         foreach (var header in _list.Controls.OfType<SubscriptionCard>())
             header.Invalidate();
@@ -679,24 +631,26 @@ public class MainForm : Form, IMessageFilter
         if (_active?.SubscriptionUrl == url)
             Disconnect();
 
-        _data.Subscriptions.Remove(url);
-        _data.Profiles.RemoveAll(p => p.Url == url);
-        _data.Servers.RemoveAll(s => s.SubscriptionUrl == url);
-        if (_selected != null && !_data.Servers.Contains(_selected))
-            _selected = _data.Servers.FirstOrDefault();
+        _subscriptions.Delete(url);
+        AfterServersChanged();
+    }
 
-        Save();
+    private void AfterServersChanged()
+    {
+        if (_selected == null || !Data.Servers.Contains(_selected))
+            _selected = Data.Servers.FirstOrDefault();
+
         RebuildList();
         UpdateHero();
     }
 
     private async Task PingAll()
     {
-        if (_data.Servers.Count == 0)
+        if (Data.Servers.Count == 0)
             return;
 
         _hero.SetBusy(true);
-        await Ping(_data.Servers.ToList());
+        await Ping(Data.Servers.ToList());
         UpdateCards();
         UpdateHero();
     }
@@ -718,20 +672,7 @@ public class MainForm : Form, IMessageFilter
         SetBusy(servers, true);
         try
         {
-            if (_data.RealPing && File.Exists(XrayRunner.XrayPath))
-            {
-                var results = await RealPinger.PingAsync(servers, _data.PingUrl);
-                foreach (var pair in results)
-                    pair.Key.PingMs = pair.Value;
-                return;
-            }
-
-            await Task.WhenAll(servers.Select(async server =>
-            {
-                var ms = await Pinger.TcpPingAsync(server.Address, server.Port);
-                server.PingMs = ms ?? -1;
-                SetBusy(new[] { server }, false);
-            }));
+            await _pinger.Ping(servers, server => SetBusy(new[] { server }, false));
         }
         finally
         {
@@ -754,9 +695,9 @@ public class MainForm : Form, IMessageFilter
         if (server == _active)
             Disconnect();
 
-        _data.Servers.Remove(server);
+        Data.Servers.Remove(server);
         if (_selected == server)
-            _selected = _data.Servers.FirstOrDefault();
+            _selected = Data.Servers.FirstOrDefault();
 
         Save();
         RebuildList();
@@ -765,7 +706,7 @@ public class MainForm : Form, IMessageFilter
 
     private void ToggleConnection()
     {
-        if (_xray.IsRunning)
+        if (_connection.IsRunning)
             Disconnect();
         else
             Connect();
@@ -774,27 +715,15 @@ public class MainForm : Form, IMessageFilter
     private void Connect()
     {
         var server = _selected;
-        if (server == null)
+        if (server == null || !Start(server))
             return;
-
-        if (!StartXray(server))
-            return;
-
-        if (_data.Tun && !StartTun())
-        {
-            _xray.Stop();
-            return;
-        }
 
         _active = server;
         _connectedAt = DateTime.Now;
-        _lastCounters = new TrafficCounters();
-        _speedSamples.Clear();
-        _speedTick = 0;
+        _trafficTracker.Reset();
         _hero.SetSpeed(ServerText.Bytes(0) + "/с", ServerText.Bytes(0) + "/с");
-        _data.LastServerLink = server.Link;
+        Data.LastServerLink = server.Link;
         Save();
-        ApplySystemProxy();
 
         _hero.ElapsedText = "00:00:00";
         _hero.Connected = true;
@@ -806,46 +735,57 @@ public class MainForm : Form, IMessageFilter
         Log($"Подключено к {ServerText.CleanName(server)}");
     }
 
-    private bool StartXray(ProxyServer server)
+    private bool Start(ProxyServer server)
     {
-        try
+        switch (_connection.Start(server, Data.Tun, Data.Rules))
         {
-            _xray.Stop();
-            XrayRunner.KillOrphans();
-            XrayConfigBuilder.ChoosePorts();
-            if (XrayConfigBuilder.SocksPort != XrayConfigBuilder.PreferredSocksPort)
-                Log($"Порт {XrayConfigBuilder.PreferredSocksPort} занят другой программой (например, Happ или v2rayN), беру {XrayConfigBuilder.SocksPort}");
-
-            _xray.Start(XrayConfigBuilder.Build(server, _data.Rules));
-            Log($"Порты: SOCKS5 127.0.0.1:{XrayConfigBuilder.SocksPort}, HTTP 127.0.0.1:{XrayConfigBuilder.HttpPort}");
-            return true;
-        }
-        catch (FileNotFoundException)
-        {
-            MessageBox.Show(this, $"Не найден {XrayRunner.XrayPath}", "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        }
-        catch (Exception ex)
-        {
-            Log($"Не удалось запустить xray: {ex.Message}");
-            ShowPage(IconKind.Log);
+            case ConnectResult.Ok:
+                return true;
+            case ConnectResult.XrayMissing:
+                MessageBox.Show(this, $"Не найден {XrayRunner.XrayPath}", "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                break;
+            case ConnectResult.SingBoxMissing:
+                MessageBox.Show(this,
+                    $"Не найден {XrayRunner.SingBoxPath}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.",
+                    "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                break;
+            case ConnectResult.NeedsAdministrator:
+                OfferElevation();
+                break;
+            default:
+                ShowPage(IconKind.Log);
+                break;
         }
 
         return false;
     }
 
+    private void OfferElevation()
+    {
+        var answer = MessageBox.Show(this,
+            "Для режима TUN нужны права администратора. Перезапустить Tunnelka от имени администратора?",
+            "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes)
+            return;
+
+        try
+        {
+            Elevation.RestartElevated("--connect");
+            _exiting = true;
+            Application.Exit();
+        }
+        catch (Exception ex)
+        {
+            Log($"Перезапуск отменён: {ex.Message}");
+        }
+    }
+
     private void Disconnect()
     {
-        var wasRunning = _xray.IsRunning;
-        _singBox.Stop();
-        _xray.Stop();
+        var wasRunning = _connection.IsRunning;
+        _connection.Stop();
         _clock.Stop();
         _traffic.Stop();
-
-        if (_proxyEnabledByUs)
-        {
-            SystemProxy.Disable();
-            _proxyEnabledByUs = false;
-        }
 
         _active = null;
         if (wasRunning)
@@ -867,48 +807,24 @@ public class MainForm : Form, IMessageFilter
     private void OnRulesChanged()
     {
         Save();
-        if (_active == null || !_xray.IsRunning)
+        if (_active == null || !_connection.IsRunning)
             return;
 
-        _lastCounters = new TrafficCounters();
-        if (StartXray(_active) && (!_data.Tun || StartTun()))
-        {
-            ApplySystemProxy();
+        _trafficTracker.ResetCounters();
+        if (Start(_active))
             Log("Правила применены");
-        }
         else
             Disconnect();
     }
 
     private void OnTraffic(TrafficCounters counters)
     {
-        var down = Math.Max(0, counters.ProxyDown - _lastCounters.ProxyDown) + Math.Max(0, counters.DirectDown - _lastCounters.DirectDown);
-        var up = Math.Max(0, counters.ProxyUp - _lastCounters.ProxyUp) + Math.Max(0, counters.DirectUp - _lastCounters.DirectUp);
-
-        _data.TotalDownload += Math.Max(0, counters.ProxyDown - _lastCounters.ProxyDown);
-        _data.TotalUpload += Math.Max(0, counters.ProxyUp - _lastCounters.ProxyUp);
-        _lastCounters = counters;
-
+        var (down, up) = _trafficTracker.Process(counters);
         _stats.Push(counters, down, up);
-        _stats.SetTotals(_data.TotalDownload, _data.TotalUpload);
-        UpdateSpeed(down, up);
-    }
+        _stats.SetTotals(Data.TotalDownload, Data.TotalUpload);
 
-    private void UpdateSpeed(double down, double up)
-    {
-        var interval = _data.SpeedInterval;
-        _speedSamples.Add((down, up));
-        if (_speedSamples.Count > interval)
-            _speedSamples.RemoveRange(0, _speedSamples.Count - interval);
-
-        _speedTick++;
-        if (_speedTick < interval)
-            return;
-
-        _speedTick = 0;
-        _hero.SetSpeed(
-            ServerText.Bytes(_speedSamples.Average(s => s.Down)) + "/с",
-            ServerText.Bytes(_speedSamples.Average(s => s.Up)) + "/с");
+        if (_trafficTracker.TryGetAverage(out var averageDown, out var averageUp))
+            _hero.SetSpeed(ServerText.Bytes(averageDown) + "/с", ServerText.Bytes(averageUp) + "/с");
     }
 
     private void UpdateClock()
@@ -917,14 +833,14 @@ public class MainForm : Form, IMessageFilter
         _hero.ElapsedText = $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
     }
 
-    private void OnXrayExited()
+    private void OnCoreExited()
     {
         if (IsDisposed)
             return;
 
         if (InvokeRequired)
         {
-            BeginInvoke(new Action(OnXrayExited));
+            BeginInvoke(new Action(OnCoreExited));
             return;
         }
 
@@ -935,122 +851,25 @@ public class MainForm : Form, IMessageFilter
 
     private void SetMode(bool tun)
     {
-        if (_data.Tun == tun)
+        if (Data.Tun == tun)
             return;
 
-        _data.Tun = tun;
+        Data.Tun = tun;
         _hero.Tun = tun;
         _settingsPage.ModeSelector.SelectedIndex = tun ? 1 : 0;
         Save();
         Log(tun ? "Режим TUN: через VPN идёт весь трафик" : "Режим прокси: через VPN идут браузер и программы");
 
-        if (_active != null && _xray.IsRunning)
+        if (_active != null && _connection.IsRunning)
         {
             Disconnect();
             Connect();
         }
     }
 
-    private bool StartTun()
-    {
-        if (!IsAdministrator())
-        {
-            var answer = MessageBox.Show(this,
-                "Для режима TUN нужны права администратора. Перезапустить Tunnelka от имени администратора?",
-                "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+    private AppData Data => _settings.Data;
 
-            if (answer == DialogResult.Yes)
-                RestartAsAdministrator();
-            return false;
-        }
-
-        try
-        {
-            XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
-            _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, _data.Rules));
-            Log("TUN включён");
-            return true;
-        }
-        catch (FileNotFoundException)
-        {
-            MessageBox.Show(this,
-                $"Не найден {XrayRunner.SingBoxPath}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.",
-                "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        }
-        catch (Exception ex)
-        {
-            Log($"Не удалось запустить TUN: {ex.Message}");
-            ShowPage(IconKind.Log);
-        }
-
-        return false;
-    }
-
-    private static bool IsAdministrator()
-    {
-        try
-        {
-            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
-            return new System.Security.Principal.WindowsPrincipal(identity).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
-    private void RestartAsAdministrator()
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Application.ExecutablePath, "--connect")
-            {
-                UseShellExecute = true,
-                Verb = "runas"
-            });
-            Disconnect();
-            Application.Exit();
-        }
-        catch (Exception ex)
-        {
-            Log($"Перезапуск отменён: {ex.Message}");
-        }
-    }
-
-    private void ApplySystemProxy()
-    {
-        try
-        {
-            if (!_data.Tun)
-            {
-                SystemProxy.Enable($"127.0.0.1:{XrayConfigBuilder.HttpPort}");
-                _proxyEnabledByUs = true;
-                Log("Системный прокси включён");
-            }
-            else if (_proxyEnabledByUs)
-            {
-                SystemProxy.Disable();
-                _proxyEnabledByUs = false;
-                Log("Системный прокси выключен");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log($"Не удалось изменить системный прокси: {ex.Message}");
-        }
-    }
-
-    private void Save()
-    {
-        try
-        {
-            AppStorage.Save(_data);
-        }
-        catch (Exception ex)
-        {
-            Log($"Не удалось сохранить настройки: {ex.Message}");
-        }
-    }
+    private void Save() => _settings.Save();
 
     private void Log(string text)
     {
