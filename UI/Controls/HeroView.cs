@@ -278,34 +278,61 @@ public class HeroView : ThemedControl
             g.DrawEllipse(pen, Inflate(r, 13 + i * 14 + pulse * 6 + hoverPulse * 5));
         }
 
-        DrawGlow(g, Inflate(r, 26 + hoverPulse * 8), Color.FromArgb((_connected ? 110 : 60) + (int)(hoverPulse * 50), ringColor));
+        DrawGlow(g, Inflate(r, 26 + hoverPulse * 8), Color.FromArgb((_connected ? 80 : 45) + (int)(hoverPulse * 50), ringColor));
 
         var body = Inflate(r, hoverPulse * 4);
+        using (var band = new SolidBrush(Color.FromArgb(Theme.IsDark ? 16 : 110, Color.White)))
+            g.FillEllipse(band, Inflate(body, 18));
+
+        var top = Theme.IsDark ? Theme.Lighten(Theme.PowerOff, 0.07f) : Color.White;
+        var bottom = Theme.IsDark ? Theme.PowerOff : Color.FromArgb(248, 244, 253);
+        using (var fill = new LinearGradientBrush(body, top, bottom, 90f))
+            g.FillEllipse(fill, body);
+
+        var cx = r.X + r.Width / 2;
+        var shadow = Theme.IsDark ? Color.Black : Color.FromArgb(120, 90, 170);
+        var depth = Theme.IsDark ? 70f : 22f;
+        var state = g.Save();
+        using (var clip = new GraphicsPath())
+        {
+            clip.AddEllipse(body);
+            g.SetClip(clip);
+        }
+        for (var i = 0; i < 14; i++)
+        {
+            var k = 1 - i / 14f;
+            using var pen = new Pen(Color.FromArgb((int)(depth * k * k), shadow), 2f);
+            var ring = Inflate(body, -i * 1.4f);
+            ring.Y -= 2.5f * k;
+            g.DrawEllipse(pen, ring);
+        }
+        g.Restore(state);
+
         if (_connected)
         {
-            using var brush = new LinearGradientBrush(body, Theme.Pink, Theme.Accent, 90f);
-            g.FillEllipse(brush, body);
+            using var rim = new LinearGradientBrush(body, Color.FromArgb(220, Theme.Pink), Color.FromArgb(220, Theme.Accent), 90f);
+            using var pen = new Pen(rim, 1.6f);
+            g.DrawEllipse(pen, body);
         }
         else
         {
-            using (var fill = new SolidBrush(Theme.PowerOff))
-                g.FillEllipse(fill, body);
-            using var border = new Pen(Theme.Border, 2f);
-            g.DrawEllipse(border, body);
+            using var pen = new Pen(Theme.Border, 1.6f);
+            g.DrawEllipse(pen, body);
         }
 
         if (_hoverAmount > 0.01f)
         {
-            var alpha = (int)(_hoverAmount * (_connected ? 35 : 18));
-            using var hover = new SolidBrush(Color.FromArgb(alpha, _connected ? Color.White : Theme.Accent));
+            using var hover = new SolidBrush(Color.FromArgb((int)(_hoverAmount * 14), Theme.Accent));
             g.FillEllipse(hover, body);
         }
 
-        var iconColor = _connected ? Color.White : Theme.Accent;
-        var size = r.Width * 0.22f;
-        var cx = r.X + r.Width / 2;
-        var cy = r.Y + r.Height * (_connected ? 0.34f : 0.4f);
-        using (var pen = new Pen(iconColor, Math.Max(3f, r.Width * 0.026f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+        var size = r.Width * 0.2f;
+        var cy = r.Y + r.Height * (_connected ? 0.38f : 0.42f);
+        var iconRect = new RectangleF(cx - size, cy - size, size * 2, size * 2);
+        using (var iconBrush = _connected
+                   ? (Brush)new LinearGradientBrush(iconRect, Theme.Pink, Theme.Accent, 90f)
+                   : new SolidBrush(Color.FromArgb(190, Theme.Accent)))
+        using (var pen = new Pen(iconBrush, Math.Max(3f, r.Width * 0.024f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
         {
             g.DrawArc(pen, cx - size / 2, cy - size / 2, size, size, -60, 300);
             g.DrawLine(pen, cx, cy - size * 0.62f, cx, cy - size * 0.08f);
@@ -313,12 +340,32 @@ public class HeroView : ThemedControl
 
         if (_connected)
         {
-            SmoothText(g, "Подключено", Theme.Status, Color.FromArgb(235, Color.White), new RectangleF(r.X, r.Y + r.Height * 0.5f, r.Width, 22));
-            DrawTimer(g, cx, r.Y + r.Height * 0.5f + 24, Color.White);
+            DrawSpaced(g, "ПОДКЛЮЧЕНО", Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.6f);
+            DrawTimer(g, cx, r.Y + r.Height * 0.6f + 12, Theme.AccentStrong);
         }
         else
         {
-            SmoothText(g, "Отключено", Theme.Status, Theme.TextMuted, new RectangleF(r.X, r.Y + r.Height * 0.6f, r.Width, 22));
+            DrawSpaced(g, "ОТКЛЮЧЕНО", Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
+        }
+    }
+
+    private readonly Dictionary<string, float[]> _spacedWidths = new();
+
+    private void DrawSpaced(Graphics g, string text, Font font, Color color, float cx, float cy)
+    {
+        const float tracking = 1.6f;
+        var key = text + Theme.S;
+        if (!_spacedWidths.TryGetValue(key, out var widths))
+        {
+            widths = text.Select(c => (float)Theme.Measure(c.ToString(), font).Width).ToArray();
+            _spacedWidths[key] = widths;
+        }
+
+        var x = cx - (widths.Sum() + tracking * (text.Length - 1)) / 2;
+        for (var i = 0; i < text.Length; i++)
+        {
+            SmoothText(g, text[i].ToString(), font, color, new RectangleF(x, cy - 10, widths[i], 20));
+            x += widths[i] + tracking;
         }
     }
 
@@ -339,7 +386,7 @@ public class HeroView : ThemedControl
         foreach (var c in _elapsed)
         {
             var width = c == ':' ? _colonWidth : _digitWidth;
-            SmoothText(g, c.ToString(), Theme.Timer, color, new RectangleF(x, top, width, 32));
+            SmoothText(g, c.ToString(), Theme.Timer, color, new RectangleF(x, top, width, 26));
             x += width;
         }
     }
