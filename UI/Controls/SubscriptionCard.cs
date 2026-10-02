@@ -20,6 +20,10 @@ public class SubscriptionCard : ThemedControl
     private int _layoutWidth = -1;
 
     public event EventHandler? RefreshClicked;
+    public event EventHandler? PingClicked;
+    public event EventHandler? QrClicked;
+    public event EventHandler? CollapseClicked;
+    public event EventHandler<Point>? MenuClicked;
 
     public SubscriptionCard(SubscriptionInfo info)
     {
@@ -29,6 +33,8 @@ public class SubscriptionCard : ThemedControl
     }
 
     public SubscriptionInfo Info { get; }
+
+    public int ServerCount { get; set; }
 
     private sealed class Token
     {
@@ -65,7 +71,7 @@ public class SubscriptionCard : ThemedControl
             Height = device;
     }
 
-    private const float InfoTop = 66;
+    private const float InfoTop = 70;
     private int InfoRows => Info.Total > 0 ? 2 : 1;
 
     private static List<Token> Tokenize(string announce)
@@ -159,26 +165,33 @@ public class SubscriptionCard : ThemedControl
             g.FillPath(brush, path);
         Theme.DrawRounded(g, Theme.Border, rect, 16);
 
-        var refreshRect = new RectangleF(W - Pad - 32, 14, 32, 32);
-        DrawRefresh(g, refreshRect);
-        _hits.Add((refreshRect, () => RefreshClicked?.Invoke(this, EventArgs.Empty)));
-
-        var titleRight = refreshRect.X - 8;
+        var x = W - Pad - IconSize;
+        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawMenu, r =>
+            MenuClicked?.Invoke(this, new Point((int)(r.Left * Theme.S), (int)(r.Bottom * Theme.S))));
+        x -= IconSize + 2;
+        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawPing, _ => PingClicked?.Invoke(this, EventArgs.Empty));
+        x -= IconSize + 2;
+        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawQr, _ => QrClicked?.Invoke(this, EventArgs.Empty));
+        x -= IconSize + 2;
+        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawRefresh, _ => RefreshClicked?.Invoke(this, EventArgs.Empty));
         if (Info.SupportUrl.Length > 0)
         {
-            var supportRect = new RectangleF(refreshRect.X - 38, 14, 32, 32);
-            DrawSupport(g, supportRect);
-            _hits.Add((supportRect, () => Open(Info.SupportUrl)));
-            titleRight = supportRect.X - 8;
+            x -= IconSize + 2;
+            AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawSupport, _ => Open(Info.SupportUrl));
         }
 
+        var titleRect = new RectangleF(Pad - 4, 10, x - Pad, 32);
+        _hits.Add((titleRect, () => CollapseClicked?.Invoke(this, EventArgs.Empty)));
+        DrawChevron(g, Pad + 4, 26, Info.Collapsed);
+
         var titleParts = ServerText.Parts(Info.Title, Info.Title);
-        NamePainter.Draw(g, titleParts, Theme.CardTitle, Theme.Text, new RectangleF(Pad, 13, titleRight - Pad, 24));
+        NamePainter.Draw(g, titleParts, Theme.CardTitle, Theme.Text, new RectangleF(Pad + 16, 14, x - Pad - 20, 24));
 
         var updated = Info.UpdatedAt == default ? "никогда"
             : Info.UpdatedAt.Date == DateTime.Today ? $"в {Info.UpdatedAt:HH:mm}" : $"{Info.UpdatedAt:dd.MM HH:mm}";
-        Theme.DrawText(g, $"Обновлено {updated} · раз в {Info.UpdateIntervalHours} ч",
-            Theme.Caption, Theme.TextMuted, new RectangleF(Pad, 37, titleRight - Pad, 18));
+        var count = ServerText.Plural(ServerCount, "сервер", "сервера", "серверов");
+        Theme.DrawText(g, $"{count} · обновлено {updated} · раз в {Info.UpdateIntervalHours} ч",
+            Theme.Caption, Theme.TextMuted, new RectangleF(Pad + 16, 42, W - Pad * 2 - 16, 18));
 
         var y = InfoTop;
         DrawInfoRow(g, y, ExpireText(), ExpireColor());
@@ -256,9 +269,18 @@ public class SubscriptionCard : ThemedControl
         }
     }
 
-    private void DrawRefresh(Graphics g, RectangleF r)
+    private const float IconSize = 28;
+
+    private void AddIcon(Graphics g, RectangleF r, Action<Graphics, RectangleF> draw, Action<RectangleF> click)
     {
-        Theme.FillRounded(g, r == _hoverRect ? Theme.CardHover : Color.FromArgb(0, Theme.Card), r, 10);
+        if (r == _hoverRect)
+            Theme.FillRounded(g, Theme.CardHover, r, 9);
+        draw(g, r);
+        _hits.Add((r, () => click(r)));
+    }
+
+    private static void DrawRefresh(Graphics g, RectangleF r)
+    {
         using var pen = new Pen(Theme.TextMuted, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         var cx = r.X + r.Width / 2;
         var cy = r.Y + r.Height / 2;
@@ -269,9 +291,8 @@ public class SubscriptionCard : ThemedControl
         g.DrawLine(pen, tip.X, tip.Y, tip.X + 0.5f, tip.Y - 5);
     }
 
-    private void DrawSupport(Graphics g, RectangleF r)
+    private static void DrawSupport(Graphics g, RectangleF r)
     {
-        Theme.FillRounded(g, r == _hoverRect ? Theme.CardHover : Color.FromArgb(0, Theme.Card), r, 10);
         var cx = r.X + r.Width / 2;
         var cy = r.Y + r.Height / 2;
         var plane = new[]
@@ -282,6 +303,51 @@ public class SubscriptionCard : ThemedControl
         g.FillPolygon(brush, plane);
         using var pen = new Pen(Theme.Card, 1.4f);
         g.DrawLine(pen, cx - 1, cy + 3, cx + 9, cy - 8);
+    }
+
+    private static void DrawChevron(Graphics g, float cx, float cy, bool collapsed)
+    {
+        using var pen = new Pen(Theme.TextMuted, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        var points = collapsed
+            ? new[] { new PointF(cx - 2, cy - 5), new PointF(cx + 3, cy), new PointF(cx - 2, cy + 5) }
+            : new[] { new PointF(cx - 5, cy - 2), new PointF(cx, cy + 3), new PointF(cx + 5, cy - 2) };
+        g.DrawLines(pen, points);
+    }
+
+    private static void DrawQr(Graphics g, RectangleF r)
+    {
+        var left = r.X + r.Width / 2 - 8;
+        var top = r.Y + r.Height / 2 - 8;
+        using var pen = new Pen(Theme.TextMuted, 1.6f);
+        using var brush = new SolidBrush(Theme.TextMuted);
+        foreach (var (dx, dy) in new[] { (0f, 0f), (10f, 0f), (0f, 10f) })
+        {
+            g.DrawRectangle(pen, left + dx + 0.8f, top + dy + 0.8f, 4.6f, 4.6f);
+            g.FillRectangle(brush, left + dx + 2.4f, top + dy + 2.4f, 1.6f, 1.6f);
+        }
+        g.FillRectangle(brush, left + 10, top + 10, 2.4f, 2.4f);
+        g.FillRectangle(brush, left + 13.6f, top + 13.6f, 2.4f, 2.4f);
+        g.FillRectangle(brush, left + 13.6f, top + 10, 2.4f, 2.4f);
+    }
+
+    private static void DrawPing(Graphics g, RectangleF r)
+    {
+        var cx = r.X + r.Width / 2;
+        var cy = r.Y + r.Height / 2 + 2;
+        using var pen = new Pen(Theme.TextMuted, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var brush = new SolidBrush(Theme.TextMuted);
+        g.DrawArc(pen, cx - 8, cy - 8, 16, 16, 180, 180);
+        g.DrawLine(pen, cx, cy, cx + 4, cy - 5);
+        g.FillEllipse(brush, cx - 2, cy - 2, 4, 4);
+    }
+
+    private static void DrawMenu(Graphics g, RectangleF r)
+    {
+        var cx = r.X + r.Width / 2;
+        var cy = r.Y + r.Height / 2;
+        using var brush = new SolidBrush(Theme.TextMuted);
+        for (var i = -1; i <= 1; i++)
+            g.FillEllipse(brush, cx + i * 6 - 1.8f, cy - 1.8f, 3.6f, 3.6f);
     }
 
     private string ExpireText()

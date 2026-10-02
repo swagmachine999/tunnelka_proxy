@@ -342,14 +342,24 @@ public class MainForm : Form, IMessageFilter
 
     private void BuildSubscriptionMenu()
     {
-        _subscriptionMenu.Items.Add("Обновить", null, async (_, _) =>
+        _subscriptionMenu.Items.Add("Показать ссылку", null, (_, _) =>
         {
             if (_menuSubscription != null)
-                await RefreshSubscription(_menuSubscription.Info.Url);
+                LinkDialog.Show(this, _menuSubscription.Info.Title, _menuSubscription.Info.Url, false);
+        });
+        _subscriptionMenu.Items.Add("Копировать ссылку", null, (_, _) =>
+        {
+            if (_menuSubscription != null)
+                Clipboard.SetText(_menuSubscription.Info.Url);
         });
         _subscriptionMenu.Items.Add("Удалить подписку", null, (_, _) =>
         {
-            if (_menuSubscription != null)
+            if (_menuSubscription == null)
+                return;
+
+            var answer = MessageBox.Show(this, $"Удалить подписку «{_menuSubscription.Info.Title}» и все её серверы?",
+                "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (answer == DialogResult.Yes)
                 DeleteSubscription(_menuSubscription.Info.Url);
         });
         _subscriptionMenu.Opening += (_, _) => _menuSubscription = _subscriptionMenu.SourceControl as SubscriptionCard;
@@ -390,10 +400,20 @@ public class MainForm : Form, IMessageFilter
         foreach (var info in _subscriptions.Profiles)
         {
             var url = info.Url;
-            var header = new SubscriptionCard(info) { ContextMenuStrip = _subscriptionMenu };
+            var servers = _subscriptions.Servers(url);
+            var header = new SubscriptionCard(info) { ContextMenuStrip = _subscriptionMenu, ServerCount = servers.Count };
             header.RefreshClicked += async (_, _) => await RefreshSubscription(url);
+            header.PingClicked += async (_, _) => await PingSubscription(url);
+            header.QrClicked += (_, _) => LinkDialog.Show(this, info.Title, url, true);
+            header.MenuClicked += (_, point) => _subscriptionMenu.Show(header, point);
+            header.CollapseClicked += (_, _) =>
+            {
+                _subscriptions.ToggleCollapsed(info);
+                header.Invalidate();
+                ApplyFilter();
+            };
             controls.Add(header);
-            controls.AddRange(Data.Servers.Where(s => s.SubscriptionUrl == url).Select(CreateCard));
+            controls.AddRange(servers.Select(CreateCard));
         }
 
         controls.AddRange(Data.Servers
@@ -453,7 +473,8 @@ public class MainForm : Form, IMessageFilter
         foreach (var card in _cards)
         {
             card.Visible = query.Length == 0
-                || card.DisplayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
+                ? !_subscriptions.IsCollapsed(card.Server.SubscriptionUrl)
+                : card.DisplayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
                 || card.Server.Address.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
@@ -644,31 +665,22 @@ public class MainForm : Form, IMessageFilter
         UpdateHero();
     }
 
-    private async Task PingAll()
-    {
-        if (Data.Servers.Count == 0)
-            return;
+    private Task PingAll() => PingServers(Data.Servers.ToList());
 
-        _hero.SetBusy(true);
-        await Ping(Data.Servers.ToList());
-        UpdateCards();
-        UpdateHero();
-    }
+    private Task PingSubscription(string url) => PingServers(_subscriptions.Servers(url));
 
-    private async Task PingCurrent()
+    private Task PingCurrent()
     {
         var server = _active ?? _selected;
-        if (server == null)
+        return server == null ? Task.CompletedTask : PingServers(new List<ProxyServer> { server });
+    }
+
+    private async Task PingServers(List<ProxyServer> servers)
+    {
+        if (servers.Count == 0)
             return;
 
         _hero.SetBusy(true);
-        await Ping(new List<ProxyServer> { server });
-        UpdateCards();
-        UpdateHero();
-    }
-
-    private async Task Ping(List<ProxyServer> servers)
-    {
         SetBusy(servers, true);
         try
         {
@@ -678,6 +690,9 @@ public class MainForm : Form, IMessageFilter
         {
             SetBusy(servers, false);
         }
+
+        UpdateCards();
+        UpdateHero();
     }
 
     private void SetBusy(IEnumerable<ProxyServer> servers, bool busy)
