@@ -4,7 +4,7 @@ public static class LinkDialog
 {
     public static void Show(IWin32Window owner, string title, IReadOnlyList<(string Name, string Link)> keys, bool qr)
     {
-        var top = keys.Count > 1 ? 56 : 0;
+        var top = keys.Count > 1 ? keys.Count * 50 + 10 : 0;
         var qrSize = qr ? 280 : 0;
         using var form = new Form
         {
@@ -72,18 +72,12 @@ public static class LinkDialog
 
         if (keys.Count > 1)
         {
-            var choice = new ComboBox
+            var choice = new Controls.KeyList(keys.Select(k => k.Name).ToList())
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
                 Left = Theme.Px(20),
-                Top = Theme.Px(18),
-                Width = Theme.Px(420),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Theme.Card,
-                ForeColor = Theme.Text
+                Top = Theme.Px(16),
+                Width = Theme.Px(420)
             };
-            choice.Items.AddRange(keys.Select(k => (object)k.Name).ToArray());
-            choice.SelectedIndex = 0;
             choice.SelectedIndexChanged += (_, _) =>
             {
                 link = keys[choice.SelectedIndex].Link;
