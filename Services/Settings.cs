@@ -22,7 +22,7 @@ public sealed class Settings
         }
         catch (Exception ex)
         {
-            _log.Write($"Не удалось сохранить настройки: {ex.Message}");
+            _log.Write(L.F("Не удалось сохранить настройки: {0}", ex.Message));
         }
     }
 }

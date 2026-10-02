@@ -42,7 +42,7 @@ public sealed class SubscriptionService
     {
         try
         {
-            _log.Write("Обновляю подписку");
+            _log.Write(L.T("Обновляю подписку"));
             var result = await SubscriptionLoader.LoadAsync(url);
             var index = _settings.Data.Profiles.FindIndex(p => p.Url == url);
             if (index < 0)
@@ -55,12 +55,12 @@ public sealed class SubscriptionService
             _settings.Data.Profiles[index] = result.Info;
             _settings.Save();
 
-            _log.Write($"{result.Info.Title}: серверов {result.Servers.Count}");
+            _log.Write(L.F("{0}: серверов {1}", result.Info.Title, result.Servers.Count));
             return true;
         }
         catch (Exception ex)
         {
-            _log.Write($"Ошибка подписки: {ex.Message}");
+            _log.Write(L.F("Ошибка подписки: {0}", ex.Message));
             return false;
         }
     }

@@ -52,7 +52,7 @@ public static class LinkDialog
 
         var hint = new Label
         {
-            Text = qr ? "Отсканируй камерой на новом устройстве" : "",
+            Text = qr ? L.T("Отсканируй камерой на новом устройстве") : "",
             Left = Theme.Px(20),
             Top = Theme.Px(top + qrSize + 66),
             Width = Theme.Px(420),
@@ -60,14 +60,14 @@ public static class LinkDialog
             Font = Theme.Scaled(Theme.Caption)
         };
 
-        var copy = Button("Копировать", Theme.Accent, Color.White, 220, top + qrSize);
+        var copy = Button(L.T("Копировать"), Theme.Accent, Color.White, 220, top + qrSize);
         copy.Click += (_, _) =>
         {
             Clipboard.SetText(link);
-            copy.Text = "Скопировано";
+            copy.Text = L.T("Скопировано");
         };
 
-        var close = Button("Закрыть", Theme.Sidebar, Theme.Text, 340, top + qrSize);
+        var close = Button(L.T("Закрыть"), Theme.Sidebar, Theme.Text, 340, top + qrSize);
         close.DialogResult = DialogResult.Cancel;
 
         if (keys.Count > 1)
@@ -83,7 +83,7 @@ public static class LinkDialog
                 link = keys[choice.SelectedIndex].Link;
                 modules = qr ? QrCode.Encode(link) : null;
                 box.Text = link;
-                copy.Text = "Копировать";
+                copy.Text = L.T("Копировать");
                 picture.Invalidate();
             };
             form.Controls.Add(choice);

@@ -17,13 +17,20 @@ internal sealed class MainContext : ApplicationContext
 {
     public MainContext(bool connect)
     {
-        Theme.SetScale(AppStorage.Load().UiScale / 100f);
+        ApplySettings();
         MainForm = Attach(new MainForm(connect));
+    }
+
+    private static void ApplySettings()
+    {
+        var data = AppStorage.Load();
+        Theme.SetScale(data.UiScale / 100f);
+        L.Use(data.Language);
     }
 
     private MainForm Attach(MainForm form)
     {
-        form.ScaleChangeRequested += (_, _) => Replace(form);
+        form.ReloadRequested += (_, _) => Replace(form);
         return form;
     }
 
@@ -33,8 +40,8 @@ internal sealed class MainContext : ApplicationContext
         var state = old.WindowState;
         var reconnect = old.PrepareForReplace();
 
-        Theme.SetScale(AppStorage.Load().UiScale / 100f);
-        var next = Attach(new MainForm(reconnect, true, bounds, state));
+        ApplySettings();
+        var next = Attach(new MainForm(reconnect, old.CurrentPage, bounds, state));
         MainForm = next;
         next.Show();
         old.Close();

@@ -11,7 +11,8 @@ public enum IconKind
     Routing,
     Log,
     Settings,
-    Ping
+    Ping,
+    Interface
 }
 
 public class IconButton : ThemedControl

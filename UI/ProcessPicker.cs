@@ -26,7 +26,7 @@ public static class ProcessPicker
 
         using var form = new Form
         {
-            Text = "Выбор приложения",
+            Text = L.T("Выбор приложения"),
             ClientSize = new Size(Theme.Px(600), Theme.Px(560)),
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
@@ -40,7 +40,7 @@ public static class ProcessPicker
 
         var title = new Label
         {
-            Text = "Выберите приложение",
+            Text = L.T("Выберите приложение"),
             Dock = DockStyle.Top,
             Height = Theme.Px(44),
             Font = Theme.Scaled(Theme.MakeFont(22, FontStyle.Bold)),
@@ -49,11 +49,11 @@ public static class ProcessPicker
             TextAlign = ContentAlignment.MiddleLeft
         };
 
-        var search = new Controls.SearchBox("Поиск по имени или пути...") { Dock = DockStyle.Top };
+        var search = new Controls.SearchBox(L.T("Поиск по имени или пути...")) { Dock = DockStyle.Top };
 
         var section = new Label
         {
-            Text = "Приложения",
+            Text = L.T("Приложения"),
             Dock = DockStyle.Top,
             Height = Theme.Px(40),
             Font = Theme.Scaled(Theme.BodyBold),
@@ -157,8 +157,8 @@ public static class ProcessPicker
         };
 
         var buttons = new Panel { Dock = DockStyle.Bottom, Height = Theme.Px(56), BackColor = Theme.Surface };
-        var choose = Pages.PageParts.Button("Выбрать", true);
-        var cancel = Pages.PageParts.Button("Отмена", false);
+        var choose = Pages.PageParts.Button(L.T("Выбрать"), true);
+        var cancel = Pages.PageParts.Button(L.T("Отмена"), false);
         cancel.DialogResult = DialogResult.Cancel;
         choose.Click += (_, _) => Accept();
         buttons.Controls.Add(choose);

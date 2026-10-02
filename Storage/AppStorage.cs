@@ -18,6 +18,13 @@ public class AppData
     public List<RoutingRule> Rules { get; set; } = new();
     public long TotalDownload { get; set; }
     public long TotalUpload { get; set; }
+    public long TotalDirectDownload { get; set; }
+    public long TotalDirectUpload { get; set; }
+    public List<TrafficMinute> TrafficMinutes { get; set; } = new();
+    public int StatsPeriod { get; set; } = 60;
+    public string Language { get; set; } = "ru";
+    public bool RefreshOnStart { get; set; }
+    public bool PingOnStart { get; set; }
 
     [JsonPropertyName("Subscriptions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -279,7 +279,7 @@ public static class XrayConfigBuilder
                 ["password"] = s.Secret
             })
         },
-        _ => throw new NotSupportedException($"Протокол {s.Protocol} не поддерживается")
+        _ => throw new NotSupportedException(L.F("Протокол {0} не поддерживается", s.Protocol))
     };
 
     private static JsonObject Stream(ProxyServer s)

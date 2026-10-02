@@ -11,7 +11,7 @@ public static class LinkParser
         link = link.Trim();
         var schemeEnd = link.IndexOf("://", StringComparison.Ordinal);
         if (schemeEnd <= 0)
-            throw new FormatException("Это не ключ сервера");
+            throw new FormatException(L.T("Это не ключ сервера"));
 
         var scheme = link[..schemeEnd].ToLowerInvariant();
         var server = scheme switch
@@ -20,7 +20,7 @@ public static class LinkParser
             "trojan" => ParseUriBased(link, "trojan"),
             "vmess" => ParseVmess(link),
             "ss" => ParseShadowsocks(link),
-            _ => throw new FormatException($"Протокол {scheme} не поддерживается")
+            _ => throw new FormatException(L.F("Протокол {0} не поддерживается", scheme))
         };
 
         server.Link = link;
@@ -98,9 +98,9 @@ public static class LinkParser
         };
 
         if (server.Port <= 0)
-            throw new FormatException("В ключе нет порта");
+            throw new FormatException(L.T("В ключе нет порта"));
         if (string.IsNullOrEmpty(server.Secret))
-            throw new FormatException("В ключе нет пароля");
+            throw new FormatException(L.T("В ключе нет пароля"));
 
         return server;
     }
