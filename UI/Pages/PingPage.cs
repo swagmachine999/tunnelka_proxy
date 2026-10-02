@@ -1,0 +1,55 @@
+using VpnClient.UI.Controls;
+
+namespace VpnClient.UI.Pages;
+
+public class PingPage : Panel
+{
+    public event EventHandler? Changed;
+
+    public PingPage(bool real, string url, Action onBack)
+    {
+        Dock = DockStyle.Fill;
+        Theme.Bind(this, () => Theme.Surface);
+
+        Mode = new Segmented("Реальный (через VPN)", "Быстрый (TCP)") { Dock = DockStyle.Top, Height = Theme.Px(40) };
+        Mode.SelectedIndex = real ? 0 : 1;
+        Mode.SelectedIndexChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+
+        Url = new SearchBox(RealPingDefault, false) { Dock = DockStyle.Top };
+        Url.SetText(url);
+        Url.QueryChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+
+        var reset = PageParts.Button("Сбросить адрес", false);
+        reset.Dock = DockStyle.Left;
+        reset.Width = Theme.Px(150);
+        reset.Click += (_, _) => Url.SetText(RealPingDefault);
+        var resetRow = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(44), Padding = Theme.Px(0, 8, 0, 2) }, () => Theme.Surface);
+        resetRow.Controls.Add(reset);
+
+        Controls.Add(resetRow);
+        Controls.Add(Url);
+        Controls.Add(PageParts.Caption("Тестовый адрес для реального пинга", 30));
+        Controls.Add(Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(10) }, () => Theme.Surface));
+        Controls.Add(Wrapped("Быстрый: проверяет только, открыт ли порт сервера. Мгновенно, но может показать пинг у сервера, через который VPN не работает.", 54));
+        Controls.Add(Wrapped("Реальный: запрос идёт через сам сервер, как при работе VPN. Делается два запроса, берётся лучший. Нерабочий сервер покажет n/a.", 54));
+        Controls.Add(Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(8) }, () => Theme.Surface));
+        Controls.Add(Mode);
+        Controls.Add(PageParts.Caption("Тип пинга", 30));
+        Controls.Add(PageParts.Header("Пинг", onBack));
+    }
+
+    public const string RealPingDefault = "https://www.gstatic.com/generate_204";
+
+    public Segmented Mode { get; }
+    public SearchBox Url { get; }
+
+    public bool IsReal => Mode.SelectedIndex == 0;
+
+    private static Label Wrapped(string text, int height)
+    {
+        var label = PageParts.Caption(text, height);
+        label.TextAlign = ContentAlignment.TopLeft;
+        label.Padding = Theme.Px(0, 4, 0, 0);
+        return label;
+    }
+}
