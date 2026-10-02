@@ -1,4 +1,4 @@
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public sealed class Palette
 {

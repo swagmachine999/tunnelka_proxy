@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Web;
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.Parsing;
+namespace Tunnelka.Parsing;
 
 public static class LinkParser
 {
@@ -11,7 +11,7 @@ public static class LinkParser
         link = link.Trim();
         var schemeEnd = link.IndexOf("://", StringComparison.Ordinal);
         if (schemeEnd <= 0)
-            throw new FormatException("Это не ссылка на сервер");
+            throw new FormatException(L.T("Это не ключ сервера"));
 
         var scheme = link[..schemeEnd].ToLowerInvariant();
         var server = scheme switch
@@ -20,7 +20,7 @@ public static class LinkParser
             "trojan" => ParseUriBased(link, "trojan"),
             "vmess" => ParseVmess(link),
             "ss" => ParseShadowsocks(link),
-            _ => throw new FormatException($"Протокол {scheme} не поддерживается")
+            _ => throw new FormatException(L.F("Протокол {0} не поддерживается", scheme))
         };
 
         server.Link = link;
@@ -98,9 +98,9 @@ public static class LinkParser
         };
 
         if (server.Port <= 0)
-            throw new FormatException("В ссылке нет порта");
+            throw new FormatException(L.T("В ключе нет порта"));
         if (string.IsNullOrEmpty(server.Secret))
-            throw new FormatException("В ссылке нет ключа");
+            throw new FormatException(L.T("В ключе нет пароля"));
 
         return server;
     }

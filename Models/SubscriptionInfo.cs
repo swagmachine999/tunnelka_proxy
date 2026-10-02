@@ -1,4 +1,4 @@
-namespace VpnClient.Models;
+namespace Tunnelka.Models;
 
 public class SubscriptionInfo
 {
@@ -12,6 +12,10 @@ public class SubscriptionInfo
     public string Announce { get; set; } = "";
     public string SupportUrl { get; set; } = "";
     public DateTime UpdatedAt { get; set; }
+    public bool Collapsed { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool ExpiresSoon => Expire != null && Expire.Value - DateTime.Now < TimeSpan.FromDays(3);
 
     public static SubscriptionInfo Placeholder(string url) => new()
     {

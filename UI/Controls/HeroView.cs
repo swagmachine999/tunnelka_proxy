@@ -1,12 +1,22 @@
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 
-namespace VpnClient.UI.Controls;
+namespace Tunnelka.UI.Controls;
 
 public class HeroView : ThemedControl
 {
-    private readonly System.Windows.Forms.Timer _animation = new() { Interval = 40 };
+    private const int RippleCount = 5;
+    private const float RippleDelay = 0.3f;
+    private const float RippleLife = 2.6f;
+    private const float RippleReach = 132;
+    private const float KittenDrop = 120;
+
+    private readonly System.Windows.Forms.Timer _animation = new() { Interval = 25 };
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
     private float _time;
-    private int _tick;
+    private float _hoverAmount;
+    private float _rippleStart = -100;
+    private float _scale = 1;
 
     private RectangleF _powerRect;
     private RectangleF _kittenRect;
@@ -43,6 +53,8 @@ public class HeroView : ThemedControl
         _animation.Tick += (_, _) => Animate();
         _animation.Start();
     }
+
+    public string EmptyText { get; set; } = L.T("Выбери сервер");
 
     public bool Connected
     {
@@ -96,12 +108,15 @@ public class HeroView : ThemedControl
         base.Dispose(disposing);
     }
 
+    private bool Rippling => _time - _rippleStart < RippleDelay * (RippleCount - 1) + RippleLife;
+
     private void Animate()
     {
-        _time += 0.04f;
-        _tick++;
+        _time = (float)_clock.Elapsed.TotalSeconds;
+        _hoverAmount += ((_hoverPower ? 1f : 0f) - _hoverAmount) * 0.15f;
+        _animation.Interval = Rippling ? 15 : 25;
 
-        var area = RectangleF.Union(Inflate(_powerRect, 70), _kittenRect);
+        var area = RectangleF.Union(Inflate(_powerRect, Rippling ? RippleReach * _scale + 12 : 70), _kittenRect);
         Invalidate(ToDevice(area));
         if (_busy)
             Invalidate(ToDevice(_pingResultRect));
@@ -111,14 +126,21 @@ public class HeroView : ThemedControl
     {
         var w = ClientSize.Width / Theme.S;
         var h = ClientSize.Height / Theme.S;
-        var scale = Math.Max(0.55f, Math.Min(1f, h / 660f));
+        const float header = 72;
+        const float ringMargin = 52;
+        const float fixedHeight = 12 + 34 + 18 + 44 + 26;
+        const float scaledHeight = ringMargin + 200 + RippleReach + 10 + 152;
+        var available = h - header - 16 - fixedHeight;
+        var scale = Math.Max(0.45f, Math.Min(1f, Math.Min(available / scaledHeight, (w - 32) / (200 + ringMargin * 2))));
+        _scale = scale;
 
-        var diameter = 150 * scale;
+        var extra = Math.Max(0, available - scaledHeight * scale);
+        var drop = Math.Min(extra, KittenDrop * scale);
+        var diameter = 200 * scale;
         var kittenW = 190 * scale;
         var kittenH = 152 * scale;
-        var gap = 72 * scale;
-        var total = diameter + gap + kittenH + 12 + 34 + 18 + 44 + 26;
-        var top = Math.Max(76, (h - total) / 2 + 24);
+        var gap = (RippleReach + 10) * scale + drop;
+        var top = header + ringMargin * scale + (extra - drop) / 2;
         var cx = w / 2;
 
         _powerRect = new RectangleF(cx - diameter / 2, top, diameter, diameter);
@@ -141,10 +163,11 @@ public class HeroView : ThemedControl
         ComputeLayout();
 
         DrawBackground(g);
+        DrawRipples(g);
         DrawToggle(g);
         DrawSpeed(g);
         DrawPower(g);
-        KittenPainter.Draw(g, _kittenRect, _connected, _time, _connected && _tick % 110 < 4);
+        KittenPainter.Draw(g, _kittenRect, _connected, _time, _connected && _time % 4.4f < 0.16f);
         DrawServer(g);
         DrawButtons(g);
     }
@@ -192,7 +215,7 @@ public class HeroView : ThemedControl
             var active = tun == _tun;
             if (active)
                 Theme.FillRounded(g, Theme.Accent, segment, segment.Height / 2);
-            Theme.DrawText(g, tun ? "TUN" : "Прокси", Theme.BodyBold, active ? Color.White : Theme.TextMuted, segment, StringAlignment.Center);
+            Theme.DrawText(g, tun ? "TUN" : L.T("Прокси"), Theme.BodyBold, active ? Color.White : Theme.TextMuted, segment, StringAlignment.Center);
         }
     }
 
@@ -220,67 +243,176 @@ public class HeroView : ThemedControl
         Theme.DrawText(g, _speedUp, Theme.BodyBold, Theme.Text, new RectangleF(x, r.Y, upWidth + 4, r.Height));
     }
 
+    private void DrawRipples(Graphics g)
+    {
+        if (!Rippling)
+            return;
+
+        var color = _connected ? Theme.Pink : Theme.Accent;
+        var elapsed = _time - _rippleStart;
+        for (var i = 0; i < RippleCount; i++)
+        {
+            var t = (elapsed - i * RippleDelay) / RippleLife;
+            if (t <= 0 || t >= 1)
+                continue;
+
+            var eased = 1 - (1 - t) * (1 - t);
+            var alpha = 110 * Math.Min(1f, t / 0.12f) * (float)Math.Pow(1 - t, 1.6);
+            var ring = Inflate(_powerRect, 4 + eased * RippleReach * _scale);
+            using (var glow = new Pen(Color.FromArgb((int)(alpha * 0.25f), color), 9f))
+                g.DrawEllipse(glow, ring);
+            using (var pen = new Pen(Color.FromArgb((int)alpha, color), 1.2f + 1.4f * (1 - t)))
+                g.DrawEllipse(pen, ring);
+        }
+    }
+
     private void DrawPower(Graphics g)
     {
         var r = _powerRect;
         var pulse = _connected ? (float)(Math.Sin(_time * 2.2) + 1) / 2 : 0f;
+        var hoverPulse = _hoverAmount * (float)(Math.Sin(_time * 4.5) + 1) / 2;
         var ringColor = _connected ? Theme.Pink : Theme.Accent;
 
         for (var i = 0; i < 3; i++)
         {
-            var alpha = _connected ? 80 - i * 24 : 40 - i * 12;
-            using var pen = new Pen(Color.FromArgb(alpha, ringColor), 2f);
-            g.DrawEllipse(pen, Inflate(r, 13 + i * 14 + pulse * 6));
+            var alpha = (_connected ? 80 - i * 24 : 40 - i * 12) + (int)(hoverPulse * 30);
+            using var pen = new Pen(Color.FromArgb(Math.Min(255, alpha), ringColor), 2f);
+            g.DrawEllipse(pen, Inflate(r, 13 + i * 14 + pulse * 6 + hoverPulse * 5));
         }
 
-        DrawGlow(g, Inflate(r, 26), Color.FromArgb(_connected ? 110 : 60, ringColor));
+        DrawGlow(g, Inflate(r, 26 + hoverPulse * 8), Color.FromArgb((_connected ? 80 : 45) + (int)(hoverPulse * 50), ringColor));
+
+        var body = Inflate(r, hoverPulse * 4);
+        using (var band = new SolidBrush(Color.FromArgb(Theme.IsDark ? 16 : 110, Color.White)))
+            g.FillEllipse(band, Inflate(body, 18));
+
+        var top = Theme.IsDark ? Theme.Lighten(Theme.PowerOff, 0.07f) : Color.White;
+        var bottom = Theme.IsDark ? Theme.PowerOff : Color.FromArgb(248, 244, 253);
+        using (var fill = new LinearGradientBrush(body, top, bottom, 90f))
+            g.FillEllipse(fill, body);
+
+        var cx = r.X + r.Width / 2;
+        var shadow = Theme.IsDark ? Color.Black : Color.FromArgb(120, 90, 170);
+        var depth = Theme.IsDark ? 70f : 22f;
+        var state = g.Save();
+        using (var clip = new GraphicsPath())
+        {
+            clip.AddEllipse(body);
+            g.SetClip(clip);
+        }
+        for (var i = 0; i < 14; i++)
+        {
+            var k = 1 - i / 14f;
+            using var pen = new Pen(Color.FromArgb((int)(depth * k * k), shadow), 2f);
+            var ring = Inflate(body, -i * 1.4f);
+            ring.Y -= 2.5f * k;
+            g.DrawEllipse(pen, ring);
+        }
+        g.Restore(state);
 
         if (_connected)
         {
-            using var brush = new LinearGradientBrush(r, Theme.Pink, Theme.Accent, 45f);
-            g.FillEllipse(brush, r);
+            using var rim = new LinearGradientBrush(body, Color.FromArgb(220, Theme.Pink), Color.FromArgb(220, Theme.Accent), 90f);
+            using var pen = new Pen(rim, 1.6f);
+            g.DrawEllipse(pen, body);
         }
         else
         {
-            using (var fill = new SolidBrush(Theme.PowerOff))
-                g.FillEllipse(fill, r);
-            using var border = new Pen(Theme.Border, 2f);
-            g.DrawEllipse(border, r);
+            using var pen = new Pen(Theme.Border, 1.6f);
+            g.DrawEllipse(pen, body);
         }
 
-        if (_hoverPower)
+        if (_hoverAmount > 0.01f)
         {
-            using var hover = new SolidBrush(_connected ? Color.FromArgb(35, Color.White) : Color.FromArgb(18, Theme.Accent));
-            g.FillEllipse(hover, r);
+            using var hover = new SolidBrush(Color.FromArgb((int)(_hoverAmount * 14), Theme.Accent));
+            g.FillEllipse(hover, body);
         }
 
-        var iconColor = _connected ? Color.White : Theme.Accent;
-        var size = r.Width * 0.24f;
-        var cx = r.X + r.Width / 2;
-        var cy = r.Y + r.Height * 0.4f;
-        using (var pen = new Pen(iconColor, Math.Max(3f, r.Width * 0.028f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+        var size = r.Width * 0.2f;
+        var cy = r.Y + r.Height * (_connected ? 0.38f : 0.42f);
+        var iconRect = new RectangleF(cx - size, cy - size, size * 2, size * 2);
+        using (var iconBrush = _connected
+                   ? (Brush)new LinearGradientBrush(iconRect, Theme.Pink, Theme.Accent, 90f)
+                   : new SolidBrush(Color.FromArgb(190, Theme.Accent)))
+        using (var pen = new Pen(iconBrush, Math.Max(3f, r.Width * 0.024f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
         {
             g.DrawArc(pen, cx - size / 2, cy - size / 2, size, size, -60, 300);
             g.DrawLine(pen, cx, cy - size * 0.62f, cx, cy - size * 0.08f);
         }
 
-        var textTop = r.Y + r.Height * 0.58f;
         if (_connected)
         {
-            Theme.DrawText(g, "ПОДКЛЮЧЕНО", Theme.Status, Color.FromArgb(235, Color.White), new RectangleF(r.X, textTop, r.Width, 18), StringAlignment.Center);
-            Theme.DrawText(g, _elapsed, Theme.Timer, Color.White, new RectangleF(r.X, textTop + 16, r.Width, 24), StringAlignment.Center);
+            DrawSpaced(g, L.T("ПОДКЛЮЧЕНО"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.6f);
+            DrawTimer(g, cx, r.Y + r.Height * 0.6f + 12, Theme.AccentStrong);
         }
         else
         {
-            Theme.DrawText(g, "ОТКЛЮЧЕНО", Theme.Status, Theme.TextMuted, new RectangleF(r.X, textTop, r.Width, 18), StringAlignment.Center);
+            DrawSpaced(g, L.T("ОТКЛЮЧЕНО"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
         }
+    }
+
+    private readonly Dictionary<string, float[]> _spacedWidths = new();
+
+    private void DrawSpaced(Graphics g, string text, Font font, Color color, float cx, float cy)
+    {
+        const float tracking = 1.6f;
+        var key = text + Theme.S;
+        if (!_spacedWidths.TryGetValue(key, out var widths))
+        {
+            widths = text.Select(c => (float)Theme.Measure(c.ToString(), font).Width).ToArray();
+            _spacedWidths[key] = widths;
+        }
+
+        var x = cx - (widths.Sum() + tracking * (text.Length - 1)) / 2;
+        for (var i = 0; i < text.Length; i++)
+        {
+            SmoothText(g, text[i].ToString(), font, color, new RectangleF(x, cy - 10, widths[i], 20));
+            x += widths[i] + tracking;
+        }
+    }
+
+    private float _digitWidth;
+    private float _colonWidth;
+    private float _measuredScale;
+
+    private void DrawTimer(Graphics g, float cx, float top, Color color)
+    {
+        if (_measuredScale != Theme.S)
+        {
+            _digitWidth = "0123456789".Max(c => Theme.Measure(c.ToString(), Theme.Timer).Width);
+            _colonWidth = Theme.Measure(":", Theme.Timer).Width + 1;
+            _measuredScale = Theme.S;
+        }
+
+        var x = cx - _elapsed.Sum(c => c == ':' ? _colonWidth : _digitWidth) / 2;
+        foreach (var c in _elapsed)
+        {
+            var width = c == ':' ? _colonWidth : _digitWidth;
+            SmoothText(g, c.ToString(), Theme.Timer, color, new RectangleF(x, top, width, 26));
+            x += width;
+        }
+    }
+
+    private static void SmoothText(Graphics g, string text, Font font, Color color, RectangleF r)
+    {
+        var hint = g.TextRenderingHint;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+        using var brush = new SolidBrush(color);
+        using var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+            FormatFlags = StringFormatFlags.NoWrap | StringFormatFlags.NoClip
+        };
+        g.DrawString(text, font, brush, r, format);
+        g.TextRenderingHint = hint;
     }
 
     private void DrawServer(Graphics g)
     {
         if (_serverParts.Count == 0)
         {
-            Theme.DrawText(g, "Выбери сервер", Theme.ServerName, Theme.TextMuted, _nameRect, StringAlignment.Center);
+            Theme.DrawText(g, EmptyText, Theme.ServerName, Theme.TextMuted, _nameRect, StringAlignment.Center);
             return;
         }
 
@@ -299,14 +431,14 @@ public class HeroView : ThemedControl
         var refresh = _refreshRect;
         Theme.FillRounded(g, _hoverRefresh ? Theme.Card : Color.FromArgb(215, Theme.Card), refresh, refresh.Height / 2);
         Theme.DrawRounded(g, _hoverRefresh ? Theme.Accent : Theme.Border, refresh, refresh.Height / 2, 1.4f);
-        Theme.DrawText(g, "Обновить подписку", Theme.BodyBold, Theme.AccentStrong, refresh, StringAlignment.Center);
+        Theme.DrawText(g, L.T("Обновить подписку"), Theme.BodyBold, Theme.AccentStrong, refresh, StringAlignment.Center);
 
         var r = _pingRect;
         using (var brush = new LinearGradientBrush(r, _hoverPing ? Theme.Lighten(Theme.Accent, 0.15f) : Theme.Accent, _hoverPing ? Theme.Lighten(Theme.Pink, 0.15f) : Theme.Pink, 0f))
         using (var path = Theme.RoundedRect(r, r.Height / 2))
             g.FillPath(brush, path);
 
-        Theme.DrawText(g, "Проверка пинга", Theme.BodyBold, Color.White, r, StringAlignment.Center);
+        Theme.DrawText(g, L.T("Проверка пинга"), Theme.BodyBold, Color.White, r, StringAlignment.Center);
 
         if (_busy)
             DrawBusy(g);
@@ -357,7 +489,10 @@ public class HeroView : ThemedControl
 
         var point = Theme.Design(e.Location);
         if (InCircle(_powerRect, point))
+        {
+            _rippleStart = _time;
             PowerClicked?.Invoke(this, EventArgs.Empty);
+        }
         else if (_pingRect.Contains(point))
             PingClicked?.Invoke(this, EventArgs.Empty);
         else if (_refreshRect.Contains(point))

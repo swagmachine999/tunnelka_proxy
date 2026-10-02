@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public static class SystemProxy
 {
@@ -14,7 +14,7 @@ public static class SystemProxy
     public static void Enable(string address)
     {
         using var key = Registry.CurrentUser.OpenSubKey(KeyPath, true)
-            ?? throw new InvalidOperationException("Не удалось открыть настройки прокси Windows");
+            ?? throw new InvalidOperationException(L.T("Не удалось открыть настройки прокси Windows"));
 
         key.SetValue("ProxyServer", address);
         key.SetValue("ProxyOverride", Bypass);

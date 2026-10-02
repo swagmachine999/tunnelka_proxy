@@ -1,28 +1,7 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.Storage;
-
-public class AppData
-{
-    public List<ProxyServer> Servers { get; set; } = new();
-    public List<SubscriptionInfo> Profiles { get; set; } = new();
-    public bool Tun { get; set; }
-    public string LastServerLink { get; set; } = "";
-    public bool DarkTheme { get; set; }
-    public int SpeedInterval { get; set; } = 3;
-    public int UiScale { get; set; } = 90;
-    public bool RealPing { get; set; } = true;
-    public string PingUrl { get; set; } = "https://www.gstatic.com/generate_204";
-    public List<RoutingRule> Rules { get; set; } = new();
-    public long TotalDownload { get; set; }
-    public long TotalUpload { get; set; }
-
-    [JsonPropertyName("Subscriptions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? LegacySubscriptions { get; set; }
-}
+namespace Tunnelka.Storage;
 
 public static class AppStorage
 {

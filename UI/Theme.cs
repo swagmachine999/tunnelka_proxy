@@ -1,7 +1,7 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public static class Theme
 {
@@ -85,8 +85,6 @@ public static class Theme
     public static readonly Color Star = Color.FromArgb(247, 196, 72);
     public static readonly Color Infinity = Color.FromArgb(110, 164, 244);
 
-    private static readonly string RegularFamily = PickFamily("Segoe UI Variable Text", "Segoe UI");
-    private static readonly string StrongFamily = PickFamily("Segoe UI Variable Text Semibold", "Segoe UI Semibold", "Segoe UI");
     private static readonly Dictionary<string, Image?> Flags = new();
 
     public static readonly Font Title = MakeFont(26, FontStyle.Bold);
@@ -95,8 +93,8 @@ public static class Theme
     public static readonly Font CardTitle = MakeFont(15, FontStyle.Bold);
     public static readonly Font Caption = MakeFont(12);
     public static readonly Font CaptionBold = MakeFont(12, FontStyle.Bold);
-    public static readonly Font Status = MakeFont(12, FontStyle.Bold);
-    public static readonly Font Timer = MakeFont(18, FontStyle.Bold);
+    public static readonly Font Status = Fonts.Make(Fonts.SemiBold, 11.5f);
+    public static readonly Font Timer = Fonts.Make(Fonts.SemiBold, 19);
     public static readonly Font ServerName = MakeFont(17, FontStyle.Bold);
     public static readonly Font Big = MakeFont(23, FontStyle.Bold);
     public static readonly Font Log = new("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel);
@@ -104,11 +102,7 @@ public static class Theme
     public static Font MakeFont(float pixels, FontStyle style = FontStyle.Regular)
     {
         var strong = (style & FontStyle.Bold) != 0;
-        var family = strong ? StrongFamily : RegularFamily;
-        var finalStyle = style & ~FontStyle.Bold;
-        if (strong && family == "Segoe UI")
-            finalStyle |= FontStyle.Bold;
-        return new Font(family, pixels, finalStyle, GraphicsUnit.Pixel);
+        return Fonts.Make(strong ? Fonts.SemiBold : Fonts.Regular, pixels, style & ~FontStyle.Bold);
     }
 
     public static float S { get; private set; } = 0.9f;
@@ -149,6 +143,13 @@ public static class Theme
     {
         var size = TextRenderer.MeasureText(text, ScaledFont(font, S), Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
         return new Size((int)Math.Ceiling(size.Width / S), (int)Math.Ceiling(size.Height / S));
+    }
+
+    public static float MeasureWrapped(string text, Font font, float width)
+    {
+        var size = TextRenderer.MeasureText(text, ScaledFont(font, S), new Size((int)(width * S), int.MaxValue),
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak);
+        return size.Height / S;
     }
 
     public static T Bind<T>(T control, Func<Color>? back = null, Func<Color>? fore = null) where T : Control
@@ -315,8 +316,8 @@ public static class Theme
     {
         null => TextMuted,
         < 0 => PingBad,
-        < 120 => PingGood,
-        < 300 => PingMid,
+        < 150 => PingGood,
+        < 400 => PingMid,
         _ => PingBad
     };
 
@@ -326,23 +327,4 @@ public static class Theme
         < 0 => "n/a",
         _ => $"{ms} ms"
     };
-
-    private static string PickFamily(params string[] names)
-    {
-        try
-        {
-            using var installed = new InstalledFontCollection();
-            var available = new HashSet<string>(installed.Families.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
-            foreach (var name in names)
-            {
-                if (available.Contains(name))
-                    return name;
-            }
-        }
-        catch (Exception)
-        {
-        }
-
-        return names[names.Length - 1];
-    }
 }

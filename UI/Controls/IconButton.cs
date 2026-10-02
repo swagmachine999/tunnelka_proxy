@@ -1,18 +1,6 @@
 using System.Drawing.Drawing2D;
 
-namespace VpnClient.UI.Controls;
-
-public enum IconKind
-{
-    Add,
-    Servers,
-    Stats,
-    Gauge,
-    Routing,
-    Log,
-    Settings,
-    Ping
-}
+namespace Tunnelka.UI.Controls;
 
 public class IconButton : ThemedControl
 {
