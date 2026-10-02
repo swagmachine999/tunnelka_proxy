@@ -1,11 +1,11 @@
-using VpnClient.Models;
-using VpnClient.Parsing;
-using VpnClient.Services;
-using VpnClient.Storage;
-using VpnClient.UI.Controls;
-using VpnClient.UI.Pages;
+using Tunnelka.Models;
+using Tunnelka.Parsing;
+using Tunnelka.Services;
+using Tunnelka.Storage;
+using Tunnelka.UI.Controls;
+using Tunnelka.UI.Pages;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public class MainForm : Form, IMessageFilter
 {
@@ -15,6 +15,7 @@ public class MainForm : Form, IMessageFilter
     private readonly SubscriptionService _subscriptions;
     private readonly PingService _pinger;
     private readonly TrafficTracker _trafficTracker;
+    private readonly TrafficHistory _history;
     private readonly TrafficMonitor _traffic = new();
     private readonly System.Windows.Forms.Timer _clock = new() { Interval = 1000 };
 
@@ -28,7 +29,7 @@ public class MainForm : Form, IMessageFilter
 
     private readonly HeroView _hero = new() { Dock = DockStyle.Fill };
     private readonly TipBubble _tip = new();
-    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(410), Padding = Theme.Px(22, 20, 14, 10) };
+    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(535), Padding = Theme.Px(22, 20, 14, 10) };
     private readonly Dictionary<IconKind, Control> _pages = new();
     private readonly List<IconButton> _navButtons = new();
 
@@ -41,49 +42,42 @@ public class MainForm : Form, IMessageFilter
         TextAlign = ContentAlignment.MiddleLeft
     };
 
-    private readonly FlowLayoutPanel _list = new()
-    {
-        Dock = DockStyle.Fill,
-        FlowDirection = FlowDirection.TopDown,
-        WrapContents = false,
-        AutoScroll = true
-    };
+    private readonly ServerListView _list;
 
-    private readonly StatsView _stats = new() { Dock = DockStyle.Fill };
     private readonly LogPage _logPage;
     private readonly RoutingPage _routingPage;
     private readonly SettingsPage _settingsPage;
     private readonly PingPage _pingPage;
+    private readonly InterfacePage _interfacePage;
+    private readonly StatsPage _statsPage;
 
-    private readonly ContextMenuStrip _cardMenu = new();
-    private readonly ContextMenuStrip _subscriptionMenu = new();
     private readonly System.Windows.Forms.Timer _autoUpdate = new() { Interval = 60_000 };
-    private SubscriptionCard? _menuSubscription;
-    private readonly List<ServerCard> _cards = new();
 
     private ProxyServer? _selected;
     private ProxyServer? _active;
-    private ServerCard? _menuCard;
     private DateTime _connectedAt;
     private bool _exiting;
 
     private readonly System.Windows.Forms.Timer _scaleDelay = new() { Interval = 350 };
 
-    public event EventHandler? ScaleChangeRequested;
+    public event EventHandler? ReloadRequested;
 
-    public MainForm(bool reconnect = false, bool openSettings = false, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal)
+    public MainForm(bool reconnect = false, IconKind startPage = IconKind.Servers, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal)
     {
         _settings = new Settings(_log);
         _connection = new ConnectionService(_log);
-        _subscriptions = new SubscriptionService(_settings, _log);
+        _subscriptions = new SubscriptionService(_settings, _log, () => _connection.IsRunning ? XrayConfigBuilder.HttpPort : null);
+        _list = new ServerListView(_subscriptions);
         _pinger = new PingService(_settings);
         _trafficTracker = new TrafficTracker(_settings);
+        _history = new TrafficHistory(_settings);
+        _statsPage = new StatsPage(_history, Data.StatsPeriod);
 
         Theme.Use(Data.DarkTheme);
 
         Text = "Tunnelka";
-        ClientSize = new Size(1000, 660);
-        MinimumSize = new Size(760, 540);
+        ClientSize = new Size(1110, 660);
+        MinimumSize = new Size(870, 540);
         StartPosition = FormStartPosition.CenterScreen;
         Font = Theme.Scaled(Theme.Body);
         KeyPreview = true;
@@ -93,7 +87,8 @@ public class MainForm : Form, IMessageFilter
         _log.Written += Log;
         _logPage = new LogPage(() => ShowPage(IconKind.Settings));
         _routingPage = new RoutingPage(Data.Rules, () => ShowPage(IconKind.Settings));
-        _settingsPage = new SettingsPage(Data.DarkTheme, Data.Tun, Data.SpeedInterval, Data.RealPing, Data.UiScale);
+        _settingsPage = new SettingsPage(Data.Tun, Data.SpeedInterval, Data.RealPing, Data.RefreshOnStart, Data.PingOnStart);
+        _interfacePage = new InterfacePage(Data.DarkTheme, Data.UiScale, Data.Language, () => ShowPage(IconKind.Settings));
         _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
 
         BuildLayout();
@@ -107,17 +102,27 @@ public class MainForm : Form, IMessageFilter
             WindowState = FormWindowState.Normal;
             Activate();
         };
-        _tray.ContextMenuStrip.Items.Add("Выход", null, (_, _) =>
+        _tray.ContextMenuStrip.Items.Add(L.T("Выход"), null, (_, _) =>
         {
             _exiting = true;
             Close();
         });
 
-        BuildCardMenu();
-        BuildSubscriptionMenu();
+        _list.ServerSelected += Select;
+        _list.ServerConnectRequested += server =>
+        {
+            Select(server);
+            Connect();
+        };
+        _list.ServerDeleteRequested += Delete;
+        _list.SubscriptionRefreshRequested += async url => await RefreshSubscription(url);
+        _list.SubscriptionPingRequested += async url => await PingSubscription(url);
+        _list.SubscriptionDeleteRequested += DeleteSubscription;
+        _list.PasteRequested += (_, _) => PasteFromClipboard();
+        _list.AddRequested += (_, _) => ShowAddDialog();
         _autoUpdate.Tick += async (_, _) => await RefreshDueSubscriptions();
         _autoUpdate.Start();
-        Shown += async (_, _) => await RefreshDueSubscriptions();
+        Shown += async (_, _) => await RunStartupTasks();
 
         _hero.Tun = Data.Tun;
         _hero.PowerClicked += (_, _) => ToggleConnection();
@@ -125,7 +130,29 @@ public class MainForm : Form, IMessageFilter
         _hero.RefreshClicked += async (_, _) => await UpdateSubscriptions();
         _hero.ModeSelected += SetMode;
         _settingsPage.ModeSelector.SelectedIndexChanged += (_, _) => SetMode(_settingsPage.ModeSelector.SelectedIndex == 1);
-        _settingsPage.DarkToggle.CheckedChanged += (_, _) => SetDarkTheme(_settingsPage.DarkToggle.Checked);
+        _interfacePage.DarkToggle.CheckedChanged += (_, _) => SetDarkTheme(_interfacePage.DarkToggle.Checked);
+        _interfacePage.LanguageSelector.SelectedIndexChanged += (_, _) =>
+        {
+            Data.Language = _interfacePage.Language;
+            Save();
+            ReloadRequested?.Invoke(this, EventArgs.Empty);
+        };
+        _settingsPage.InterfaceRow.Click += (_, _) => ShowPage(IconKind.Interface);
+        _settingsPage.RefreshToggle.CheckedChanged += (_, _) =>
+        {
+            Data.RefreshOnStart = _settingsPage.RefreshToggle.Checked;
+            Save();
+        };
+        _settingsPage.PingToggle.CheckedChanged += (_, _) =>
+        {
+            Data.PingOnStart = _settingsPage.PingToggle.Checked;
+            Save();
+        };
+        _statsPage.PeriodChanged += minutes =>
+        {
+            Data.StatsPeriod = minutes;
+            Save();
+        };
         _settingsPage.RoutingRow.Click += (_, _) => ShowPage(IconKind.Routing);
         _settingsPage.LogRow.Click += (_, _) => ShowPage(IconKind.Log);
         _settingsPage.PingRow.Click += (_, _) => ShowPage(IconKind.Ping);
@@ -138,15 +165,14 @@ public class MainForm : Form, IMessageFilter
             _settingsPage.ShowPingMode(Data.RealPing);
             Save();
         };
-        _settingsPage.SpeedSelector.SelectedIndexChanged += (_, _) =>
+        _settingsPage.SpeedSelector.ValueChanged += (_, _) =>
         {
-            Data.SpeedInterval = _settingsPage.SpeedInterval;
+            Data.SpeedInterval = _settingsPage.SpeedSelector.Value;
             _trafficTracker.RestartAveraging();
             Save();
         };
         _routingPage.RulesChanged += (_, _) => OnRulesChanged();
-        _search.QueryChanged += (_, _) => ApplyFilter();
-        _list.Resize += (_, _) => ResizeCards();
+        _search.QueryChanged += (_, _) => _list.Filter(_search.Query);
         _clock.Tick += (_, _) => UpdateClock();
         _traffic.Updated += OnTraffic;
         _connection.Exited += OnCoreExited;
@@ -174,11 +200,10 @@ public class MainForm : Form, IMessageFilter
             _connection.Dispose();
         };
 
-        _stats.SetTotals(Data.TotalDownload, Data.TotalUpload);
         _selected = Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink) ?? Data.Servers.FirstOrDefault();
         RebuildList();
         UpdateHero();
-        ShowPage(openSettings ? IconKind.Settings : IconKind.Servers);
+        ShowPage(startPage);
 
         if (bounds != null)
         {
@@ -187,7 +212,7 @@ public class MainForm : Form, IMessageFilter
             WindowState = state;
         }
 
-        _settingsPage.ScaleSelector.ValueChanged += (_, _) =>
+        _interfacePage.ScaleSelector.ValueChanged += (_, _) =>
         {
             _scaleDelay.Stop();
             _scaleDelay.Start();
@@ -195,9 +220,9 @@ public class MainForm : Form, IMessageFilter
         _scaleDelay.Tick += (_, _) =>
         {
             _scaleDelay.Stop();
-            Data.UiScale = _settingsPage.ScaleSelector.Value;
+            Data.UiScale = _interfacePage.ScaleSelector.Value;
             Save();
-            ScaleChangeRequested?.Invoke(this, EventArgs.Empty);
+            ReloadRequested?.Invoke(this, EventArgs.Empty);
         };
 
         if (reconnect)
@@ -223,7 +248,7 @@ public class MainForm : Form, IMessageFilter
         var sidebar = Theme.Bind(new Panel { Dock = DockStyle.Left, Width = Theme.Px(68) }, () => Theme.Sidebar);
         sidebar.Controls.Add(new LogoView { Location = new Point(Theme.Px(12), Theme.Px(18)) });
 
-        var add = new IconButton(IconKind.Add, "Добавить ключ или подписку") { Location = new Point(Theme.Px(12), Theme.Px(84)) };
+        var add = new IconButton(IconKind.Add, L.T("Добавить ключ")) { Location = new Point(Theme.Px(12), Theme.Px(84)) };
         add.Click += (_, _) => ShowAddDialog();
         AttachTip(add);
         sidebar.Controls.Add(add);
@@ -233,19 +258,18 @@ public class MainForm : Form, IMessageFilter
 
         var nav = new (IconKind Kind, string Title)[]
         {
-            (IconKind.Servers, "Серверы"),
-            (IconKind.Stats, "Статистика")
+            (IconKind.Servers, L.T("Серверы")),
+            (IconKind.Stats, L.T("Статистика"))
         };
 
         for (var i = 0; i < nav.Length; i++)
             AddNavButton(sidebar, new IconButton(nav[i].Kind, nav[i].Title) { Location = new Point(Theme.Px(12), Theme.Px(156 + i * 54)) });
 
-        var settings = new IconButton(IconKind.Settings, "Настройки") { Location = new Point(Theme.Px(12), Theme.Px(600)) };
+        var settings = new IconButton(IconKind.Settings, L.T("Настройки")) { Location = new Point(Theme.Px(12), Theme.Px(600)) };
         AddNavButton(sidebar, settings);
         sidebar.Resize += (_, _) => settings.Top = sidebar.Height - settings.Height - Theme.Px(18);
 
         Theme.Bind(_middle, () => Theme.Surface);
-        Theme.Bind(_list, () => Theme.Surface);
         Theme.Bind(_countLabel, () => Theme.Surface, () => Theme.TextMuted);
 
         var serversPage = Theme.Bind(new Panel { Dock = DockStyle.Fill }, () => Theme.Surface);
@@ -253,7 +277,7 @@ public class MainForm : Form, IMessageFilter
         serversPage.Controls.Add(_list);
         serversPage.Controls.Add(_countLabel);
         serversPage.Controls.Add(gap);
-        var pingAll = new IconButton(IconKind.Gauge, "Проверить пинг всех серверов")
+        var pingAll = new IconButton(IconKind.Gauge, L.T("Проверить пинг всех серверов"))
         {
             Dock = DockStyle.Right,
             Backdrop = () => Theme.Surface
@@ -267,21 +291,31 @@ public class MainForm : Form, IMessageFilter
         searchRow.Controls.Add(_search);
         searchRow.Controls.Add(searchGap);
         searchRow.Controls.Add(pingAll);
-        serversPage.Controls.Add(searchRow);
-        serversPage.Controls.Add(PageParts.Title("Серверы"));
 
-        var statsPage = Theme.Bind(new Panel { Dock = DockStyle.Fill }, () => Theme.Surface);
-        var statsGap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(10) }, () => Theme.Surface);
-        statsPage.Controls.Add(_stats);
-        statsPage.Controls.Add(statsGap);
-        statsPage.Controls.Add(PageParts.Title("Статистика"));
+        var scan = PageParts.Button(L.T("Сканировать QR"), false);
+        scan.Click += async (_, _) => await ScanQr();
+        var share = PageParts.Button(L.T("Поделиться ключом"), false);
+        share.Click += (_, _) => ShareKey();
+        var actionRow = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(46) }, () => Theme.Surface);
+        actionRow.Controls.AddRange(new Control[] { scan, share });
+        actionRow.Resize += (_, _) =>
+        {
+            var half = (actionRow.Width - Theme.Px(8)) / 2;
+            scan.SetBounds(0, Theme.Px(10), half, Theme.Px(36));
+            share.SetBounds(half + Theme.Px(8), Theme.Px(10), actionRow.Width - half - Theme.Px(8), Theme.Px(36));
+        };
+
+        serversPage.Controls.Add(actionRow);
+        serversPage.Controls.Add(searchRow);
+        serversPage.Controls.Add(PageParts.Title(L.T("Серверы")));
 
         _pages[IconKind.Servers] = serversPage;
-        _pages[IconKind.Stats] = statsPage;
+        _pages[IconKind.Stats] = _statsPage;
         _pages[IconKind.Routing] = _routingPage;
         _pages[IconKind.Log] = _logPage;
         _pages[IconKind.Settings] = _settingsPage;
         _pages[IconKind.Ping] = _pingPage;
+        _pages[IconKind.Interface] = _interfacePage;
 
         foreach (var page in _pages.Values)
         {
@@ -313,46 +347,17 @@ public class MainForm : Form, IMessageFilter
         button.MouseLeave += (_, _) => _tip.Visible = false;
     }
 
+    public IconKind CurrentPage { get; private set; }
+
     private void ShowPage(IconKind kind)
     {
+        CurrentPage = kind;
         foreach (var pair in _pages)
             pair.Value.Visible = pair.Key == kind;
 
-        var active = kind is IconKind.Routing or IconKind.Log or IconKind.Ping ? IconKind.Settings : kind;
+        var active = kind is IconKind.Routing or IconKind.Log or IconKind.Ping or IconKind.Interface ? IconKind.Settings : kind;
         foreach (var button in _navButtons)
             button.Active = button.Kind == active;
-    }
-
-    private void BuildCardMenu()
-    {
-        _cardMenu.Items.Add("Подключиться", null, (_, _) =>
-        {
-            if (_menuCard == null)
-                return;
-            Select(_menuCard.Server);
-            Connect();
-        });
-        _cardMenu.Items.Add("Удалить", null, (_, _) =>
-        {
-            if (_menuCard != null)
-                Delete(_menuCard.Server);
-        });
-        _cardMenu.Opening += (_, _) => _menuCard = _cardMenu.SourceControl as ServerCard;
-    }
-
-    private void BuildSubscriptionMenu()
-    {
-        _subscriptionMenu.Items.Add("Обновить", null, async (_, _) =>
-        {
-            if (_menuSubscription != null)
-                await RefreshSubscription(_menuSubscription.Info.Url);
-        });
-        _subscriptionMenu.Items.Add("Удалить подписку", null, (_, _) =>
-        {
-            if (_menuSubscription != null)
-                DeleteSubscription(_menuSubscription.Info.Url);
-        });
-        _subscriptionMenu.Opening += (_, _) => _menuSubscription = _subscriptionMenu.SourceControl as SubscriptionCard;
     }
 
     private void SetDarkTheme(bool dark)
@@ -380,83 +385,13 @@ public class MainForm : Form, IMessageFilter
 
     private void RebuildList()
     {
-        _list.SuspendLayout();
-        foreach (Control control in _list.Controls.Cast<Control>().ToList())
-            control.Dispose();
-        _list.Controls.Clear();
-        _cards.Clear();
-
-        var controls = new List<Control>();
-        foreach (var info in _subscriptions.Profiles)
-        {
-            var url = info.Url;
-            var header = new SubscriptionCard(info) { ContextMenuStrip = _subscriptionMenu };
-            header.RefreshClicked += async (_, _) => await RefreshSubscription(url);
-            controls.Add(header);
-            controls.AddRange(Data.Servers.Where(s => s.SubscriptionUrl == url).Select(CreateCard));
-        }
-
-        controls.AddRange(Data.Servers
-            .Where(s => s.SubscriptionUrl == null || !_subscriptions.IsKnown(s.SubscriptionUrl))
-            .Select(CreateCard));
-
-        _list.Controls.AddRange(controls.ToArray());
-        UpdateCards();
-        ApplyFilter();
-        ResizeCards();
-        _list.ResumeLayout();
-
+        _list.Rebuild(Data.Servers, _selected, _active);
         _countLabel.Text = Data.Servers.Count == 0
-            ? "Нажми + или Ctrl+V, чтобы добавить ключ"
-            : ServerText.Plural(Data.Servers.Count, "сервер", "сервера", "серверов").ToUpperInvariant();
+            ? L.T("Ключей пока нет").ToUpperInvariant()
+            : ServerText.Plural(Data.Servers.Count, L.T("сервер"), L.T("сервера"), L.T("серверов")).ToUpperInvariant();
     }
 
-    private ServerCard CreateCard(ProxyServer server)
-    {
-        var card = new ServerCard(server) { ContextMenuStrip = _cardMenu };
-        card.Click += (_, _) => Select(server);
-        card.DoubleClick += (_, _) =>
-        {
-            Select(server);
-            Connect();
-        };
-        _cards.Add(card);
-        return card;
-    }
-
-    private void UpdateCards()
-    {
-        foreach (var card in _cards)
-        {
-            card.IsSelected = card.Server == _selected;
-            card.IsActive = card.Server == _active;
-            card.Invalidate();
-        }
-    }
-
-    private void ResizeCards()
-    {
-        var width = _list.Width - SystemInformation.VerticalScrollBarWidth - Theme.Px(6);
-        if (width <= 0)
-            return;
-
-        foreach (Control control in _list.Controls)
-            control.Width = width;
-    }
-
-    private void ApplyFilter()
-    {
-        var query = _search.Query;
-        foreach (var header in _list.Controls.OfType<SubscriptionCard>())
-            header.Visible = query.Length == 0;
-
-        foreach (var card in _cards)
-        {
-            card.Visible = query.Length == 0
-                || card.DisplayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
-                || card.Server.Address.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
-        }
-    }
+    private void UpdateCards() => _list.Mark(_selected, _active);
 
     private void Select(ProxyServer server)
     {
@@ -470,19 +405,70 @@ public class MainForm : Form, IMessageFilter
         var server = _active ?? _selected;
         if (server == null)
         {
+            _hero.EmptyText = Data.Servers.Count == 0 ? L.T("Сначала добавь ключ") : L.T("Выбери сервер");
             _hero.SetServer(Array.Empty<NamePart>(), null);
-            _hero.SetPing("", Theme.TextMuted);
+            _hero.SetPing(Data.Servers.Count == 0 ? L.T("Нажми на кнопку или на +, чтобы добавить ключ") : "", Theme.TextMuted);
             return;
         }
 
         _hero.SetServer(ServerText.Parts(server), ServerText.CountryCode(server.Name));
-        var ping = server.PingMs switch
+        _hero.SetPing(PingText(server), Theme.PingColor(server.PingMs));
+    }
+
+    private static string PingText(ProxyServer server) => server.PingMs switch
+    {
+        null => "",
+        < 0 => L.T("Сервер не ответил"),
+        var ms => L.F("Пинг {0} мс", ms)
+    };
+
+    private async Task ScanQr()
+    {
+        Hide();
+        await Task.Delay(300);
+        string? text;
+        try
         {
-            null => "",
-            < 0 => "Сервер не ответил",
-            var ms => $"Пинг {ms} мс"
-        };
-        _hero.SetPing(ping, Theme.PingColor(server.PingMs));
+            text = QrScanner.FromScreen();
+        }
+        finally
+        {
+            Show();
+            Activate();
+        }
+
+        if (text == null)
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Title = L.T("QR-код на экране не найден. Выбери картинку с QR-кодом"),
+                Filter = L.T("Картинки|*.png;*.jpg;*.jpeg;*.bmp;*.gif")
+            };
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            text = QrScanner.FromFile(dialog.FileName);
+        }
+
+        if (text == null)
+        {
+            _hero.SetPing(L.T("QR-код не найден"), Theme.PingBad);
+            return;
+        }
+
+        AddInput(text);
+    }
+
+    private void ShareKey()
+    {
+        var keys = _subscriptions.Profiles.Select(p => (p.Title, p.Url)).ToList();
+        if (keys.Count == 0)
+        {
+            _hero.SetPing(L.T("Нет подписок, чтобы поделиться"), Theme.TextMuted);
+            return;
+        }
+
+        LinkDialog.Show(this, L.T("Поделиться ключом"), keys, true);
     }
 
     public bool PreFilterMessage(ref Message m)
@@ -492,32 +478,31 @@ public class MainForm : Form, IMessageFilter
             return false;
 
         var delta = (short)((long)m.WParam >> 16);
-        ChangeScale(delta > 0 ? ScaleStepper.Step : -ScaleStepper.Step);
+        ChangeScale(delta > 0 ? 1 : -1);
         return true;
     }
 
-    private void ChangeScale(int delta) =>
-        _settingsPage.ScaleSelector.SetValue(_settingsPage.ScaleSelector.Value + delta);
+    private void ChangeScale(int direction) => _interfacePage.ScaleSelector.Step(direction);
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Control && e.KeyCode is Keys.Oemplus or Keys.Add)
         {
-            ChangeScale(ScaleStepper.Step);
+            ChangeScale(1);
             e.Handled = true;
             return;
         }
 
         if (e.Control && e.KeyCode is Keys.OemMinus or Keys.Subtract)
         {
-            ChangeScale(-ScaleStepper.Step);
+            ChangeScale(-1);
             e.Handled = true;
             return;
         }
 
         if (e.Control && e.KeyCode is Keys.D0 or Keys.NumPad0)
         {
-            _settingsPage.ScaleSelector.SetValue(90);
+            _interfacePage.ScaleSelector.SetValue(90);
             e.Handled = true;
             return;
         }
@@ -549,7 +534,8 @@ public class MainForm : Form, IMessageFilter
         var text = Clipboard.GetText().Trim();
         if (text.Length == 0)
         {
-            Log("Буфер обмена пуст");
+            Log(L.T("Буфер обмена пуст"));
+            _hero.SetPing(L.T("Буфер обмена пуст: сначала скопируй ключ"), Theme.PingBad);
             return;
         }
 
@@ -569,32 +555,38 @@ public class MainForm : Form, IMessageFilter
         var servers = LinkParser.ParseInput(text);
         if (servers.Count == 0)
         {
-            Log("Не нашёл поддерживаемых ссылок (vless, vmess, trojan, ss)");
-            _hero.SetPing("Ключ не распознан", Theme.PingBad);
+            Log(L.T("Не нашёл поддерживаемых ключей (vless, vmess, trojan, ss)"));
+            _hero.SetPing(L.T("Ключ не распознан"), Theme.PingBad);
             return;
         }
 
+        var first = Data.Servers.Count == 0;
         Data.Servers.AddRange(servers);
         _selected ??= servers[0];
         Save();
         RebuildList();
         UpdateHero();
         ShowPage(IconKind.Servers);
-        Log($"Добавлено серверов: {servers.Count}");
+        Log(L.F("Добавлено серверов: {0}", servers.Count));
+        if (first)
+            _hero.SetPing(L.T("Готово! Нажми большую кнопку, чтобы подключиться"), Theme.PingGood);
     }
 
     private async Task AddSubscriptionUrl(string url)
     {
+        var first = Data.Servers.Count == 0;
         _subscriptions.Add(url);
         ShowPage(IconKind.Servers);
         await RefreshSubscription(url);
+        if (first && Data.Servers.Count > 0)
+            _hero.SetPing(L.T("Готово! Нажми большую кнопку, чтобы подключиться"), Theme.PingGood);
     }
 
     private async Task UpdateSubscriptions()
     {
         if (_subscriptions.Profiles.Count == 0)
         {
-            _hero.SetPing("Подписок нет: добавь её через +", Theme.TextMuted);
+            _hero.SetPing(L.T("Подписок нет: добавь её через +"), Theme.TextMuted);
             return;
         }
 
@@ -611,10 +603,11 @@ public class MainForm : Form, IMessageFilter
     private void ShowSubscriptionResult(bool ok)
     {
         AfterServersChanged();
+        WarnAboutExpiring();
         if (ok)
-            _hero.SetPing("Подписка обновлена", Theme.PingGood);
+            _hero.SetPing(L.T("Подписка обновлена"), Theme.PingGood);
         else
-            _hero.SetPing("Не удалось обновить подписку", Theme.PingBad);
+            _hero.SetPing(L.T("Не удалось обновить подписку"), Theme.PingBad);
     }
 
     private async Task RefreshDueSubscriptions()
@@ -622,8 +615,21 @@ public class MainForm : Form, IMessageFilter
         if (await _subscriptions.RefreshDue(_active))
             AfterServersChanged();
 
-        foreach (var header in _list.Controls.OfType<SubscriptionCard>())
-            header.Invalidate();
+        _list.RefreshSubscriptionCards();
+
+        WarnAboutExpiring();
+    }
+
+    private void WarnAboutExpiring()
+    {
+        var titles = _subscriptions.TakeNewlyExpiring();
+        if (titles.Count == 0)
+            return;
+
+        var text = titles.Count == 1
+            ? L.F("Подписка «{0}» скоро закончится. Продлите её, иначе доступ будет приостановлен.", titles[0])
+            : L.F("Подписки {0} скоро закончатся. Продлите их, иначе доступ будет приостановлен.", string.Join(", ", titles.Select(t => $"«{t}»")));
+        _tray.ShowBalloonTip(10000, "Tunnelka", text, ToolTipIcon.Warning);
     }
 
     private void DeleteSubscription(string url)
@@ -644,50 +650,39 @@ public class MainForm : Form, IMessageFilter
         UpdateHero();
     }
 
-    private async Task PingAll()
-    {
-        if (Data.Servers.Count == 0)
-            return;
+    private Task PingAll() => PingServers(Data.Servers.ToList());
 
-        _hero.SetBusy(true);
-        await Ping(Data.Servers.ToList());
-        UpdateCards();
-        UpdateHero();
-    }
+    private Task PingSubscription(string url) => PingServers(_subscriptions.Servers(url));
 
     private async Task PingCurrent()
     {
-        var server = _active ?? _selected;
+        var server = _selected ?? _active;
         if (server == null)
             return;
 
-        _hero.SetBusy(true);
-        await Ping(new List<ProxyServer> { server });
-        UpdateCards();
-        UpdateHero();
+        await PingServers(new List<ProxyServer> { server });
+        if (server != (_active ?? _selected))
+            _hero.SetPing($"{ServerText.CleanName(server)}: {PingText(server)}", Theme.PingColor(server.PingMs));
     }
 
-    private async Task Ping(List<ProxyServer> servers)
+    private async Task PingServers(List<ProxyServer> servers)
     {
-        SetBusy(servers, true);
+        if (servers.Count == 0)
+            return;
+
+        _hero.SetBusy(true);
+        _list.SetBusy(servers, true);
         try
         {
-            await _pinger.Ping(servers, server => SetBusy(new[] { server }, false));
+            await _pinger.Ping(servers, server => _list.SetBusy(new[] { server }, false));
         }
         finally
         {
-            SetBusy(servers, false);
+            _list.SetBusy(servers, false);
         }
-    }
 
-    private void SetBusy(IEnumerable<ProxyServer> servers, bool busy)
-    {
-        var set = new HashSet<ProxyServer>(servers);
-        foreach (var card in _cards)
-        {
-            if (set.Contains(card.Server))
-                card.IsBusy = busy;
-        }
+        UpdateCards();
+        UpdateHero();
     }
 
     private void Delete(ProxyServer server)
@@ -706,6 +701,12 @@ public class MainForm : Form, IMessageFilter
 
     private void ToggleConnection()
     {
+        if (!_connection.IsRunning && Data.Servers.Count == 0)
+        {
+            ShowAddDialog();
+            return;
+        }
+
         if (_connection.IsRunning)
             Disconnect();
         else
@@ -721,18 +722,18 @@ public class MainForm : Form, IMessageFilter
         _active = server;
         _connectedAt = DateTime.Now;
         _trafficTracker.Reset();
-        _hero.SetSpeed(ServerText.Bytes(0) + "/с", ServerText.Bytes(0) + "/с");
+        _hero.SetSpeed(ServerText.Bytes(0) + L.T("/с"), ServerText.Bytes(0) + L.T("/с"));
         Data.LastServerLink = server.Link;
         Save();
 
         _hero.ElapsedText = "00:00:00";
         _hero.Connected = true;
         _clock.Start();
-        _stats.SetConnected(true);
+        _statsPage.SetSpeed(0, 0, true);
         _traffic.Start();
         UpdateCards();
         UpdateHero();
-        Log($"Подключено к {ServerText.CleanName(server)}");
+        Log(L.F("Подключено к {0}", ServerText.CleanName(server)));
     }
 
     private bool Start(ProxyServer server)
@@ -742,11 +743,11 @@ public class MainForm : Form, IMessageFilter
             case ConnectResult.Ok:
                 return true;
             case ConnectResult.XrayMissing:
-                MessageBox.Show(this, $"Не найден {XrayRunner.XrayPath}", "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, L.F("Не найден {0}", XrayRunner.XrayPath), "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case ConnectResult.SingBoxMissing:
                 MessageBox.Show(this,
-                    $"Не найден {XrayRunner.SingBoxPath}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.",
+                    L.F("Не найден {0}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.", XrayRunner.SingBoxPath),
                     "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 break;
             case ConnectResult.NeedsAdministrator:
@@ -763,7 +764,7 @@ public class MainForm : Form, IMessageFilter
     private void OfferElevation()
     {
         var answer = MessageBox.Show(this,
-            "Для режима TUN нужны права администратора. Перезапустить Tunnelka от имени администратора?",
+            L.T("Для режима TUN нужны права администратора. Перезапустить Tunnelka от имени администратора?"),
             "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes)
             return;
@@ -776,7 +777,7 @@ public class MainForm : Form, IMessageFilter
         }
         catch (Exception ex)
         {
-            Log($"Перезапуск отменён: {ex.Message}");
+            Log(L.F("Перезапуск отменён: {0}", ex.Message));
         }
     }
 
@@ -796,12 +797,12 @@ public class MainForm : Form, IMessageFilter
 
         _hero.Connected = false;
         _hero.SetSpeed(null, null);
-        _stats.SetConnected(false);
+        _statsPage.SetSpeed(0, 0, false);
         UpdateCards();
         UpdateHero();
 
         if (wasRunning)
-            Log("Отключено");
+            Log(L.T("Отключено"));
     }
 
     private void OnRulesChanged()
@@ -812,19 +813,30 @@ public class MainForm : Form, IMessageFilter
 
         _trafficTracker.ResetCounters();
         if (Start(_active))
-            Log("Правила применены");
+            Log(L.T("Правила применены"));
         else
             Disconnect();
     }
 
+    private async Task RunStartupTasks()
+    {
+        if (Data.RefreshOnStart && _subscriptions.Profiles.Count > 0)
+            await UpdateSubscriptions();
+        else
+            await RefreshDueSubscriptions();
+
+        if (Data.PingOnStart)
+            await PingAll();
+    }
+
     private void OnTraffic(TrafficCounters counters)
     {
-        var (down, up) = _trafficTracker.Process(counters);
-        _stats.Push(counters, down, up);
-        _stats.SetTotals(Data.TotalDownload, Data.TotalUpload);
+        var delta = _trafficTracker.Process(counters);
+        _history.Add(delta);
+        _statsPage.SetSpeed(delta.ProxyDown + delta.DirectDown, delta.ProxyUp + delta.DirectUp, true);
 
         if (_trafficTracker.TryGetAverage(out var averageDown, out var averageUp))
-            _hero.SetSpeed(ServerText.Bytes(averageDown) + "/с", ServerText.Bytes(averageUp) + "/с");
+            _hero.SetSpeed(ServerText.Bytes(averageDown) + L.T("/с"), ServerText.Bytes(averageUp) + L.T("/с"));
     }
 
     private void UpdateClock()
@@ -844,7 +856,7 @@ public class MainForm : Form, IMessageFilter
             return;
         }
 
-        Log("Ядро VPN завершилось. Причина обычно видна в строках выше");
+        Log(L.T("Ядро VPN завершилось. Причина обычно видна в строках выше"));
         Disconnect();
         ShowPage(IconKind.Log);
     }
@@ -858,7 +870,7 @@ public class MainForm : Form, IMessageFilter
         _hero.Tun = tun;
         _settingsPage.ModeSelector.SelectedIndex = tun ? 1 : 0;
         Save();
-        Log(tun ? "Режим TUN: через VPN идёт весь трафик" : "Режим прокси: через VPN идут браузер и программы");
+        Log(tun ? L.T("Режим TUN: через VPN идёт весь трафик") : L.T("Режим прокси: через VPN идут браузер и программы"));
 
         if (_active != null && _connection.IsRunning)
         {

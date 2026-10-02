@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Security.Principal;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public static class Elevation
 {
@@ -20,7 +20,7 @@ public static class Elevation
 
     public static void RestartElevated(string arguments)
     {
-        var path = Environment.ProcessPath ?? throw new InvalidOperationException("Не удалось определить путь к программе");
+        var path = Environment.ProcessPath ?? throw new InvalidOperationException(L.T("Не удалось определить путь к программе"));
         Process.Start(new ProcessStartInfo(path, arguments)
         {
             UseShellExecute = true,

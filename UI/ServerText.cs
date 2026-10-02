@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text;
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public static class ServerText
 {
@@ -132,6 +132,9 @@ public static class ServerText
 
     public static string Plural(int count, string one, string few, string many)
     {
+        if (L.English)
+            return $"{count} {(count == 1 ? one : many)}";
+
         var mod100 = count % 100;
         var mod10 = count % 10;
         var word = mod100 is >= 11 and <= 14 ? many : mod10 switch
@@ -143,9 +146,14 @@ public static class ServerText
         return $"{count} {word}";
     }
 
+    public static string Duration(int seconds) =>
+        seconds >= 3600 && seconds % 3600 == 0 ? L.F("{0} ч", seconds / 3600)
+        : seconds >= 60 && seconds % 60 == 0 ? L.F("{0} мин", seconds / 60)
+        : L.F("{0} с", seconds);
+
     public static string Bytes(double bytes)
     {
-        string[] units = { "Б", "КБ", "МБ", "ГБ", "ТБ" };
+        string[] units = { L.T("Б"), L.T("КБ"), L.T("МБ"), L.T("ГБ"), L.T("ТБ") };
         var unit = 0;
         while (bytes >= 1024 && unit < units.Length - 1)
         {

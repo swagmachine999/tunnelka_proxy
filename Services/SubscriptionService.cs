@@ -1,22 +1,39 @@
-using VpnClient.Models;
-using VpnClient.Parsing;
+using Tunnelka.Models;
+using Tunnelka.Parsing;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public sealed class SubscriptionService
 {
     private readonly Settings _settings;
     private readonly AppLog _log;
+    private readonly Func<int?> _proxyPort;
+    private readonly HashSet<string> _warned = new();
 
-    public SubscriptionService(Settings settings, AppLog log)
+    public SubscriptionService(Settings settings, AppLog log, Func<int?> proxyPort)
     {
         _settings = settings;
         _log = log;
+        _proxyPort = proxyPort;
     }
 
     public IReadOnlyList<SubscriptionInfo> Profiles => _settings.Data.Profiles;
 
     public bool IsKnown(string url) => Profiles.Any(p => p.Url == url);
+
+    public bool IsCollapsed(string? url) => Profiles.Any(p => p.Url == url && p.Collapsed);
+
+    public List<string> TakeNewlyExpiring() =>
+        Profiles.Where(p => p.ExpiresSoon && _warned.Add(p.Url)).Select(p => p.Title).ToList();
+
+    public List<ProxyServer> Servers(string url) =>
+        _settings.Data.Servers.Where(s => s.SubscriptionUrl == url).ToList();
+
+    public void ToggleCollapsed(SubscriptionInfo info)
+    {
+        info.Collapsed = !info.Collapsed;
+        _settings.Save();
+    }
 
     public void Add(string url)
     {
@@ -31,8 +48,8 @@ public sealed class SubscriptionService
     {
         try
         {
-            _log.Write("Обновляю подписку");
-            var result = await SubscriptionLoader.LoadAsync(url);
+            _log.Write(L.T("Обновляю подписку"));
+            var result = await SubscriptionLoader.LoadAsync(url, _proxyPort());
             var index = _settings.Data.Profiles.FindIndex(p => p.Url == url);
             if (index < 0)
                 return false;
@@ -40,15 +57,16 @@ public sealed class SubscriptionService
             var servers = _settings.Data.Servers;
             servers.RemoveAll(s => s.SubscriptionUrl == url && s != keep);
             servers.AddRange(result.Servers);
+            result.Info.Collapsed = _settings.Data.Profiles[index].Collapsed;
             _settings.Data.Profiles[index] = result.Info;
             _settings.Save();
 
-            _log.Write($"{result.Info.Title}: серверов {result.Servers.Count}");
+            _log.Write(L.F("{0}: серверов {1}", result.Info.Title, result.Servers.Count));
             return true;
         }
         catch (Exception ex)
         {
-            _log.Write($"Ошибка подписки: {ex.Message}");
+            _log.Write(L.F("Ошибка подписки: {0}", ex.Message));
             return false;
         }
     }

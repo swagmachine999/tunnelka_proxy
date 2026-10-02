@@ -1,4 +1,4 @@
-namespace VpnClient.UI.Controls;
+namespace Tunnelka.UI.Controls;
 
 public class SearchBox : ThemedControl
 {
@@ -23,10 +23,10 @@ public class SearchBox : ThemedControl
 
     public event EventHandler? QueryChanged;
 
-    public SearchBox(string placeholder = "Поиск сервера", bool icon = true)
+    public SearchBox(string? placeholder = null, bool icon = true)
     {
         _icon = icon;
-        _placeholder.Text = placeholder;
+        _placeholder.Text = placeholder ?? L.T("Поиск сервера");
         Theme.Bind(_box, () => Theme.Card, () => Theme.Text);
         Theme.Bind(_placeholder, () => Theme.Card, () => Theme.TextMuted);
         Theme.Bind(this, () => Theme.Surface);

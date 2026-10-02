@@ -1,8 +1,8 @@
-using VpnClient.Models;
-using VpnClient.Services;
-using VpnClient.UI.Controls;
+using Tunnelka.Models;
+using Tunnelka.Services;
+using Tunnelka.UI.Controls;
 
-namespace VpnClient.UI.Pages;
+namespace Tunnelka.UI.Pages;
 
 public class RoutingPage : Panel
 {
@@ -15,10 +15,10 @@ public class RoutingPage : Panel
         AutoScroll = true
     };
 
-    private readonly SearchBox _input = new("Домены или IP через запятую", false);
-    private readonly Segmented _action = new("Напрямую", "Через VPN", "Блок");
+    private readonly SearchBox _input = new(L.T("Домены или IP через запятую"), false);
+    private readonly Segmented _action = new(L.T("Напрямую"), L.T("Через VPN"), L.T("Блок"));
 
-    private const string RoutingBottomComment = "Напрямую - использование без VPN\nЧерез VPN - использование через VPN\nБлок - полная блокировка трафика";
+    private static readonly string RoutingBottomComment = L.T("Напрямую - использование без VPN\nЧерез VPN - использование через VPN\nБлок - полная блокировка трафика");
 
     public event EventHandler? RulesChanged;
 
@@ -28,8 +28,8 @@ public class RoutingPage : Panel
         Dock = DockStyle.Fill;
         Theme.Bind(this, () => Theme.Surface);
         Theme.Bind(_list, () => Theme.Surface);
-        var title = PageParts.Header("Маршрутизация", onBack);
-        var subtitle = PageParts.Caption("Правила проверяются сверху вниз. Всё остальное идёт через VPN.", 34);
+        var title = PageParts.Header(L.T("Маршрутизация"), onBack);
+        var subtitle = PageParts.Caption(L.T("Правила проверяются сверху вниз. Всё остальное идёт через VPN."), 34);
 
         var form = new Panel { Dock = DockStyle.Top, Height = Theme.Px(184) };
         Theme.Bind(form, () => Theme.Surface);
@@ -45,13 +45,13 @@ public class RoutingPage : Panel
             Font = Theme.Scaled(Theme.Caption)
         }, () => Theme.Surface, () => Theme.TextMuted);
 
-        var add = PageParts.Button("Добавить", true);
+        var add = PageParts.Button(L.T("Добавить"), true);
         add.Click += (_, _) => AddFromInput();
 
-        var preset = PageParts.Button("Российские сайты напрямую", false);
+        var preset = PageParts.Button(L.T("Российские сайты напрямую"), false);
         preset.Click += (_, _) => AddRule("domain:ru, domain:su, domain:рф", RoutingRule.Direct);
 
-        var process = PageParts.Button("Процесс", false);
+        var process = PageParts.Button(L.T("Процесс"), false);
         process.Click += (_, _) =>
         {
             var name = ProcessPicker.Show(FindForm());
@@ -59,10 +59,10 @@ public class RoutingPage : Panel
                 AddRule(XrayConfigBuilder.ProcessPrefix + name, SelectedAction());
         };
 
-        var file = PageParts.Button("Файл .exe", false);
+        var file = PageParts.Button(L.T("Файл .exe"), false);
         file.Click += (_, _) =>
         {
-            using var dialog = new OpenFileDialog { Filter = "Программы (*.exe)|*.exe", Title = "Выбери программу" };
+            using var dialog = new OpenFileDialog { Filter = L.T("Программы (*.exe)|*.exe"), Title = L.T("Выбери программу") };
             if (dialog.ShowDialog(FindForm()) == DialogResult.OK)
                 AddRule(XrayConfigBuilder.ProcessPrefix + dialog.FileName, SelectedAction());
         };
@@ -139,7 +139,7 @@ public class RoutingPage : Panel
         }
 
         if (_rules.Count == 0)
-            _list.Controls.Add(PageParts.Caption("Правил пока нет", 30));
+            _list.Controls.Add(PageParts.Caption(L.T("Правил пока нет"), 30));
 
         ResizeCards();
         _list.ResumeLayout();

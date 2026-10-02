@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public sealed class XrayRunner : IDisposable
 {
@@ -34,7 +34,7 @@ public sealed class XrayRunner : IDisposable
         Stop();
 
         if (!File.Exists(_exePath))
-            throw new FileNotFoundException($"Не найден {Path.GetFileName(_exePath)}", _exePath);
+            throw new FileNotFoundException(L.F("Не найден {0}", Path.GetFileName(_exePath)), _exePath);
 
         var configPath = Path.Combine(CoreDir, _configName);
         File.WriteAllText(configPath, configJson);

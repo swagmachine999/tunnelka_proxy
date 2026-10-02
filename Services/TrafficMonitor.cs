@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public sealed class TrafficMonitor : IDisposable
 {
