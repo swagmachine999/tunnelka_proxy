@@ -6,6 +6,8 @@ namespace Tunnelka.Services;
 public static class SystemProxy
 {
     private const string KeyPath = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
+    private const string MarkerPath = @"Software\Tunnelka";
+    private const string MarkerName = "ProxyServer";
     private const string Bypass = "localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.2*;172.30.*;172.31.*;192.168.*;<local>";
 
     private const int OptionSettingsChanged = 39;
@@ -20,6 +22,9 @@ public static class SystemProxy
         key.SetValue("ProxyOverride", Bypass);
         key.SetValue("ProxyEnable", 1, RegistryValueKind.DWord);
         Refresh();
+
+        using var marker = Registry.CurrentUser.CreateSubKey(MarkerPath);
+        marker.SetValue(MarkerName, address);
     }
 
     public static void Disable()
@@ -30,6 +35,29 @@ public static class SystemProxy
 
         key.SetValue("ProxyEnable", 0, RegistryValueKind.DWord);
         Refresh();
+        ClearMarker();
+    }
+
+    public static void RestoreIfLeftOver()
+    {
+        string? ours;
+        using (var marker = Registry.CurrentUser.OpenSubKey(MarkerPath))
+            ours = marker?.GetValue(MarkerName) as string;
+        if (ours == null)
+            return;
+
+        using var key = Registry.CurrentUser.OpenSubKey(KeyPath);
+        var enabled = key?.GetValue("ProxyEnable") is int value && value == 1;
+        if (enabled && key?.GetValue("ProxyServer") as string == ours)
+            Disable();
+        else
+            ClearMarker();
+    }
+
+    private static void ClearMarker()
+    {
+        using var marker = Registry.CurrentUser.OpenSubKey(MarkerPath, true);
+        marker?.DeleteValue(MarkerName, false);
     }
 
     private static void Refresh()
