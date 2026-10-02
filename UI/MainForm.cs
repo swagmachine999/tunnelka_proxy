@@ -223,7 +223,7 @@ public class MainForm : Form, IMessageFilter
         var sidebar = Theme.Bind(new Panel { Dock = DockStyle.Left, Width = Theme.Px(68) }, () => Theme.Sidebar);
         sidebar.Controls.Add(new LogoView { Location = new Point(Theme.Px(12), Theme.Px(18)) });
 
-        var add = new IconButton(IconKind.Add, "Добавить ключ или подписку") { Location = new Point(Theme.Px(12), Theme.Px(84)) };
+        var add = new IconButton(IconKind.Add, "Добавить ключ") { Location = new Point(Theme.Px(12), Theme.Px(84)) };
         add.Click += (_, _) => ShowAddDialog();
         AttachTip(add);
         sidebar.Controls.Add(add);
@@ -267,6 +267,21 @@ public class MainForm : Form, IMessageFilter
         searchRow.Controls.Add(_search);
         searchRow.Controls.Add(searchGap);
         searchRow.Controls.Add(pingAll);
+
+        var scan = PageParts.Button("Сканировать QR", false);
+        scan.Click += async (_, _) => await ScanQr();
+        var share = PageParts.Button("Поделиться", false);
+        share.Click += (_, _) => ShareKey();
+        var actionRow = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(46) }, () => Theme.Surface);
+        actionRow.Controls.AddRange(new Control[] { scan, share });
+        actionRow.Resize += (_, _) =>
+        {
+            var half = (actionRow.Width - Theme.Px(8)) / 2;
+            scan.SetBounds(0, Theme.Px(10), half, Theme.Px(36));
+            share.SetBounds(half + Theme.Px(8), Theme.Px(10), actionRow.Width - half - Theme.Px(8), Theme.Px(36));
+        };
+
+        serversPage.Controls.Add(actionRow);
         serversPage.Controls.Add(searchRow);
         serversPage.Controls.Add(PageParts.Title("Серверы"));
 
@@ -342,22 +357,17 @@ public class MainForm : Form, IMessageFilter
 
     private void BuildSubscriptionMenu()
     {
-        _subscriptionMenu.Items.Add("Показать ссылку", null, (_, _) =>
+        _subscriptionMenu.Items.Add("Показать ключ", null, (_, _) =>
         {
             if (_menuSubscription != null)
-                LinkDialog.Show(this, _menuSubscription.Info.Title, _menuSubscription.Info.Url, false);
+                LinkDialog.Show(this, _menuSubscription.Info.Title, new[] { (_menuSubscription.Info.Title, _menuSubscription.Info.Url) }, false);
         });
-        _subscriptionMenu.Items.Add("Копировать ссылку", null, (_, _) =>
-        {
-            if (_menuSubscription != null)
-                Clipboard.SetText(_menuSubscription.Info.Url);
-        });
-        _subscriptionMenu.Items.Add("Удалить подписку", null, (_, _) =>
+        _subscriptionMenu.Items.Add("Удалить ключ", null, (_, _) =>
         {
             if (_menuSubscription == null)
                 return;
 
-            var answer = MessageBox.Show(this, $"Удалить подписку «{_menuSubscription.Info.Title}» и все её серверы?",
+            var answer = MessageBox.Show(this, $"Удалить ключ «{_menuSubscription.Info.Title}» и все его серверы?",
                 "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (answer == DialogResult.Yes)
                 DeleteSubscription(_menuSubscription.Info.Url);
@@ -404,7 +414,6 @@ public class MainForm : Form, IMessageFilter
             var header = new SubscriptionCard(info) { ContextMenuStrip = _subscriptionMenu, ServerCount = servers.Count };
             header.RefreshClicked += async (_, _) => await RefreshSubscription(url);
             header.PingClicked += async (_, _) => await PingSubscription(url);
-            header.QrClicked += (_, _) => LinkDialog.Show(this, info.Title, url, true);
             header.MenuClicked += (_, point) => _subscriptionMenu.Show(header, point);
             header.CollapseClicked += (_, _) =>
             {
@@ -497,13 +506,65 @@ public class MainForm : Form, IMessageFilter
         }
 
         _hero.SetServer(ServerText.Parts(server), ServerText.CountryCode(server.Name));
-        var ping = server.PingMs switch
+        _hero.SetPing(PingText(server), Theme.PingColor(server.PingMs));
+    }
+
+    private static string PingText(ProxyServer server) => server.PingMs switch
+    {
+        null => "",
+        < 0 => "Сервер не ответил",
+        var ms => $"Пинг {ms} мс"
+    };
+
+    private async Task ScanQr()
+    {
+        Hide();
+        await Task.Delay(300);
+        string? text;
+        try
         {
-            null => "",
-            < 0 => "Сервер не ответил",
-            var ms => $"Пинг {ms} мс"
-        };
-        _hero.SetPing(ping, Theme.PingColor(server.PingMs));
+            text = QrScanner.FromScreen();
+        }
+        finally
+        {
+            Show();
+            Activate();
+        }
+
+        if (text == null)
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Title = "QR-код на экране не найден. Выбери картинку с QR-кодом",
+                Filter = "Картинки|*.png;*.jpg;*.jpeg;*.bmp;*.gif"
+            };
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            text = QrScanner.FromFile(dialog.FileName);
+        }
+
+        if (text == null)
+        {
+            _hero.SetPing("QR-код не найден", Theme.PingBad);
+            return;
+        }
+
+        AddInput(text);
+    }
+
+    private void ShareKey()
+    {
+        var keys = _subscriptions.Profiles.Select(p => ($"{p.Title} (подписка)", p.Url))
+            .Concat(Data.Servers.Where(s => s.Link.Length > 0).Select(s => (ServerText.CleanName(s), s.Link)))
+            .ToList();
+        if (keys.Count == 0)
+        {
+            _hero.SetPing("Нет ключей, чтобы поделиться", Theme.TextMuted);
+            return;
+        }
+
+        LinkDialog.Show(this, "Поделиться ключом", keys, true);
     }
 
     public bool PreFilterMessage(ref Message m)
@@ -590,7 +651,7 @@ public class MainForm : Form, IMessageFilter
         var servers = LinkParser.ParseInput(text);
         if (servers.Count == 0)
         {
-            Log("Не нашёл поддерживаемых ссылок (vless, vmess, trojan, ss)");
+            Log("Не нашёл поддерживаемых ключей (vless, vmess, trojan, ss)");
             _hero.SetPing("Ключ не распознан", Theme.PingBad);
             return;
         }
@@ -669,10 +730,15 @@ public class MainForm : Form, IMessageFilter
 
     private Task PingSubscription(string url) => PingServers(_subscriptions.Servers(url));
 
-    private Task PingCurrent()
+    private async Task PingCurrent()
     {
-        var server = _active ?? _selected;
-        return server == null ? Task.CompletedTask : PingServers(new List<ProxyServer> { server });
+        var server = _selected ?? _active;
+        if (server == null)
+            return;
+
+        await PingServers(new List<ProxyServer> { server });
+        if (server != (_active ?? _selected))
+            _hero.SetPing($"{ServerText.CleanName(server)}: {PingText(server)}", Theme.PingColor(server.PingMs));
     }
 
     private async Task PingServers(List<ProxyServer> servers)

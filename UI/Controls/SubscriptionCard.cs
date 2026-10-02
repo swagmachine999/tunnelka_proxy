@@ -21,7 +21,6 @@ public class SubscriptionCard : ThemedControl
 
     public event EventHandler? RefreshClicked;
     public event EventHandler? PingClicked;
-    public event EventHandler? QrClicked;
     public event EventHandler? CollapseClicked;
     public event EventHandler<Point>? MenuClicked;
 
@@ -171,8 +170,6 @@ public class SubscriptionCard : ThemedControl
         x -= IconSize + 2;
         AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawPing, _ => PingClicked?.Invoke(this, EventArgs.Empty));
         x -= IconSize + 2;
-        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawQr, _ => QrClicked?.Invoke(this, EventArgs.Empty));
-        x -= IconSize + 2;
         AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawRefresh, _ => RefreshClicked?.Invoke(this, EventArgs.Empty));
         if (Info.SupportUrl.Length > 0)
         {
@@ -312,22 +309,6 @@ public class SubscriptionCard : ThemedControl
             ? new[] { new PointF(cx - 2, cy - 5), new PointF(cx + 3, cy), new PointF(cx - 2, cy + 5) }
             : new[] { new PointF(cx - 5, cy - 2), new PointF(cx, cy + 3), new PointF(cx + 5, cy - 2) };
         g.DrawLines(pen, points);
-    }
-
-    private static void DrawQr(Graphics g, RectangleF r)
-    {
-        var left = r.X + r.Width / 2 - 8;
-        var top = r.Y + r.Height / 2 - 8;
-        using var pen = new Pen(Theme.TextMuted, 1.6f);
-        using var brush = new SolidBrush(Theme.TextMuted);
-        foreach (var (dx, dy) in new[] { (0f, 0f), (10f, 0f), (0f, 10f) })
-        {
-            g.DrawRectangle(pen, left + dx + 0.8f, top + dy + 0.8f, 4.6f, 4.6f);
-            g.FillRectangle(brush, left + dx + 2.4f, top + dy + 2.4f, 1.6f, 1.6f);
-        }
-        g.FillRectangle(brush, left + 10, top + 10, 2.4f, 2.4f);
-        g.FillRectangle(brush, left + 13.6f, top + 13.6f, 2.4f, 2.4f);
-        g.FillRectangle(brush, left + 13.6f, top + 10, 2.4f, 2.4f);
     }
 
     private static void DrawPing(Graphics g, RectangleF r)

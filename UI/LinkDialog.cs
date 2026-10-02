@@ -2,13 +2,14 @@ namespace VpnClient.UI;
 
 public static class LinkDialog
 {
-    public static void Show(IWin32Window owner, string title, string link, bool qr)
+    public static void Show(IWin32Window owner, string title, IReadOnlyList<(string Name, string Link)> keys, bool qr)
     {
+        var top = keys.Count > 1 ? 56 : 0;
         var qrSize = qr ? 280 : 0;
         using var form = new Form
         {
             Text = title,
-            ClientSize = new Size(Theme.Px(460), Theme.Px(qrSize + 150)),
+            ClientSize = new Size(Theme.Px(460), Theme.Px(top + qrSize + 150)),
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
             MinimizeBox = false,
@@ -19,27 +20,30 @@ public static class LinkDialog
         };
         NativeTheme.TitleBar(form, Theme.IsDark);
 
-        if (qr)
+        var link = keys[0].Link;
+        var modules = qr ? QrCode.Encode(link) : null;
+
+        var picture = new Panel
         {
-            var modules = QrCode.Encode(link);
-            var picture = new Panel
-            {
-                Left = (form.ClientSize.Width - Theme.Px(qrSize)) / 2,
-                Top = Theme.Px(16),
-                Width = Theme.Px(qrSize),
-                Height = Theme.Px(qrSize),
-                BackColor = Color.White
-            };
-            picture.Paint += (_, e) => DrawQr(e.Graphics, modules, picture.ClientRectangle);
-            form.Controls.Add(picture);
-        }
+            Left = (form.ClientSize.Width - Theme.Px(qrSize)) / 2,
+            Top = Theme.Px(top + 16),
+            Width = Theme.Px(qrSize),
+            Height = Theme.Px(qrSize),
+            BackColor = Color.White,
+            Visible = qr
+        };
+        picture.Paint += (_, e) =>
+        {
+            if (modules != null)
+                DrawQr(e.Graphics, modules, picture.ClientRectangle);
+        };
 
         var box = new TextBox
         {
             Text = link,
             ReadOnly = true,
             Left = Theme.Px(20),
-            Top = Theme.Px(qrSize + 32),
+            Top = Theme.Px(top + qrSize + 32),
             Width = Theme.Px(420),
             BorderStyle = BorderStyle.FixedSingle,
             BackColor = Theme.Card,
@@ -50,23 +54,48 @@ public static class LinkDialog
         {
             Text = qr ? "Отсканируй камерой на новом устройстве" : "",
             Left = Theme.Px(20),
-            Top = Theme.Px(qrSize + 66),
+            Top = Theme.Px(top + qrSize + 66),
             Width = Theme.Px(420),
             ForeColor = Theme.TextMuted,
             Font = Theme.Scaled(Theme.Caption)
         };
 
-        var copy = Button("Копировать", Theme.Accent, Color.White, 220, qrSize);
+        var copy = Button("Копировать", Theme.Accent, Color.White, 220, top + qrSize);
         copy.Click += (_, _) =>
         {
             Clipboard.SetText(link);
             copy.Text = "Скопировано";
         };
 
-        var close = Button("Закрыть", Theme.Sidebar, Theme.Text, 340, qrSize);
+        var close = Button("Закрыть", Theme.Sidebar, Theme.Text, 340, top + qrSize);
         close.DialogResult = DialogResult.Cancel;
 
-        form.Controls.AddRange(new Control[] { box, hint, copy, close });
+        if (keys.Count > 1)
+        {
+            var choice = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Left = Theme.Px(20),
+                Top = Theme.Px(18),
+                Width = Theme.Px(420),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Theme.Card,
+                ForeColor = Theme.Text
+            };
+            choice.Items.AddRange(keys.Select(k => (object)k.Name).ToArray());
+            choice.SelectedIndex = 0;
+            choice.SelectedIndexChanged += (_, _) =>
+            {
+                link = keys[choice.SelectedIndex].Link;
+                modules = qr ? QrCode.Encode(link) : null;
+                box.Text = link;
+                copy.Text = "Копировать";
+                picture.Invalidate();
+            };
+            form.Controls.Add(choice);
+        }
+
+        form.Controls.AddRange(new Control[] { picture, box, hint, copy, close });
         form.CancelButton = close;
         form.Shown += (_, _) => close.Focus();
         form.ShowDialog(owner);
@@ -74,12 +103,12 @@ public static class LinkDialog
 
     private static void DrawQr(Graphics g, bool[,] modules, Rectangle bounds)
     {
-        var count = modules.GetLength(0) + 8;
-        var cell = Math.Max(1, bounds.Width / count);
-        var offset = (bounds.Width - cell * modules.GetLength(0)) / 2;
-        for (var y = 0; y < modules.GetLength(0); y++)
+        var size = modules.GetLength(0);
+        var cell = Math.Max(1, bounds.Width / (size + 8));
+        var offset = (bounds.Width - cell * size) / 2;
+        for (var y = 0; y < size; y++)
         {
-            for (var x = 0; x < modules.GetLength(0); x++)
+            for (var x = 0; x < size; x++)
             {
                 if (modules[y, x])
                     g.FillRectangle(Brushes.Black, offset + x * cell, offset + y * cell, cell, cell);
@@ -87,13 +116,13 @@ public static class LinkDialog
         }
     }
 
-    private static Button Button(string text, Color back, Color fore, int left, int qrSize)
+    private static Button Button(string text, Color back, Color fore, int left, int top)
     {
         var button = new Button
         {
             Text = text,
             Left = Theme.Px(left),
-            Top = Theme.Px(qrSize + 96),
+            Top = Theme.Px(top + 96),
             Width = Theme.Px(110),
             Height = Theme.Px(36),
             FlatStyle = FlatStyle.Flat,
