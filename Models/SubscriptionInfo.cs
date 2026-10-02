@@ -14,6 +14,9 @@ public class SubscriptionInfo
     public DateTime UpdatedAt { get; set; }
     public bool Collapsed { get; set; }
 
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool ExpiresSoon => Expire != null && Expire.Value - DateTime.Now < TimeSpan.FromDays(3);
+
     public static SubscriptionInfo Placeholder(string url) => new()
     {
         Url = url,
