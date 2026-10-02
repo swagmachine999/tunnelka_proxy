@@ -315,8 +315,8 @@ public static class Theme
     {
         null => TextMuted,
         < 0 => PingBad,
-        < 120 => PingGood,
-        < 300 => PingMid,
+        < 150 => PingGood,
+        < 400 => PingMid,
         _ => PingBad
     };
 

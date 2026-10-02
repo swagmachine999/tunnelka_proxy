@@ -12,6 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ZXing.Net" Version="0.16.9" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="core\**" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Assets\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
