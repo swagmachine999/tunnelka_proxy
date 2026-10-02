@@ -93,8 +93,8 @@ public static class Theme
     public static readonly Font CardTitle = MakeFont(15, FontStyle.Bold);
     public static readonly Font Caption = MakeFont(12);
     public static readonly Font CaptionBold = MakeFont(12, FontStyle.Bold);
-    public static readonly Font Status = Fonts.Make(Fonts.SemiBold, 15);
-    public static readonly Font Timer = Fonts.Make(Fonts.Bold, 26);
+    public static readonly Font Status = Fonts.Make(Fonts.SemiBold, 11.5f);
+    public static readonly Font Timer = Fonts.Make(Fonts.SemiBold, 19);
     public static readonly Font ServerName = MakeFont(17, FontStyle.Bold);
     public static readonly Font Big = MakeFont(23, FontStyle.Bold);
     public static readonly Font Log = new("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel);
