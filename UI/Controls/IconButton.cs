@@ -14,26 +14,20 @@ public enum IconKind
     Ping
 }
 
-public class IconButton : Control
+public class IconButton : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
-    private bool _hover;
     private bool _active;
 
     public IconButton(IconKind kind, string title)
     {
         Kind = kind;
         Title = title;
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Size = new Size(Theme.Px(44), Theme.Px(44));
         Cursor = Cursors.Hand;
     }
 
     public IconKind Kind { get; }
-    public Func<Color> Background { get; set; } = () => Theme.Sidebar;
+    public Func<Color> Backdrop { get; set; } = () => Theme.Sidebar;
     public string Title { get; }
 
     public bool Active
@@ -42,32 +36,17 @@ public class IconButton : Control
         set { _active = value; Invalidate(); }
     }
 
-    protected override void OnMouseEnter(EventArgs e)
-    {
-        base.OnMouseEnter(e);
-        _hover = true;
-        Invalidate();
-    }
+    protected override Color Background => Backdrop();
 
-    protected override void OnMouseLeave(EventArgs e)
+    protected override void Draw(Graphics g)
     {
-        base.OnMouseLeave(e);
-        _hover = false;
-        Invalidate();
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        var g = e.Graphics;
-        Theme.Begin(g, Background());
-
         var rect = new RectangleF(0, 0, W - 1, H - 1);
         if (_active)
             Theme.FillRounded(g, Color.FromArgb(Theme.IsDark ? 90 : 70, Theme.Accent), rect, 12);
-        else if (_hover)
+        else if (IsHovered)
             Theme.FillRounded(g, Theme.SidebarHover, rect, 12);
 
-        var color = _active || _hover ? Theme.AccentStrong : Theme.Text;
+        var color = _active || IsHovered ? Theme.AccentStrong : Theme.Text;
         using var pen = new Pen(color, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         using var fill = new SolidBrush(color);
         var cx = W / 2f;

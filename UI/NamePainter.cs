@@ -6,11 +6,11 @@ public static class NamePainter
 {
     private const float Gap = 5;
 
-    public static float Measure(Graphics g, IReadOnlyList<NamePart> parts, Font font)
+    public static float Measure(IReadOnlyList<NamePart> parts, Font font)
     {
         var width = 0f;
         foreach (var part in parts)
-            width += PartWidth(g, part, font) + Gap;
+            width += PartWidth(part, font) + Gap;
         return Math.Max(0, width - Gap);
     }
 
@@ -45,7 +45,7 @@ public static class NamePainter
         g.Restore(state);
     }
 
-    private static float PartWidth(Graphics g, NamePart part, Font font) =>
+    private static float PartWidth(NamePart part, Font font) =>
         part.IsSymbol ? font.Size * 1.15f : Theme.Measure(part.Text, font).Width + 1;
 
     private static void DrawSymbol(Graphics g, string symbol, RectangleF r, Color textColor)

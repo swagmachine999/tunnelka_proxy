@@ -1,10 +1,7 @@
 namespace VpnClient.UI.Controls;
 
-public class Segmented : Control
+public class Segmented : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     private readonly string[] _options;
     private int _selected;
     private int _hover = -1;
@@ -12,8 +9,6 @@ public class Segmented : Control
     public Segmented(params string[] options)
     {
         _options = options;
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Height = Theme.Px(38);
         Cursor = Cursors.Hand;
     }
@@ -39,11 +34,10 @@ public class Segmented : Control
         return new RectangleF(4 + width * index, 4, width, H - 8);
     }
 
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        var g = e.Graphics;
-        Theme.Begin(g, Parent?.BackColor ?? Theme.Surface);
+    protected override Color Background => Parent?.BackColor ?? Theme.Surface;
 
+    protected override void Draw(Graphics g)
+    {
         var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, Theme.Card, rect, 12);
         Theme.DrawRounded(g, Theme.Border, rect, 12);

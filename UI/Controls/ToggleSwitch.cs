@@ -1,18 +1,13 @@
 namespace VpnClient.UI.Controls;
 
-public class ToggleSwitch : Control
+public class ToggleSwitch : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     private bool _checked;
 
     public event EventHandler? CheckedChanged;
 
     public ToggleSwitch()
     {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Size = new Size(Theme.Px(44), Theme.Px(24));
         Cursor = Cursors.Hand;
     }
@@ -36,11 +31,10 @@ public class ToggleSwitch : Control
         Checked = !Checked;
     }
 
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        var g = e.Graphics;
-        Theme.Begin(g, Parent?.BackColor ?? Theme.Card);
+    protected override Color Background => Parent?.BackColor ?? Theme.Card;
 
+    protected override void Draw(Graphics g)
+    {
         var track = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, _checked ? Theme.Accent : Theme.TrackOff, track, track.Height / 2);
 

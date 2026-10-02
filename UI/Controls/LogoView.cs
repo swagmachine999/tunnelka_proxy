@@ -1,22 +1,17 @@
 namespace VpnClient.UI.Controls;
 
-public class LogoView : Control
+public class LogoView : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     public LogoView()
     {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         BackColor = Theme.Sidebar;
         Size = new Size(Theme.Px(44), Theme.Px(44));
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override Color Background => Theme.Sidebar;
+
+    protected override void Draw(Graphics g)
     {
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.Sidebar);
         var rect = new RectangleF(0, 0, W - 1, H - 1);
         using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(rect, Theme.Pink, Theme.Accent, 45f))
         using (var path = Theme.RoundedRect(rect, 13))

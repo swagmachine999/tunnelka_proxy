@@ -1,14 +1,9 @@
 namespace VpnClient.UI.Controls;
 
-public class TipBubble : Control
+public class TipBubble : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     public TipBubble()
     {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Visible = false;
     }
 
@@ -28,11 +23,8 @@ public class TipBubble : Control
         Invalidate();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void Draw(Graphics g)
     {
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.Surface);
-
         var back = Theme.IsDark ? Theme.Lighten(Theme.Card, 0.12f) : Theme.Text;
         var fore = Theme.IsDark ? Theme.Text : Color.White;
         var rect = new RectangleF(6, 0, W - 7, H - 1);

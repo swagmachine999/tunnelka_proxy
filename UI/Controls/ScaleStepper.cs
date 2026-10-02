@@ -1,6 +1,6 @@
 namespace VpnClient.UI.Controls;
 
-public class ScaleStepper : Control
+public class ScaleStepper : ThemedControl
 {
     public const int Min = 60;
     public const int Max = 130;
@@ -14,8 +14,6 @@ public class ScaleStepper : Control
     public ScaleStepper(int value)
     {
         _value = value;
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Size = new Size(Theme.Px(132), Theme.Px(34));
         Cursor = Cursors.Hand;
     }
@@ -33,17 +31,13 @@ public class ScaleStepper : Control
         ValueChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     private RectangleF Minus => new(0, 0, H, H);
     private RectangleF Plus => new(W - H, 0, H, H);
 
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        var g = e.Graphics;
-        Theme.Begin(g, Parent?.BackColor ?? Theme.Card);
+    protected override Color Background => Parent?.BackColor ?? Theme.Card;
 
+    protected override void Draw(Graphics g)
+    {
         var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, Theme.Surface, rect, 10);
         Theme.DrawRounded(g, Theme.Border, rect, 10);

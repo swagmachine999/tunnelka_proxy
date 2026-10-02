@@ -5,11 +5,8 @@ using VpnClient.Models;
 
 namespace VpnClient.UI.Controls;
 
-public class SubscriptionCard : Control
+public class SubscriptionCard : ThemedControl
 {
-    private float W => Width / Theme.S;
-    private float H => Height / Theme.S;
-
     private const float Pad = 16;
     private const float LineHeight = 21;
     private const float SymbolSize = 16;
@@ -27,8 +24,6 @@ public class SubscriptionCard : Control
     public SubscriptionCard(SubscriptionInfo info)
     {
         Info = info;
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Margin = Theme.Px(0, 4, 0, 10);
         Height = Theme.Px(120);
     }
@@ -154,10 +149,8 @@ public class SubscriptionCard : Control
         return lines;
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void Draw(Graphics g)
     {
-        var g = e.Graphics;
-        Theme.Begin(g, Theme.Surface);
         _hits.Clear();
 
         var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
@@ -182,8 +175,9 @@ public class SubscriptionCard : Control
         var titleParts = ServerText.Parts(Info.Title, Info.Title);
         NamePainter.Draw(g, titleParts, Theme.CardTitle, Theme.Text, new RectangleF(Pad, 13, titleRight - Pad, 24));
 
-        var updated = Info.UpdatedAt.Date == DateTime.Today ? $"{Info.UpdatedAt:HH:mm}" : $"{Info.UpdatedAt:dd.MM HH:mm}";
-        Theme.DrawText(g, $"Обновлено в {updated} · раз в {Info.UpdateIntervalHours} ч",
+        var updated = Info.UpdatedAt == default ? "никогда"
+            : Info.UpdatedAt.Date == DateTime.Today ? $"в {Info.UpdatedAt:HH:mm}" : $"{Info.UpdatedAt:dd.MM HH:mm}";
+        Theme.DrawText(g, $"Обновлено {updated} · раз в {Info.UpdateIntervalHours} ч",
             Theme.Caption, Theme.TextMuted, new RectangleF(Pad, 37, titleRight - Pad, 18));
 
         var y = InfoTop;
