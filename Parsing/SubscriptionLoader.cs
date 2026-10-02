@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using VpnClient.Models;
 
@@ -5,11 +6,12 @@ namespace VpnClient.Parsing;
 
 public static class SubscriptionLoader
 {
-    private static readonly HttpClient Http = CreateClient();
+    private static readonly HttpClient Http = CreateClient(new HttpClientHandler());
+    private static readonly Dictionary<int, HttpClient> Proxied = new();
 
-    public static async Task<SubscriptionResult> LoadAsync(string url)
+    public static async Task<SubscriptionResult> LoadAsync(string url, int? proxyPort = null)
     {
-        using var response = await Http.GetAsync(url);
+        using var response = await Client(proxyPort).GetAsync(url);
         response.EnsureSuccessStatusCode();
 
         var text = (await response.Content.ReadAsStringAsync()).Trim();
@@ -131,9 +133,22 @@ public static class SubscriptionLoader
         }
     }
 
-    private static HttpClient CreateClient()
+    private static HttpClient Client(int? proxyPort)
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        if (proxyPort == null)
+            return Http;
+
+        if (!Proxied.TryGetValue(proxyPort.Value, out var client))
+        {
+            client = CreateClient(new HttpClientHandler { Proxy = new WebProxy($"http://127.0.0.1:{proxyPort}"), UseProxy = true });
+            Proxied[proxyPort.Value] = client;
+        }
+        return client;
+    }
+
+    private static HttpClient CreateClient(HttpClientHandler handler)
+    {
+        var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("v2rayN/7.0");
         return client;
     }
