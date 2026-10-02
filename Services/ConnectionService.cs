@@ -45,6 +45,19 @@ public sealed class ConnectionService : IDisposable
         return ConnectResult.Ok;
     }
 
+    public static void CleanUpAfterCrash()
+    {
+        try
+        {
+            SystemProxy.RestoreIfLeftOver();
+            XrayRunner.KillOrphans(XrayRunner.XrayPath);
+            XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
     public void Stop()
     {
         _singBox.Stop();

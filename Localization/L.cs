@@ -68,6 +68,12 @@ public static class L
         ["Появится список серверов. Выберите любой и нажмите большую круглую кнопку справа."] =
             "A list of servers will appear. Pick any and press the big round button on the right.",
         ["Вставить ключ"] = "Paste key",
+        ["Подключаться при запуске"] = "Connect on startup",
+        ["Сразу включать VPN к последнему серверу"] = "Turn on VPN to the last server right away",
+        ["Запуск с Windows"] = "Start with Windows",
+        ["Открываться свёрнутым в трей при входе в систему"] = "Open minimized to tray when you sign in",
+        ["Tunnelka уже запущена. Её значок — рядом с часами."] = "Tunnelka is already running. Its icon is next to the clock.",
+        ["Что-то пошло не так: {0}\n\nПодробности записаны в {1}"] = "Something went wrong: {0}\n\nDetails are saved in {1}",
         ["Подписка закончилась. Продлите её, чтобы VPN снова заработал."] = "The subscription has ended. Renew it to get VPN working again.",
         ["До конца подписки меньше 3 дней. Продлите её, иначе доступ будет приостановлен."] = "Less than 3 days left on the subscription. Renew it, or access will be suspended.",
         ["Продлить подписку →"] = "Renew subscription →",

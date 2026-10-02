@@ -24,6 +24,8 @@ public class AppData
     public string Language { get; set; } = "ru";
     public bool RefreshOnStart { get; set; }
     public bool PingOnStart { get; set; }
+    public bool AutoStart { get; set; }
+    public bool ConnectOnStart { get; set; }
 
     [JsonPropertyName("Subscriptions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
