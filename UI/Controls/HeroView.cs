@@ -213,7 +213,7 @@ public class HeroView : ThemedControl
             var active = tun == _tun;
             if (active)
                 Theme.FillRounded(g, Theme.Accent, segment, segment.Height / 2);
-            Theme.DrawText(g, tun ? "TUN" : "Прокси", Theme.BodyBold, active ? Color.White : Theme.TextMuted, segment, StringAlignment.Center);
+            Theme.DrawText(g, tun ? "TUN" : L.T("Прокси"), Theme.BodyBold, active ? Color.White : Theme.TextMuted, segment, StringAlignment.Center);
         }
     }
 
@@ -340,12 +340,12 @@ public class HeroView : ThemedControl
 
         if (_connected)
         {
-            DrawSpaced(g, "ПОДКЛЮЧЕНО", Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.6f);
+            DrawSpaced(g, L.T("ПОДКЛЮЧЕНО"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.6f);
             DrawTimer(g, cx, r.Y + r.Height * 0.6f + 12, Theme.AccentStrong);
         }
         else
         {
-            DrawSpaced(g, "ОТКЛЮЧЕНО", Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
+            DrawSpaced(g, L.T("ОТКЛЮЧЕНО"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
         }
     }
 
@@ -410,7 +410,7 @@ public class HeroView : ThemedControl
     {
         if (_serverParts.Count == 0)
         {
-            Theme.DrawText(g, "Выбери сервер", Theme.ServerName, Theme.TextMuted, _nameRect, StringAlignment.Center);
+            Theme.DrawText(g, L.T("Выбери сервер"), Theme.ServerName, Theme.TextMuted, _nameRect, StringAlignment.Center);
             return;
         }
 
@@ -429,14 +429,14 @@ public class HeroView : ThemedControl
         var refresh = _refreshRect;
         Theme.FillRounded(g, _hoverRefresh ? Theme.Card : Color.FromArgb(215, Theme.Card), refresh, refresh.Height / 2);
         Theme.DrawRounded(g, _hoverRefresh ? Theme.Accent : Theme.Border, refresh, refresh.Height / 2, 1.4f);
-        Theme.DrawText(g, "Обновить подписку", Theme.BodyBold, Theme.AccentStrong, refresh, StringAlignment.Center);
+        Theme.DrawText(g, L.T("Обновить подписку"), Theme.BodyBold, Theme.AccentStrong, refresh, StringAlignment.Center);
 
         var r = _pingRect;
         using (var brush = new LinearGradientBrush(r, _hoverPing ? Theme.Lighten(Theme.Accent, 0.15f) : Theme.Accent, _hoverPing ? Theme.Lighten(Theme.Pink, 0.15f) : Theme.Pink, 0f))
         using (var path = Theme.RoundedRect(r, r.Height / 2))
             g.FillPath(brush, path);
 
-        Theme.DrawText(g, "Проверка пинга", Theme.BodyBold, Color.White, r, StringAlignment.Center);
+        Theme.DrawText(g, L.T("Проверка пинга"), Theme.BodyBold, Color.White, r, StringAlignment.Center);
 
         if (_busy)
             DrawBusy(g);

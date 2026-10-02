@@ -30,15 +30,15 @@ public class RuleCard : ThemedControl
 
         var target = value.Substring(XrayConfigBuilder.ProcessPrefix.Length).Trim();
         return target.Contains('/') || target.Contains('\\')
-            ? $"{Path.GetFileName(target.Replace('/', '\\'))} (файл)"
-            : $"{target} (процесс)";
+            ? L.F("{0} (файл)", Path.GetFileName(target.Replace('/', '\\')))
+            : L.F("{0} (процесс)", target);
     }));
 
     public static string ActionTitle(string action) => action switch
     {
-        RoutingRule.Proxy => "Через VPN",
-        RoutingRule.Block => "Блокировать",
-        _ => "Напрямую"
+        RoutingRule.Proxy => L.T("Через VPN"),
+        RoutingRule.Block => L.T("Блокировать"),
+        _ => L.T("Напрямую")
     };
 
     public static Color ActionColor(string action) => action switch
