@@ -7,11 +7,13 @@ public sealed class SubscriptionService
 {
     private readonly Settings _settings;
     private readonly AppLog _log;
+    private readonly Func<int?> _proxyPort;
 
-    public SubscriptionService(Settings settings, AppLog log)
+    public SubscriptionService(Settings settings, AppLog log, Func<int?> proxyPort)
     {
         _settings = settings;
         _log = log;
+        _proxyPort = proxyPort;
     }
 
     public IReadOnlyList<SubscriptionInfo> Profiles => _settings.Data.Profiles;
@@ -43,7 +45,7 @@ public sealed class SubscriptionService
         try
         {
             _log.Write(L.T("Обновляю подписку"));
-            var result = await SubscriptionLoader.LoadAsync(url);
+            var result = await SubscriptionLoader.LoadAsync(url, _proxyPort());
             var index = _settings.Data.Profiles.FindIndex(p => p.Url == url);
             if (index < 0)
                 return false;
