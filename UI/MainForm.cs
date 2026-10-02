@@ -769,7 +769,10 @@ public class MainForm : Form, IMessageFilter
             AfterServersChanged();
 
         foreach (var header in _list.Controls.OfType<SubscriptionCard>())
+        {
+            header.UpdateLayout();
             header.Invalidate();
+        }
     }
 
     private void DeleteSubscription(string url)
@@ -997,6 +1000,11 @@ public class MainForm : Form, IMessageFilter
             await UpdateSubscriptions();
         else
             await RefreshDueSubscriptions();
+
+        var expiring = _subscriptions.Profiles.FirstOrDefault(p => p.ExpiresSoon);
+        if (expiring != null)
+            _tray.ShowBalloonTip(10000, "Tunnelka",
+                L.F("Подписка «{0}» скоро закончится. Продлите её, иначе доступ будет приостановлен.", expiring.Title), ToolTipIcon.Warning);
 
         if (Data.PingOnStart)
             await PingAll();
