@@ -8,7 +8,7 @@ public class HeroView : ThemedControl
     private const int RippleCount = 5;
     private const float RippleDelay = 0.22f;
     private const float RippleLife = 1.8f;
-    private const float RippleReach = 140;
+    private const float RippleReach = 132;
 
     private readonly System.Windows.Forms.Timer _animation = new() { Interval = 25 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -123,10 +123,10 @@ public class HeroView : ThemedControl
         var h = ClientSize.Height / Theme.S;
         var scale = Math.Max(0.55f, Math.Min(1f, h / 660f));
 
-        var diameter = 184 * scale;
+        var diameter = 200 * scale;
         var kittenW = 190 * scale;
         var kittenH = 152 * scale;
-        var gap = 60 * scale;
+        var gap = (RippleReach + 10) * scale;
         var total = diameter + gap + kittenH + 12 + 34 + 18 + 44 + 26;
         var top = Math.Max(64, (h - total) / 2 - 8);
         var cx = w / 2;
@@ -270,7 +270,7 @@ public class HeroView : ThemedControl
         var body = Inflate(r, hoverPulse * 4);
         if (_connected)
         {
-            using var brush = new LinearGradientBrush(body, Theme.Pink, Theme.Accent, 45f);
+            using var brush = new LinearGradientBrush(body, Theme.Pink, Theme.Accent, 90f);
             g.FillEllipse(brush, body);
         }
         else
@@ -300,12 +300,12 @@ public class HeroView : ThemedControl
 
         if (_connected)
         {
-            Theme.DrawText(g, "Подключено", Theme.Status, Color.FromArgb(235, Color.White), new RectangleF(r.X, r.Y + r.Height * 0.5f, r.Width, 22), StringAlignment.Center);
+            SmoothText(g, "Подключено", Theme.Status, Color.FromArgb(235, Color.White), new RectangleF(r.X, r.Y + r.Height * 0.5f, r.Width, 22));
             DrawTimer(g, cx, r.Y + r.Height * 0.5f + 24, Color.White);
         }
         else
         {
-            Theme.DrawText(g, "Отключено", Theme.Status, Theme.TextMuted, new RectangleF(r.X, r.Y + r.Height * 0.6f, r.Width, 22), StringAlignment.Center);
+            SmoothText(g, "Отключено", Theme.Status, Theme.TextMuted, new RectangleF(r.X, r.Y + r.Height * 0.6f, r.Width, 22));
         }
     }
 
@@ -326,9 +326,24 @@ public class HeroView : ThemedControl
         foreach (var c in _elapsed)
         {
             var width = c == ':' ? _colonWidth : _digitWidth;
-            Theme.DrawText(g, c.ToString(), Theme.Timer, color, new RectangleF(x, top, width, 32), StringAlignment.Center);
+            SmoothText(g, c.ToString(), Theme.Timer, color, new RectangleF(x, top, width, 32));
             x += width;
         }
+    }
+
+    private static void SmoothText(Graphics g, string text, Font font, Color color, RectangleF r)
+    {
+        var hint = g.TextRenderingHint;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+        using var brush = new SolidBrush(color);
+        using var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+            FormatFlags = StringFormatFlags.NoWrap | StringFormatFlags.NoClip
+        };
+        g.DrawString(text, font, brush, r, format);
+        g.TextRenderingHint = hint;
     }
 
     private void DrawServer(Graphics g)
