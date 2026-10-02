@@ -45,7 +45,7 @@ public class SettingsPage : Panel
 
     public void ShowPingMode(bool real)
     {
-        PingRow.Subtitle = real ? "Реальный, через VPN" : "Быстрый, TCP";
+        PingRow.Subtitle = real ? "Реальный (via proxy)" : "Быстрый (TCP)";
         PingRow.Invalidate();
     }
 

@@ -6,7 +6,7 @@ public static class AddDialog
     {
         using var form = new Form
         {
-            Text = "Добавить",
+            Text = "Добавить ключ",
             ClientSize = new Size(Theme.Px(540), Theme.Px(170)),
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
@@ -19,7 +19,7 @@ public static class AddDialog
 
         var label = new Label
         {
-            Text = "Ключ (vless://, vmess://, trojan://, ss://) или ссылка на подписку",
+            Text = "Ключ сервера (vless, vmess, trojan, ss) или ключ подписки",
             Left = Theme.Px(20),
             Top = Theme.Px(18),
             AutoSize = true,
@@ -27,7 +27,7 @@ public static class AddDialog
             Font = Theme.Scaled(Theme.BodyBold)
         };
 
-        var box = new Controls.SearchBox("vless://...  или  https://подписка", false)
+        var box = new Controls.SearchBox("vless://...  или  https://...", false)
         {
             Left = Theme.Px(20),
             Top = Theme.Px(46),
