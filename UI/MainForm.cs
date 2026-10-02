@@ -270,7 +270,7 @@ public class MainForm : Form, IMessageFilter
 
         var scan = PageParts.Button("Сканировать QR", false);
         scan.Click += async (_, _) => await ScanQr();
-        var share = PageParts.Button("Поделиться", false);
+        var share = PageParts.Button("Поделиться ключом", false);
         share.Click += (_, _) => ShareKey();
         var actionRow = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(46) }, () => Theme.Surface);
         actionRow.Controls.AddRange(new Control[] { scan, share });
@@ -555,12 +555,10 @@ public class MainForm : Form, IMessageFilter
 
     private void ShareKey()
     {
-        var keys = _subscriptions.Profiles.Select(p => ($"{p.Title} (подписка)", p.Url))
-            .Concat(Data.Servers.Where(s => s.Link.Length > 0).Select(s => (ServerText.CleanName(s), s.Link)))
-            .ToList();
+        var keys = _subscriptions.Profiles.Select(p => (p.Title, p.Url)).ToList();
         if (keys.Count == 0)
         {
-            _hero.SetPing("Нет ключей, чтобы поделиться", Theme.TextMuted);
+            _hero.SetPing("Нет подписок, чтобы поделиться", Theme.TextMuted);
             return;
         }
 
