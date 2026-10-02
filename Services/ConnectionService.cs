@@ -1,15 +1,6 @@
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.Services;
-
-public enum ConnectResult
-{
-    Ok,
-    XrayMissing,
-    SingBoxMissing,
-    NeedsAdministrator,
-    Failed
-}
+namespace Tunnelka.Services;
 
 public sealed class ConnectionService : IDisposable
 {
@@ -72,15 +63,15 @@ public sealed class ConnectionService : IDisposable
             XrayRunner.KillOrphans(XrayRunner.XrayPath);
             XrayConfigBuilder.ChoosePorts();
             if (XrayConfigBuilder.SocksPort != XrayConfigBuilder.PreferredSocksPort)
-                _log.Write($"Порт {XrayConfigBuilder.PreferredSocksPort} занят другой программой (например, Happ или v2rayN), беру {XrayConfigBuilder.SocksPort}");
+                _log.Write(L.F("Порт {0} занят другой программой (например, Happ или v2rayN), беру {1}", XrayConfigBuilder.PreferredSocksPort, XrayConfigBuilder.SocksPort));
 
             _xray.Start(XrayConfigBuilder.Build(server, rules));
-            _log.Write($"Порты: SOCKS5 127.0.0.1:{XrayConfigBuilder.SocksPort}, HTTP 127.0.0.1:{XrayConfigBuilder.HttpPort}");
+            _log.Write(L.F("Порты: SOCKS5 127.0.0.1:{0}, HTTP 127.0.0.1:{1}", XrayConfigBuilder.SocksPort, XrayConfigBuilder.HttpPort));
             return ConnectResult.Ok;
         }
         catch (Exception ex)
         {
-            _log.Write($"Не удалось запустить xray: {ex.Message}");
+            _log.Write(L.F("Не удалось запустить xray: {0}", ex.Message));
             return ConnectResult.Failed;
         }
     }
@@ -94,12 +85,12 @@ public sealed class ConnectionService : IDisposable
         {
             XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
             _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, rules));
-            _log.Write("TUN включён");
+            _log.Write(L.T("TUN включён"));
             return ConnectResult.Ok;
         }
         catch (Exception ex)
         {
-            _log.Write($"Не удалось запустить TUN: {ex.Message}");
+            _log.Write(L.F("Не удалось запустить TUN: {0}", ex.Message));
             return ConnectResult.Failed;
         }
     }
@@ -117,11 +108,11 @@ public sealed class ConnectionService : IDisposable
                 SystemProxy.Disable();
 
             _proxyEnabled = enable;
-            _log.Write(enable ? "Системный прокси включён" : "Системный прокси выключен");
+            _log.Write(enable ? L.T("Системный прокси включён") : L.T("Системный прокси выключен"));
         }
         catch (Exception ex)
         {
-            _log.Write($"Не удалось изменить системный прокси: {ex.Message}");
+            _log.Write(L.F("Не удалось изменить системный прокси: {0}", ex.Message));
         }
     }
 

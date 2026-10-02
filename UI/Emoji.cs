@@ -1,6 +1,6 @@
 using System.IO.Compression;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public static class Emoji
 {

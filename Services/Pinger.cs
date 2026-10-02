@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Net.Sockets;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public static class Pinger
 {

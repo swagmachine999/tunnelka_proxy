@@ -3,9 +3,9 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public static class XrayConfigBuilder
 {
@@ -279,7 +279,7 @@ public static class XrayConfigBuilder
                 ["password"] = s.Secret
             })
         },
-        _ => throw new NotSupportedException($"Протокол {s.Protocol} не поддерживается")
+        _ => throw new NotSupportedException(L.F("Протокол {0} не поддерживается", s.Protocol))
     };
 
     private static JsonObject Stream(ProxyServer s)

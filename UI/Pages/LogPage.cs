@@ -1,4 +1,4 @@
-namespace VpnClient.UI.Pages;
+namespace Tunnelka.UI.Pages;
 
 public class LogPage : Panel
 {
@@ -23,12 +23,12 @@ public class LogPage : Panel
         Theme.Bind(frame, () => Theme.Card);
         frame.Controls.Add(_log);
 
-        var clear = PageParts.Button("Очистить", false);
+        var clear = PageParts.Button(L.T("Очистить"), false);
         clear.Dock = DockStyle.Right;
         clear.Width = Theme.Px(110);
         clear.Click += (_, _) => _log.Clear();
 
-        var header = PageParts.Header("Журнал", onBack);
+        var header = PageParts.Header(L.T("Журнал"), onBack);
         var buttonHolder = new Panel { Dock = DockStyle.Right, Width = Theme.Px(110), Padding = Theme.Px(0, 10, 0, 8) };
         Theme.Bind(buttonHolder, () => Theme.Surface);
         buttonHolder.Controls.Add(clear);
