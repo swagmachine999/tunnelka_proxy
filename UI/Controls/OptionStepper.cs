@@ -1,6 +1,6 @@
 using System.Drawing.Drawing2D;
 
-namespace VpnClient.UI.Controls;
+namespace Tunnelka.UI.Controls;
 
 public class OptionStepper : ThemedControl
 {

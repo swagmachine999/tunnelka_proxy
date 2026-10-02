@@ -1,11 +1,11 @@
-using VpnClient.Models;
-using VpnClient.Parsing;
-using VpnClient.Services;
-using VpnClient.Storage;
-using VpnClient.UI.Controls;
-using VpnClient.UI.Pages;
+using Tunnelka.Models;
+using Tunnelka.Parsing;
+using Tunnelka.Services;
+using Tunnelka.Storage;
+using Tunnelka.UI.Controls;
+using Tunnelka.UI.Pages;
 
-namespace VpnClient.UI;
+namespace Tunnelka.UI;
 
 public class MainForm : Form, IMessageFilter
 {
@@ -67,6 +67,7 @@ public class MainForm : Form, IMessageFilter
     private readonly System.Windows.Forms.Timer _autoUpdate = new() { Interval = 60_000 };
     private SubscriptionCard? _menuSubscription;
     private readonly List<ServerCard> _cards = new();
+    private readonly HashSet<string> _warnedSubscriptions = new();
 
     private ProxyServer? _selected;
     private ProxyServer? _active;
@@ -757,6 +758,7 @@ public class MainForm : Form, IMessageFilter
     private void ShowSubscriptionResult(bool ok)
     {
         AfterServersChanged();
+        WarnAboutExpiring();
         if (ok)
             _hero.SetPing(L.T("Подписка обновлена"), Theme.PingGood);
         else
@@ -773,6 +775,23 @@ public class MainForm : Form, IMessageFilter
             header.UpdateLayout();
             header.Invalidate();
         }
+
+        WarnAboutExpiring();
+    }
+
+    private void WarnAboutExpiring()
+    {
+        var titles = _subscriptions.Profiles
+            .Where(p => p.ExpiresSoon && _warnedSubscriptions.Add(p.Url))
+            .Select(p => p.Title)
+            .ToList();
+        if (titles.Count == 0)
+            return;
+
+        var text = titles.Count == 1
+            ? L.F("Подписка «{0}» скоро закончится. Продлите её, иначе доступ будет приостановлен.", titles[0])
+            : L.F("Подписки {0} скоро закончатся. Продлите их, иначе доступ будет приостановлен.", string.Join(", ", titles.Select(t => $"«{t}»")));
+        _tray.ShowBalloonTip(10000, "Tunnelka", text, ToolTipIcon.Warning);
     }
 
     private void DeleteSubscription(string url)
@@ -1000,11 +1019,6 @@ public class MainForm : Form, IMessageFilter
             await UpdateSubscriptions();
         else
             await RefreshDueSubscriptions();
-
-        var expiring = _subscriptions.Profiles.FirstOrDefault(p => p.ExpiresSoon);
-        if (expiring != null)
-            _tray.ShowBalloonTip(10000, "Tunnelka",
-                L.F("Подписка «{0}» скоро закончится. Продлите её, иначе доступ будет приостановлен.", expiring.Title), ToolTipIcon.Warning);
 
         if (Data.PingOnStart)
             await PingAll();

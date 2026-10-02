@@ -1,6 +1,6 @@
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.Parsing;
+namespace Tunnelka.Parsing;
 
 public sealed class SubscriptionResult
 {

@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.Storage;
+namespace Tunnelka.Storage;
 
 public class AppData
 {

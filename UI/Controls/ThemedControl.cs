@@ -1,4 +1,4 @@
-namespace VpnClient.UI.Controls;
+namespace Tunnelka.UI.Controls;
 
 public abstract class ThemedControl : Control
 {

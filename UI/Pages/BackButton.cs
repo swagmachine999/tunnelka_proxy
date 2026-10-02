@@ -1,6 +1,6 @@
-using VpnClient.UI.Controls;
+using Tunnelka.UI.Controls;
 
-namespace VpnClient.UI.Pages;
+namespace Tunnelka.UI.Pages;
 
 public class BackButton : ThemedControl
 {

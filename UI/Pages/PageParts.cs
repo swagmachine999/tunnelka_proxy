@@ -1,4 +1,4 @@
-namespace VpnClient.UI.Pages;
+namespace Tunnelka.UI.Pages;
 
 public static class PageParts
 {

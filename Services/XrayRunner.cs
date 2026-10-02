@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public sealed class XrayRunner : IDisposable
 {
