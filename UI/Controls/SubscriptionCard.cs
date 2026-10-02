@@ -184,10 +184,10 @@ public class SubscriptionCard : ThemedControl
         var titleParts = ServerText.Parts(Info.Title, Info.Title);
         NamePainter.Draw(g, titleParts, Theme.CardTitle, Theme.Text, new RectangleF(Pad + 16, 14, x - Pad - 20, 24));
 
-        var updated = Info.UpdatedAt == default ? "никогда"
-            : Info.UpdatedAt.Date == DateTime.Today ? $"в {Info.UpdatedAt:HH:mm}" : $"{Info.UpdatedAt:dd.MM HH:mm}";
-        var count = ServerText.Plural(ServerCount, "сервер", "сервера", "серверов");
-        Theme.DrawText(g, $"{count} · обновлено {updated} · раз в {Info.UpdateIntervalHours} ч",
+        var updated = Info.UpdatedAt == default ? L.T("никогда")
+            : Info.UpdatedAt.Date == DateTime.Today ? L.F("в {0:HH:mm}", Info.UpdatedAt) : $"{Info.UpdatedAt:dd.MM HH:mm}";
+        var count = ServerText.Plural(ServerCount, L.T("сервер"), L.T("сервера"), L.T("серверов"));
+        Theme.DrawText(g, L.F("{0} · обновлено {1} · раз в {2} ч", count, updated, Info.UpdateIntervalHours),
             Theme.Caption, Theme.TextMuted, new RectangleF(Pad + 16, 42, W - Pad * 2 - 16, 18));
 
         var y = InfoTop;
@@ -195,7 +195,7 @@ public class SubscriptionCard : ThemedControl
         if (Info.Total > 0)
         {
             y += 22;
-            DrawInfoRow(g, y, $"Трафик: {ServerText.Bytes(Info.Upload + Info.Download)} из {ServerText.Bytes(Info.Total)}", Theme.Text);
+            DrawInfoRow(g, y, L.F("Трафик: {0} из {1}", ServerText.Bytes(Info.Upload + Info.Download), ServerText.Bytes(Info.Total)), Theme.Text);
         }
 
         if (_lines.Count == 0)
@@ -334,17 +334,17 @@ public class SubscriptionCard : ThemedControl
     private string ExpireText()
     {
         if (Info.Expire == null)
-            return "Подписка без срока";
+            return L.T("Подписка без срока");
 
         var expire = Info.Expire.Value;
         var left = expire - DateTime.Now;
         if (left <= TimeSpan.Zero)
-            return $"Подписка истекла {expire:dd.MM.yyyy}";
+            return L.F("Подписка истекла {0:dd.MM.yyyy}", expire);
 
         var tail = left.TotalDays >= 1
-            ? ServerText.Plural((int)left.TotalDays, "день", "дня", "дней")
-            : ServerText.Plural(Math.Max(1, (int)left.TotalHours), "час", "часа", "часов");
-        return $"Истекает {expire:dd.MM.yyyy} · осталось {tail}";
+            ? ServerText.Plural((int)left.TotalDays, L.T("день"), L.T("дня"), L.T("дней"))
+            : ServerText.Plural(Math.Max(1, (int)left.TotalHours), L.T("час"), L.T("часа"), L.T("часов"));
+        return L.F("Истекает {0:dd.MM.yyyy} · осталось {1}", expire, tail);
     }
 
     private Color ExpireColor()
