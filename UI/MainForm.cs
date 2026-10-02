@@ -62,7 +62,7 @@ public class MainForm : Form, IMessageFilter
 
     public event EventHandler? ReloadRequested;
 
-    public MainForm(bool reconnect = false, IconKind startPage = IconKind.Servers, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal)
+    public MainForm(bool reconnect = false, IconKind startPage = IconKind.Servers, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal, bool startHidden = false)
     {
         _settings = new Settings(_log);
         _connection = new ConnectionService(_log);
@@ -87,7 +87,7 @@ public class MainForm : Form, IMessageFilter
         _log.Written += Log;
         _logPage = new LogPage(() => ShowPage(IconKind.Settings));
         _routingPage = new RoutingPage(Data.Rules, () => ShowPage(IconKind.Settings));
-        _settingsPage = new SettingsPage(Data.Tun, Data.SpeedInterval, Data.RealPing, Data.RefreshOnStart, Data.PingOnStart);
+        _settingsPage = new SettingsPage(Data.Tun, Data.SpeedInterval, Data.RealPing, Data.RefreshOnStart, Data.PingOnStart, Data.AutoStart, Data.ConnectOnStart);
         _interfacePage = new InterfacePage(Data.DarkTheme, Data.UiScale, Data.Language, () => ShowPage(IconKind.Settings));
         _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
 
@@ -122,7 +122,8 @@ public class MainForm : Form, IMessageFilter
         _list.AddRequested += (_, _) => ShowAddDialog();
         _autoUpdate.Tick += async (_, _) => await RefreshDueSubscriptions();
         _autoUpdate.Start();
-        Shown += async (_, _) => await RunStartupTasks();
+        _startHidden = startHidden;
+        Shown += async (_, _) => await StartUp(reconnect);
 
         _hero.Tun = Data.Tun;
         _hero.PowerClicked += (_, _) => ToggleConnection();
@@ -148,6 +149,18 @@ public class MainForm : Form, IMessageFilter
             Data.PingOnStart = _settingsPage.PingToggle.Checked;
             Save();
         };
+        _settingsPage.AutoStartToggle.CheckedChanged += (_, _) =>
+        {
+            Data.AutoStart = _settingsPage.AutoStartToggle.Checked;
+            Autostart.Apply(Data.AutoStart);
+            Save();
+        };
+        _settingsPage.ConnectToggle.CheckedChanged += (_, _) =>
+        {
+            Data.ConnectOnStart = _settingsPage.ConnectToggle.Checked;
+            Save();
+        };
+        Autostart.Apply(Data.AutoStart);
         _statsPage.PeriodChanged += minutes =>
         {
             Data.StatsPeriod = minutes;
@@ -225,8 +238,6 @@ public class MainForm : Form, IMessageFilter
             ReloadRequested?.Invoke(this, EventArgs.Empty);
         };
 
-        if (reconnect)
-            Shown += (_, _) => Connect();
     }
 
     public bool PrepareForReplace()
@@ -816,6 +827,33 @@ public class MainForm : Form, IMessageFilter
             Log(L.T("Правила применены"));
         else
             Disconnect();
+    }
+
+    private bool _startHidden;
+    private bool _started;
+
+    protected override void SetVisibleCore(bool value)
+    {
+        if (_startHidden && value)
+        {
+            _startHidden = false;
+            if (!IsHandleCreated)
+                CreateHandle();
+            BeginInvoke(new Action(() => OnShown(EventArgs.Empty)));
+            value = false;
+        }
+        base.SetVisibleCore(value);
+    }
+
+    private async Task StartUp(bool reconnect)
+    {
+        if (_started)
+            return;
+        _started = true;
+
+        if (reconnect || Data.ConnectOnStart)
+            Connect();
+        await RunStartupTasks();
     }
 
     private async Task RunStartupTasks()
