@@ -124,17 +124,21 @@ public class HeroView : ThemedControl
     {
         var w = ClientSize.Width / Theme.S;
         var h = ClientSize.Height / Theme.S;
+        const float header = 72;
+        const float ringMargin = 52;
         const float fixedHeight = 12 + 34 + 18 + 44 + 26;
-        const float scaledHeight = 200 + RippleReach + 10 + KittenDrop + 152;
-        var scale = Math.Max(0.55f, Math.Min(1f, (h - 72 - fixedHeight) / scaledHeight));
+        const float scaledHeight = ringMargin + 200 + RippleReach + 10 + 152;
+        var available = h - header - 16 - fixedHeight;
+        var scale = Math.Max(0.45f, Math.Min(1f, Math.Min(available / scaledHeight, (w - 32) / (200 + ringMargin * 2))));
         _scale = scale;
 
+        var extra = Math.Max(0, available - scaledHeight * scale);
+        var drop = Math.Min(extra, KittenDrop * scale);
         var diameter = 200 * scale;
         var kittenW = 190 * scale;
         var kittenH = 152 * scale;
-        var gap = (RippleReach + 10 + KittenDrop) * scale;
-        var total = diameter + gap + kittenH + fixedHeight;
-        var top = Math.Max(56, (h - total) / 2);
+        var gap = (RippleReach + 10) * scale + drop;
+        var top = header + ringMargin * scale + (extra - drop) / 2;
         var cx = w / 2;
 
         _powerRect = new RectangleF(cx - diameter / 2, top, diameter, diameter);
