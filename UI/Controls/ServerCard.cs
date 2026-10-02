@@ -1,6 +1,6 @@
-using VpnClient.Models;
+using Tunnelka.Models;
 
-namespace VpnClient.UI.Controls;
+namespace Tunnelka.UI.Controls;
 
 public class ServerCard : ThemedControl
 {

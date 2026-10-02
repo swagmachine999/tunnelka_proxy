@@ -1,4 +1,4 @@
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public sealed class TrafficCounters
 {

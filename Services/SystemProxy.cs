@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
-namespace VpnClient.Services;
+namespace Tunnelka.Services;
 
 public static class SystemProxy
 {

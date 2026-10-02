@@ -1,7 +1,7 @@
-using VpnClient.Storage;
-using VpnClient.UI;
+using Tunnelka.Storage;
+using Tunnelka.UI;
 
-namespace VpnClient;
+namespace Tunnelka;
 
 internal static class Program
 {
