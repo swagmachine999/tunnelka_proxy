@@ -8,6 +8,7 @@ public sealed class SubscriptionService
     private readonly Settings _settings;
     private readonly AppLog _log;
     private readonly Func<int?> _proxyPort;
+    private readonly HashSet<string> _warned = new();
 
     public SubscriptionService(Settings settings, AppLog log, Func<int?> proxyPort)
     {
@@ -21,6 +22,9 @@ public sealed class SubscriptionService
     public bool IsKnown(string url) => Profiles.Any(p => p.Url == url);
 
     public bool IsCollapsed(string? url) => Profiles.Any(p => p.Url == url && p.Collapsed);
+
+    public List<string> TakeNewlyExpiring() =>
+        Profiles.Where(p => p.ExpiresSoon && _warned.Add(p.Url)).Select(p => p.Title).ToList();
 
     public List<ProxyServer> Servers(string url) =>
         _settings.Data.Servers.Where(s => s.SubscriptionUrl == url).ToList();
