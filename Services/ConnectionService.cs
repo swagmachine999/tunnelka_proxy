@@ -8,6 +8,7 @@ public sealed class ConnectionService : IDisposable
     private readonly AppLog _log;
     private readonly XrayRunner _xray = new();
     private readonly XrayRunner _singBox = new(XrayRunner.SingBoxPath, "tun.json");
+    private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _proxyEnabled;
 
     public ConnectionService(AppLog log)
@@ -23,7 +24,46 @@ public sealed class ConnectionService : IDisposable
 
     public bool IsRunning => _xray.IsRunning;
 
-    public ConnectResult Start(ProxyServer server, bool tun, IReadOnlyList<RoutingRule> rules)
+    public async Task<ConnectResult> StartAsync(ProxyServer server, bool tun, IReadOnlyList<RoutingRule> rules)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            return await Task.Run(() => StartCore(server, tun, rules));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task StopAsync()
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            await Task.Run(StopCore);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public void Stop()
+    {
+        _gate.Wait();
+        try
+        {
+            StopCore();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private ConnectResult StartCore(ProxyServer server, bool tun, IReadOnlyList<RoutingRule> rules)
     {
         if (tun && !Elevation.IsAdministrator())
             return ConnectResult.NeedsAdministrator;
@@ -61,7 +101,7 @@ public sealed class ConnectionService : IDisposable
         }
     }
 
-    public void Stop()
+    private void StopCore()
     {
         _singBox.Stop();
         _xray.Stop();
@@ -101,7 +141,7 @@ public sealed class ConnectionService : IDisposable
         {
             XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
             _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, rules));
-            if (_singBox.WaitForExit(1500))
+            if (_singBox.WaitForExit(800))
             {
                 _log.Write(L.F("sing-box сразу завершился, код {0}", _singBox.ExitCode ?? -1));
                 return ConnectResult.Failed;

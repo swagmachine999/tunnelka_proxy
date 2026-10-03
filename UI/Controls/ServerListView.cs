@@ -67,7 +67,7 @@ public class ServerListView : FlowLayoutPanel
         _subscriptionMenu.Opening += (_, _) => _menuSubscription = _subscriptionMenu.SourceControl as SubscriptionCard;
     }
 
-    public void Rebuild(IReadOnlyList<ProxyServer> servers, ProxyServer? auto, ProxyServer? selected, ProxyServer? active)
+    public void Rebuild(IReadOnlyList<ProxyServer> servers, Func<string?, ProxyServer> autoFor, ProxyServer? selected, ProxyServer? active)
     {
         SuspendLayout();
         foreach (Control control in Controls.Cast<Control>().ToList())
@@ -84,9 +84,6 @@ public class ServerListView : FlowLayoutPanel
             controls.Add(welcome);
         }
 
-        if (auto != null)
-            controls.Add(CreateCard(auto));
-
         foreach (var info in _subscriptions.Profiles)
         {
             var url = info.Url;
@@ -102,12 +99,15 @@ public class ServerListView : FlowLayoutPanel
                 ApplyFilter();
             };
             controls.Add(header);
+            if (subscriptionServers.Count > 0)
+                controls.Add(CreateCard(autoFor(url)));
             controls.AddRange(subscriptionServers.Select(CreateCard));
         }
 
-        controls.AddRange(servers
-            .Where(s => s.SubscriptionUrl == null || !_subscriptions.IsKnown(s.SubscriptionUrl))
-            .Select(CreateCard));
+        var loose = servers.Where(s => s.SubscriptionUrl == null || !_subscriptions.IsKnown(s.SubscriptionUrl)).ToList();
+        if (loose.Count > 1)
+            controls.Add(CreateCard(autoFor(null)));
+        controls.AddRange(loose.Select(CreateCard));
 
         Controls.AddRange(controls.ToArray());
         Mark(selected, active);

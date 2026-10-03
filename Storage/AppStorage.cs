@@ -7,11 +7,14 @@ public static class AppStorage
 {
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
-    private static string DataPath => Path.Combine(AppContext.BaseDirectory, "data.dat");
-    private static string LegacyPath => Path.Combine(AppContext.BaseDirectory, "data.json");
+    public static string Folder { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Tunnelka");
+
+    private static string DataPath => Path.Combine(Folder, "data.dat");
+    private static string LegacyPath => Path.Combine(Folder, "data.json");
 
     public static AppData Load()
     {
+        MoveFromAppFolder();
         if (File.Exists(LegacyPath))
             return Read(LegacyPath, File.ReadAllBytes);
         if (File.Exists(DataPath))
@@ -21,12 +24,33 @@ public static class AppStorage
 
     public static void Save(AppData data)
     {
+        Directory.CreateDirectory(Folder);
         var temp = DataPath + ".tmp";
         File.WriteAllBytes(temp, Dpapi.Protect(JsonSerializer.SerializeToUtf8Bytes(data, Options)));
         File.Move(temp, DataPath, true);
 
         if (File.Exists(LegacyPath) && IsReadable(DataPath))
             File.Delete(LegacyPath);
+    }
+
+    private static void MoveFromAppFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(Folder);
+            foreach (var name in new[] { "data.dat", "data.json" })
+            {
+                var old = Path.Combine(AppContext.BaseDirectory, name);
+                var target = Path.Combine(Folder, name);
+                if (File.Exists(old) && !File.Exists(DataPath) && !File.Exists(LegacyPath))
+                    File.Copy(old, target);
+                if (File.Exists(old) && File.Exists(target))
+                    File.Move(old, old + ".moved", true);
+            }
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private static AppData Read(string path, Func<string, byte[]> read)
