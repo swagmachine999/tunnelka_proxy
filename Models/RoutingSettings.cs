@@ -2,17 +2,28 @@ using System.Text.Json.Serialization;
 
 namespace Tunnelka.Models;
 
+public enum RoutingMode
+{
+    AllVpn,
+    DirectForListed,
+    VpnForListed
+}
+
 public class RoutingSettings
 {
-    public bool Enabled { get; set; } = true;
+    public RoutingMode ListMode { get; set; } = RoutingMode.AllVpn;
     public List<RoutingRule> Rules { get; set; } = new();
 
-    [JsonIgnore]
-    public IEnumerable<RoutingRule> ActiveRules => Enabled ? Rules : Enumerable.Empty<RoutingRule>();
+    [JsonPropertyName("Enabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyEnabled { get; set; }
 
     [JsonIgnore]
-    public bool OnlyVpnListed => Enabled && Rules.Count > 0 && Rules.All(r => r.Action == RoutingRule.Proxy);
+    public IEnumerable<RoutingRule> ActiveRules => ListMode == RoutingMode.AllVpn ? Enumerable.Empty<RoutingRule>() : Rules;
 
     [JsonIgnore]
-    public string Final => OnlyVpnListed ? RoutingRule.Direct : RoutingRule.Proxy;
+    public string ListedAction => ListMode == RoutingMode.VpnForListed ? RoutingRule.Proxy : RoutingRule.Direct;
+
+    [JsonIgnore]
+    public string Final => ListMode == RoutingMode.VpnForListed ? RoutingRule.Direct : RoutingRule.Proxy;
 }
