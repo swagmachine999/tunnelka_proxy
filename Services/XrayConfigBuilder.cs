@@ -58,7 +58,7 @@ public static class XrayConfigBuilder
         };
 
         foreach (var rule in routing.ActiveRules)
-            routingRules.Add(RuleNode(rule));
+            routingRules.Add(RuleNode(rule, routing));
 
         if (routing.Final == RoutingRule.Direct)
             routingRules.Add(new JsonObject { ["type"] = "field", ["network"] = "tcp,udp", ["outboundTag"] = "direct" });
@@ -97,9 +97,9 @@ public static class XrayConfigBuilder
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
-    private static JsonObject RuleNode(RoutingRule rule)
+    private static JsonObject RuleNode(RoutingRule rule, RoutingSettings routing)
     {
-        var node = new JsonObject { ["type"] = "field", ["outboundTag"] = rule.Action == RoutingRule.Proxy ? "proxy" : "direct" };
+        var node = new JsonObject { ["type"] = "field", ["outboundTag"] = routing.ListedAction == RoutingRule.Proxy ? "proxy" : "direct" };
         if (rule.IsProcess)
             node["process"] = new JsonArray(JsonValue.Create(rule.Target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? rule.Target[..^4] : rule.Target));
         else if (RoutingValues.IsIp(rule.Value))

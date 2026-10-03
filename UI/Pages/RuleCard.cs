@@ -5,14 +5,11 @@ namespace Tunnelka.UI.Pages;
 
 public class RuleCard : ThemedControl
 {
-    private const float PhaseWidth = 150;
+    private static readonly Dictionary<string, Image?> Icons = new(StringComparer.OrdinalIgnoreCase);
 
-    private RectangleF _vpnRect;
-    private RectangleF _directRect;
     private RectangleF _deleteRect;
-    private int _hover;
+    private bool _hoverDelete;
 
-    public event EventHandler? Changed;
     public event EventHandler? DeleteClicked;
 
     public RuleCard(RoutingRule rule)
@@ -34,39 +31,50 @@ public class RuleCard : ThemedControl
         Theme.DrawCard(g, rect, 14, Theme.Card, Theme.Border);
 
         var cy = rect.Y + rect.Height / 2;
-        var muted = Dimmed ? Theme.TextMuted : Theme.Text;
-        DrawIcon(g, new RectangleF(rect.X + 14, cy - 10, 20, 20), Rule.IsProcess, Dimmed ? Theme.TextMuted : Theme.AccentStrong);
+        var icon = new RectangleF(rect.X + 14, cy - 12, 24, 24);
+        if (LoadIcon(Rule.IconPath) is { } image)
+            g.DrawImage(image, icon);
+        else
+            DrawGlyph(g, RectangleF.Inflate(icon, -2, -2), Rule.IsProcess, Dimmed ? Theme.TextMuted : Theme.AccentStrong);
 
         _deleteRect = new RectangleF(rect.Right - 34, cy - 12, 24, 24);
-        var phase = new RectangleF(_deleteRect.X - 8 - PhaseWidth, cy - 15, PhaseWidth, 30);
-        _vpnRect = new RectangleF(phase.X, phase.Y, phase.Width / 2, phase.Height);
-        _directRect = new RectangleF(phase.X + phase.Width / 2, phase.Y, phase.Width / 2, phase.Height);
+        var textX = icon.Right + 12;
+        var textWidth = _deleteRect.X - textX - 8;
+        var color = Dimmed ? Theme.TextMuted : Theme.Text;
+        Theme.DrawText(g, Rule.DisplayName, Theme.BodyBold, color, new RectangleF(textX, rect.Y, textWidth, rect.Height));
 
-        Theme.DrawText(g, Rule.DisplayName, Theme.BodyBold, muted, new RectangleF(rect.X + 44, rect.Y, phase.X - rect.X - 52, rect.Height));
-
-        Theme.FillRounded(g, Theme.Surface, phase, phase.Height / 2);
-        Theme.DrawRounded(g, Theme.Border, phase, phase.Height / 2);
-        DrawSegment(g, _vpnRect, "VPN", Rule.Action == RoutingRule.Proxy, Theme.Accent, _hover == 1);
-        DrawSegment(g, _directRect, L.T("ПРЯМОЕ"), Rule.Action == RoutingRule.Direct, Theme.PingGood, _hover == 2);
-
-        using var pen = Theme.IconPen(_hover == 3 ? Theme.PingBad : Theme.TextMuted);
+        using var pen = Theme.IconPen(_hoverDelete ? Theme.PingBad : Theme.TextMuted);
         var c = new PointF(_deleteRect.X + 12, _deleteRect.Y + 12);
         g.DrawLine(pen, c.X - 5, c.Y - 5, c.X + 5, c.Y + 5);
         g.DrawLine(pen, c.X + 5, c.Y - 5, c.X - 5, c.Y + 5);
     }
 
-    private void DrawSegment(Graphics g, RectangleF r, string text, bool active, Color color, bool hover)
+    private static Image? LoadIcon(string path)
     {
-        var inner = RectangleF.Inflate(r, -3, -3);
-        if (active)
-            Theme.FillRounded(g, Dimmed ? Color.FromArgb(90, color) : color, inner, inner.Height / 2);
-        else if (hover)
-            Theme.FillRounded(g, Theme.CardHover, inner, inner.Height / 2);
+        if (path.Length == 0)
+            return null;
 
-        Theme.DrawText(g, text, Theme.CaptionBold, active ? Color.White : Theme.TextMuted, r, StringAlignment.Center);
+        if (Icons.TryGetValue(path, out var cached))
+            return cached;
+
+        Image? image = null;
+        try
+        {
+            if (File.Exists(path))
+            {
+                using var icon = Icon.ExtractAssociatedIcon(path);
+                image = icon?.ToBitmap();
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        Icons[path] = image;
+        return image;
     }
 
-    private static void DrawIcon(Graphics g, RectangleF r, bool process, Color color)
+    private static void DrawGlyph(Graphics g, RectangleF r, bool process, Color color)
     {
         using var pen = Theme.IconPen(color);
         if (process)
@@ -82,54 +90,28 @@ public class RuleCard : ThemedControl
         g.DrawLine(pen, r.X, r.Y + r.Height / 2, r.Right, r.Y + r.Height / 2);
     }
 
-    private int HitTest(Point location)
-    {
-        var point = Theme.Design(location);
-        return _vpnRect.Contains(point) ? 1 : _directRect.Contains(point) ? 2 : _deleteRect.Contains(point) ? 3 : 0;
-    }
-
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        var hover = HitTest(e.Location);
-        Cursor = hover == 0 ? Cursors.Default : Cursors.Hand;
-        if (hover == _hover)
+        var over = _deleteRect.Contains(Theme.Design(e.Location));
+        Cursor = over ? Cursors.Hand : Cursors.Default;
+        if (over == _hoverDelete)
             return;
 
-        _hover = hover;
+        _hoverDelete = over;
         Invalidate();
     }
 
     protected override void OnMouseLeave(EventArgs e)
     {
-        _hover = 0;
+        _hoverDelete = false;
         base.OnMouseLeave(e);
     }
 
     protected override void OnMouseClick(MouseEventArgs e)
     {
         base.OnMouseClick(e);
-        switch (HitTest(e.Location))
-        {
-            case 1:
-                SetAction(RoutingRule.Proxy);
-                break;
-            case 2:
-                SetAction(RoutingRule.Direct);
-                break;
-            case 3:
-                DeleteClicked?.Invoke(this, EventArgs.Empty);
-                break;
-        }
-    }
-
-    private void SetAction(string action)
-    {
-        if (Rule.Action == action)
-            return;
-
-        Rule.Action = action;
-        Invalidate();
-        Changed?.Invoke(this, EventArgs.Empty);
+        if (_deleteRect.Contains(Theme.Design(e.Location)))
+            DeleteClicked?.Invoke(this, EventArgs.Empty);
     }
 }

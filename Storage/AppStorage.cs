@@ -99,23 +99,35 @@ public static class AppStorage
 
     private static void MigrateRouting(AppData data)
     {
+        var routing = data.Routing;
         var legacy = data.LegacyRules ?? new List<RoutingRule>();
-        var source = legacy.Where(r => r.Enabled != false).Concat(data.Routing.Rules).ToList();
-        var rules = new List<RoutingRule>();
+        if (data.LegacyRules == null && routing.LegacyEnabled == null && routing.Rules.All(r => r.Action == null))
+            return;
 
-        foreach (var rule in source.Where(r => r.Action != RoutingRule.Block))
+        var source = legacy.Where(r => r.Enabled != false).Concat(routing.Rules)
+            .Where(r => r.Action != RoutingRule.Block).ToList();
+        var listed = source.Any(r => r.Action == RoutingRule.Direct) ? RoutingRule.Direct
+            : source.Any(r => r.Action == RoutingRule.Proxy) ? RoutingRule.Proxy : null;
+
+        var rules = new List<RoutingRule>();
+        foreach (var rule in source.Where(r => listed == null || r.Action == null || r.Action == listed))
         {
             foreach (var value in RoutingValues.Split(rule.Value))
             {
                 var clean = value.StartsWith(RoutingRule.ProcessPrefix, StringComparison.OrdinalIgnoreCase)
-                    ? RoutingRule.ForProcess(value[RoutingRule.ProcessPrefix.Length..], rule.Action)
-                    : new RoutingRule { Value = RoutingValues.Clean(value), Action = rule.Action };
+                    ? RoutingRule.ForProcess(value.Substring(RoutingRule.ProcessPrefix.Length))
+                    : new RoutingRule { Value = RoutingValues.Clean(value) };
+                if (clean.IconPath.Length == 0)
+                    clean.IconPath = rule.IconPath;
                 if (clean.Target.Length > 0 && !rules.Any(r => string.Equals(r.Value, clean.Value, StringComparison.OrdinalIgnoreCase)))
                     rules.Add(clean);
             }
         }
 
-        data.Routing.Rules = rules;
+        routing.ListMode = routing.LegacyEnabled == false || listed == null ? RoutingMode.AllVpn
+            : listed == RoutingRule.Proxy ? RoutingMode.VpnForListed : RoutingMode.DirectForListed;
+        routing.Rules = rules;
+        routing.LegacyEnabled = null;
         data.LegacyRules = null;
     }
 

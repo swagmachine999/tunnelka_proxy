@@ -12,7 +12,11 @@ public class RoutingRule
     [JsonPropertyName("Values")]
     public string Value { get; set; } = "";
 
-    public string Action { get; set; } = Direct;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string IconPath { get; set; } = "";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Action { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? Enabled { get; set; }
@@ -26,8 +30,15 @@ public class RoutingRule
     [JsonIgnore]
     public string DisplayName => Value.StartsWith("domain:", StringComparison.OrdinalIgnoreCase) ? Value.Substring("domain:".Length) : Target;
 
-    public static RoutingRule ForProcess(string nameOrPath, string action) =>
-        new() { Value = ProcessPrefix + ProcessName(nameOrPath), Action = action };
+    public static RoutingRule ForProcess(string nameOrPath)
+    {
+        var path = nameOrPath.Trim().Trim('"');
+        return new RoutingRule
+        {
+            Value = ProcessPrefix + ProcessName(path),
+            IconPath = path.Contains('\\') || path.Contains('/') ? path : ""
+        };
+    }
 
     public static string ProcessName(string nameOrPath)
     {
