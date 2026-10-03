@@ -20,6 +20,8 @@ public static class LinkParser
             "trojan" => ParseUriBased(link, "trojan"),
             "vmess" => ParseVmess(link),
             "ss" => ParseShadowsocks(link),
+            "hysteria2" or "hy2" => ParseHysteria2(link),
+            "tuic" => ParseTuic(link),
             _ => throw new FormatException(L.F("Протокол {0} не поддерживается", scheme))
         };
 
@@ -102,6 +104,65 @@ public static class LinkParser
         if (string.IsNullOrEmpty(server.Secret))
             throw new FormatException(L.T("В ключе нет пароля"));
 
+        return server;
+    }
+
+    private static ProxyServer ParseHysteria2(string link)
+    {
+        var uri = new Uri("hysteria2" + link[link.IndexOf("://", StringComparison.Ordinal)..]);
+        var query = HttpUtility.ParseQueryString(uri.Query);
+        string Get(string key) => query[key] ?? "";
+
+        var server = new ProxyServer
+        {
+            Protocol = "hysteria2",
+            Secret = Uri.UnescapeDataString(uri.UserInfo),
+            Address = uri.Host.Trim('[', ']'),
+            Port = uri.Port > 0 ? uri.Port : 443,
+            Name = Uri.UnescapeDataString(uri.Fragment.TrimStart('#')),
+            Network = "udp",
+            Security = "tls",
+            Sni = Get("sni"),
+            Alpn = Get("alpn"),
+            Obfs = Get("obfs"),
+            ObfsPassword = Get("obfs-password"),
+            AllowInsecure = Get("insecure") is "1" or "true"
+        };
+
+        if (string.IsNullOrEmpty(server.Secret))
+            throw new FormatException(L.T("В ключе нет пароля"));
+        return server;
+    }
+
+    private static ProxyServer ParseTuic(string link)
+    {
+        var uri = new Uri(link);
+        var query = HttpUtility.ParseQueryString(uri.Query);
+        string Get(string key) => query[key] ?? "";
+
+        var user = Uri.UnescapeDataString(uri.UserInfo);
+        var colon = user.IndexOf(':');
+        var server = new ProxyServer
+        {
+            Protocol = "tuic",
+            Secret = colon >= 0 ? user[..colon] : user,
+            Password = colon >= 0 ? user[(colon + 1)..] : "",
+            Address = uri.Host.Trim('[', ']'),
+            Port = uri.Port,
+            Name = Uri.UnescapeDataString(uri.Fragment.TrimStart('#')),
+            Network = "udp",
+            Security = "tls",
+            Sni = Get("sni"),
+            Alpn = Get("alpn"),
+            Congestion = Get("congestion_control"),
+            UdpRelayMode = Get("udp_relay_mode"),
+            AllowInsecure = Get("allow_insecure") is "1" or "true" || Get("insecure") is "1" or "true"
+        };
+
+        if (server.Port <= 0)
+            throw new FormatException(L.T("В ключе нет порта"));
+        if (string.IsNullOrEmpty(server.Secret))
+            throw new FormatException(L.T("В ключе нет пароля"));
         return server;
     }
 

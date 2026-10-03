@@ -13,22 +13,35 @@ public sealed class PingService
 
     public async Task Ping(IReadOnlyList<ProxyServer> servers, Action<ProxyServer> done)
     {
-        if (_settings.Data.RealPing && File.Exists(XrayRunner.XrayPath))
+        var real = _settings.Data.RealPing
+            ? servers.ToList()
+            : servers.Where(SingBoxRelay.Needs).ToList();
+        var tcp = servers.Except(real).ToList();
+
+        await Task.WhenAll(PingReal(real, done), PingTcp(tcp, done));
+    }
+
+    private async Task PingReal(IReadOnlyList<ProxyServer> servers, Action<ProxyServer> done)
+    {
+        if (servers.Count == 0 || !File.Exists(XrayRunner.XrayPath))
         {
-            var results = await RealPinger.PingAsync(servers, _settings.Data.PingUrl);
-            foreach (var pair in results)
-            {
-                pair.Key.PingMs = pair.Value;
-                done(pair.Key);
-            }
+            await PingTcp(servers, done);
             return;
         }
 
-        await Task.WhenAll(servers.Select(async server =>
+        var results = await RealPinger.PingAsync(servers, _settings.Data.PingUrl);
+        foreach (var pair in results)
+        {
+            pair.Key.PingMs = pair.Value;
+            done(pair.Key);
+        }
+    }
+
+    private static Task PingTcp(IReadOnlyList<ProxyServer> servers, Action<ProxyServer> done) =>
+        Task.WhenAll(servers.Select(async server =>
         {
             var ms = await Pinger.TcpPingAsync(server.Address, server.Port);
             server.PingMs = ms ?? -1;
             done(server);
         }));
-    }
 }

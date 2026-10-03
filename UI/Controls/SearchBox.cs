@@ -18,6 +18,7 @@ public class SearchBox : ThemedControl
         ForeColor = Theme.TextMuted,
         Font = Theme.Scaled(Theme.Body),
         AutoSize = false,
+        TextAlign = ContentAlignment.MiddleLeft,
         Cursor = Cursors.IBeam
     };
 
@@ -60,7 +61,7 @@ public class SearchBox : ThemedControl
         var top = (Height - height) / 2;
         var left = Theme.Px(_icon ? 40 : 14);
         _box.SetBounds(left, top, Width - left - Theme.Px(14), height);
-        _placeholder.SetBounds(left, top, Width - left - Theme.Px(14), height);
+        _placeholder.SetBounds(left, Theme.Px(3), Width - left - Theme.Px(14), Height - Theme.Px(6));
     }
 
     protected override void Draw(Graphics g)

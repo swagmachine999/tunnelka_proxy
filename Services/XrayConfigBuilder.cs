@@ -14,22 +14,24 @@ public static class XrayConfigBuilder
     public static int SocksPort { get; private set; } = PreferredSocksPort;
     public static int HttpPort { get; private set; } = PreferredSocksPort + 1;
     public static int MetricsPort { get; private set; } = PreferredSocksPort + 5;
+    public static int RelayPort { get; private set; } = PreferredSocksPort + 2;
 
     public static void ChoosePorts()
     {
         for (var start = PreferredSocksPort; start < PreferredSocksPort + 200; start += 10)
         {
-            if (IsFree(start) && IsFree(start + 1) && IsFree(start + 5))
+            if (IsFree(start) && IsFree(start + 1) && IsFree(start + 2) && IsFree(start + 5))
             {
                 SocksPort = start;
                 HttpPort = start + 1;
+                RelayPort = start + 2;
                 MetricsPort = start + 5;
                 return;
             }
         }
     }
 
-    private static bool IsFree(int port)
+    public static bool IsFree(int port)
     {
         try
         {
@@ -82,7 +84,7 @@ public static class XrayConfigBuilder
             },
             ["outbounds"] = new JsonArray
             {
-                Outbound(server),
+                Outbound(server, "proxy", RelayPort),
                 new JsonObject { ["tag"] = "direct", ["protocol"] = "freedom" },
                 new JsonObject { ["tag"] = "block", ["protocol"] = "blackhole" }
             },
@@ -213,10 +215,19 @@ public static class XrayConfigBuilder
         }
     };
 
-    private static JsonObject Outbound(ProxyServer server) => Outbound(server, "proxy");
-
-    public static JsonObject Outbound(ProxyServer server, string tag)
+    public static JsonObject Outbound(ProxyServer server, string tag, int relayPort)
     {
+        if (SingBoxRelay.Needs(server))
+            return new JsonObject
+            {
+                ["tag"] = tag,
+                ["protocol"] = "socks",
+                ["settings"] = new JsonObject
+                {
+                    ["servers"] = new JsonArray(new JsonObject { ["address"] = "127.0.0.1", ["port"] = relayPort })
+                }
+            };
+
         var outbound = new JsonObject
         {
             ["tag"] = tag,

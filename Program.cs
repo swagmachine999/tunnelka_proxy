@@ -18,7 +18,7 @@ internal static class Program
         L.Use(AppStorage.Load().Language);
 
         using var instance = new Mutex(false, "Tunnelka.SingleInstance");
-        if (!Acquire(instance, args.Contains("--connect") ? 10000 : 0))
+        if (!Acquire(instance, args.Contains("--connect") || args.Contains("--elevated") ? 10000 : 0))
         {
             MessageBox.Show(L.T("Tunnelka уже запущена. Её значок — рядом с часами."), "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;

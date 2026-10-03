@@ -50,6 +50,8 @@ Type: files; Name: "{localappdata}\Tunnelka\config.json"; Tasks: cleancache
 Type: files; Name: "{localappdata}\Tunnelka\tun.json"; Tasks: cleancache
 Type: files; Name: "{localappdata}\Tunnelka\ping-*.json"; Tasks: cleancache
 Type: files; Name: "{localappdata}\Tunnelka\crash.log"; Tasks: cleancache
+Type: files; Name: "{localappdata}\Tunnelka\tunnelka.log*"; Tasks: cleancache
+Type: files; Name: "{localappdata}\Tunnelka\relay*.json"; Tasks: cleancache
 Type: files; Name: "{localappdata}\Tunnelka\*.broken"; Tasks: cleancache
 Type: files; Name: "{localappdata}\Tunnelka\*.moved"; Tasks: cleancache
 Type: files; Name: "{localappdata}\Tunnelka\*.tmp"; Tasks: cleancache
