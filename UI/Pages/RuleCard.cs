@@ -17,8 +17,8 @@ public class RuleCard : ThemedControl
     public RuleCard(RoutingRule rule)
     {
         Rule = rule;
-        Height = Theme.Px(70);
-        Margin = Theme.Px(0, 0, 0, 8);
+        Height = Theme.Px(70 + Theme.ShadowBottom);
+        Margin = Theme.Px(0, 0, 0, 3);
     }
 
     public RoutingRule Rule { get; }
@@ -50,9 +50,8 @@ public class RuleCard : ThemedControl
 
     protected override void Draw(Graphics g)
     {
-        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
-        Theme.FillRounded(g, Theme.Card, rect, 14);
-        Theme.DrawRounded(g, Theme.Border, rect, 14);
+        var rect = Theme.CardRect(W, H);
+        Theme.DrawCard(g, rect, 14, Theme.Card, Theme.Border);
 
         _deleteRect = new RectangleF(W - 36, 10, 24, 24);
         _toggleRect = new RectangleF(W - 82, 10, 40, 22);
@@ -71,11 +70,7 @@ public class RuleCard : ThemedControl
         using (var knob = new SolidBrush(Color.White))
             g.FillEllipse(knob, Rule.Enabled ? _toggleRect.Right - 19 : _toggleRect.X + 3, _toggleRect.Y + 3, 16, 16);
 
-        using var pen = new Pen(_hoverDelete ? Theme.PingBad : Theme.TextMuted, 2f)
-        {
-            StartCap = System.Drawing.Drawing2D.LineCap.Round,
-            EndCap = System.Drawing.Drawing2D.LineCap.Round
-        };
+        using var pen = Theme.IconPen(_hoverDelete ? Theme.PingBad : Theme.TextMuted);
         var c = new PointF(_deleteRect.X + 12, _deleteRect.Y + 12);
         g.DrawLine(pen, c.X - 5, c.Y - 5, c.X + 5, c.Y + 5);
         g.DrawLine(pen, c.X + 5, c.Y - 5, c.X - 5, c.Y + 5);
