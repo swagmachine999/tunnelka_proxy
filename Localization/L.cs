@@ -281,7 +281,6 @@ public static class L
         ["Режим туннеля, kill switch, действия при запуске"] = "Tunnel mode, kill switch, startup actions",
         ["+ Программа"] = "+ App",
         ["+ Файл .exe"] = "+ .exe file",
-        ["ПРЯМОЕ"] = "DIRECT",
         ["Правила для программ надёжно работают в режиме TUN"] = "App rules work reliably in TUN mode",
         ["Сайт или IP, например sberbank.ru"] = "Site or IP, e.g. example.com",
         ["Список пуст. Добавь программу или сайт"] = "The list is empty. Add an app or a site",
@@ -289,9 +288,12 @@ public static class L
         ["Для режима TUN нужны права администратора"] = "TUN mode needs administrator rights",
         ["Работает другой VPN в режиме TUN ({0}). Он может мешать адаптеру Tunnelka"] = "Another VPN is running in TUN mode ({0}). It may interfere with the Tunnelka adapter",
         ["Трафик ядра идёт напрямую через адаптер {0}, мимо другого VPN"] = "Core traffic goes directly through adapter {0}, bypassing the other VPN",
-        [" и ещё {0}"] = " and {0} more",
-        ["Весь трафик идёт через VPN"] = "All traffic goes through VPN",
-        ["Напрямую: {0}. Остальное через VPN"] = "Direct: {0}. The rest goes through VPN",
-        ["Через VPN только: {0}. Остальное напрямую"] = "Only via VPN: {0}. The rest goes direct"
+        ["VPN только для выбранных"] = "VPN only for selected",
+        ["Без VPN для выбранных"] = "Without VPN for selected",
+        ["ВЫБРАННЫЕ ПРОГРАММЫ И САЙТЫ"] = "SELECTED APPS AND SITES",
+        ["Всё через VPN"] = "Everything via VPN",
+        ["Программы и сайты из списка идут напрямую, остальное через VPN"] = "Apps and sites from the list go direct, the rest goes through VPN",
+        ["Список не действует, весь трафик идёт через VPN"] = "The list is not used, all traffic goes through VPN",
+        ["Через VPN идут только программы и сайты из списка"] = "Only apps and sites from the list go through VPN"
     };
 }
