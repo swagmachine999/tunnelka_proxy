@@ -5,6 +5,7 @@ public class Segmented : ThemedControl
     private readonly string[] _options;
     private int _selected;
     private int _hover = -1;
+    private float _pill = -1;
 
     public Segmented(params string[] options)
     {
@@ -23,7 +24,7 @@ public class Segmented : ThemedControl
             if (_selected == value)
                 return;
             _selected = value;
-            Invalidate();
+            Animate();
             SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -36,21 +37,27 @@ public class Segmented : ThemedControl
 
     protected override Color Background => Parent?.BackColor ?? Theme.Surface;
 
+    protected override bool AnimateMore() => Animator.Approach(ref _pill, _selected);
+
     protected override void Draw(Graphics g)
     {
         var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
         Theme.FillRounded(g, Theme.Card, rect, 12);
         Theme.DrawRounded(g, Theme.Border, rect, 12);
 
+        if (_pill < 0)
+            _pill = _selected;
+
+        if (_hover >= 0 && _hover != _selected)
+            Theme.FillRounded(g, Theme.CardHover, Segment(_hover), 9);
+
+        var width = (W - 8f) / _options.Length;
+        Theme.FillRounded(g, Theme.Accent, new RectangleF(4 + width * _pill, 4, width, H - 8), 9);
+
         for (var i = 0; i < _options.Length; i++)
         {
-            var segment = Segment(i);
-            if (i == _selected)
-                Theme.FillRounded(g, Theme.Accent, segment, 9);
-            else if (i == _hover)
-                Theme.FillRounded(g, Theme.CardHover, segment, 9);
-
-            Theme.DrawText(g, _options[i], Theme.CaptionBold, i == _selected ? Color.White : Theme.Text, segment, StringAlignment.Center);
+            var onPill = 1 - Math.Min(1, Math.Abs(i - _pill));
+            Theme.DrawText(g, _options[i], Theme.CaptionBold, Theme.Blend(Theme.Text, Color.White, onPill), Segment(i), StringAlignment.Center);
         }
     }
 

@@ -2,6 +2,8 @@ namespace Tunnelka.UI.Controls;
 
 public abstract class ThemedControl : Control
 {
+    private float _hover;
+
     protected ThemedControl()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
@@ -13,9 +15,24 @@ public abstract class ThemedControl : Control
 
     protected bool IsHovered { get; private set; }
 
+    protected float Hover => _hover;
+
     protected virtual Color Background => Theme.Surface;
 
     protected abstract void Draw(Graphics g);
+
+    protected void Animate() => Animator.Start(this);
+
+    protected virtual bool AnimateMore() => false;
+
+    internal bool StepAnimation()
+    {
+        var moving = Animator.Approach(ref _hover, IsHovered ? 1 : 0);
+        moving |= AnimateMore();
+        if (moving)
+            Invalidate();
+        return moving;
+    }
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -28,6 +45,7 @@ public abstract class ThemedControl : Control
         base.OnMouseEnter(e);
         IsHovered = true;
         Invalidate();
+        Animate();
     }
 
     protected override void OnMouseLeave(EventArgs e)
@@ -35,5 +53,6 @@ public abstract class ThemedControl : Control
         base.OnMouseLeave(e);
         IsHovered = false;
         Invalidate();
+        Animate();
     }
 }
