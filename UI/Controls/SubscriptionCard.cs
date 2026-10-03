@@ -65,6 +65,8 @@ public class SubscriptionCard : ThemedControl
     private float _warningHeight;
     private int InfoRows => Info.Total > 0 ? 2 : 1;
 
+    protected override bool CachePaint => true;
+
     protected override void Draw(Graphics g)
     {
         _hits.Clear();

@@ -7,6 +7,19 @@ public static class Autostart
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string Name = "Tunnelka";
 
+    public static bool IsEnabled()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKey);
+            return key?.GetValue(Name) != null;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     public static void Apply(bool enabled)
     {
         try
