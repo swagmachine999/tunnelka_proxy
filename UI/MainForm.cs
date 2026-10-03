@@ -50,16 +50,20 @@ public class MainForm : Form, IMessageFilter
     private readonly PingPage _pingPage;
     private readonly InterfacePage _interfacePage;
     private readonly StatsPage _statsPage;
+    private readonly OverlayPage _overlayPage;
+    private readonly AboutPage _aboutPage;
+    private readonly OverlayController _overlay;
 
     private readonly System.Windows.Forms.Timer _autoUpdate = new() { Interval = 60_000 };
 
-    private const string AutoLink = "auto";
-    private readonly ProxyServer _auto = new() { Protocol = "auto", Name = "⚡ " + L.T("Авто") };
-    private bool _connecting;
+    private readonly AutoServers _autos;
+    private bool _busy;
     private ProxyServer? _selected;
     private ProxyServer? _active;
     private DateTime _connectedAt;
     private bool _exiting;
+    private bool _startHidden;
+    private bool _started;
 
     private readonly System.Windows.Forms.Timer _scaleDelay = new() { Interval = 350 };
 
@@ -69,7 +73,8 @@ public class MainForm : Form, IMessageFilter
     {
         _settings = new Settings(_log);
         _connection = new ConnectionService(_log);
-        _subscriptions = new SubscriptionService(_settings, _log, () => _connection.IsRunning ? XrayConfigBuilder.HttpPort : null);
+        _subscriptions = new SubscriptionService(_settings, _log, ProxyPort);
+        _autos = new AutoServers(_settings, _subscriptions);
         _list = new ServerListView(_subscriptions);
         _pinger = new PingService(_settings);
         _trafficTracker = new TrafficTracker(_settings);
@@ -93,6 +98,9 @@ public class MainForm : Form, IMessageFilter
         _settingsPage = new SettingsPage(Data.Tun, Data.SpeedInterval, Data.RealPing, Data.RefreshOnStart, Data.PingOnStart, Data.AutoStart, Data.ConnectOnStart);
         _interfacePage = new InterfacePage(Data.DarkTheme, Data.UiScale, Data.Language, () => ShowPage(IconKind.Settings));
         _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
+        _overlayPage = new OverlayPage(Data.Overlay, () => ShowPage(IconKind.Settings));
+        _aboutPage = new AboutPage(ProxyPort);
+        _overlay = new OverlayController(Data.Overlay, ProxyPort, () => Data.PingUrl);
 
         BuildLayout();
 
@@ -133,60 +141,8 @@ public class MainForm : Form, IMessageFilter
         _hero.PingClicked += async (_, _) => await PingCurrent();
         _hero.RefreshClicked += async (_, _) => await UpdateSubscriptions();
         _hero.ModeSelected += SetMode;
-        _settingsPage.ModeSelector.SelectedIndexChanged += (_, _) => SetMode(_settingsPage.ModeSelector.SelectedIndex == 1);
-        _interfacePage.DarkToggle.CheckedChanged += (_, _) => SetDarkTheme(_interfacePage.DarkToggle.Checked);
-        _interfacePage.LanguageSelector.SelectedIndexChanged += (_, _) =>
-        {
-            Data.Language = _interfacePage.Language;
-            Save();
-            ReloadRequested?.Invoke(this, EventArgs.Empty);
-        };
-        _settingsPage.InterfaceRow.Click += (_, _) => ShowPage(IconKind.Interface);
-        _settingsPage.RefreshToggle.CheckedChanged += (_, _) =>
-        {
-            Data.RefreshOnStart = _settingsPage.RefreshToggle.Checked;
-            Save();
-        };
-        _settingsPage.PingToggle.CheckedChanged += (_, _) =>
-        {
-            Data.PingOnStart = _settingsPage.PingToggle.Checked;
-            Save();
-        };
-        _settingsPage.AutoStartToggle.CheckedChanged += (_, _) =>
-        {
-            Data.AutoStart = _settingsPage.AutoStartToggle.Checked;
-            Autostart.Apply(Data.AutoStart);
-            Save();
-        };
-        _settingsPage.ConnectToggle.CheckedChanged += (_, _) =>
-        {
-            Data.ConnectOnStart = _settingsPage.ConnectToggle.Checked;
-            Save();
-        };
-        Autostart.Apply(Data.AutoStart);
-        _statsPage.PeriodChanged += minutes =>
-        {
-            Data.StatsPeriod = minutes;
-            Save();
-        };
-        _settingsPage.RoutingRow.Click += (_, _) => ShowPage(IconKind.Routing);
-        _settingsPage.LogRow.Click += (_, _) => ShowPage(IconKind.Log);
-        _settingsPage.PingRow.Click += (_, _) => ShowPage(IconKind.Ping);
-        _pingPage.Changed += (_, _) =>
-        {
-            Data.RealPing = _pingPage.IsReal;
-            var url = _pingPage.Url.Query;
-            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https"))
-                Data.PingUrl = url;
-            _settingsPage.ShowPingMode(Data.RealPing);
-            Save();
-        };
-        _settingsPage.SpeedSelector.ValueChanged += (_, _) =>
-        {
-            Data.SpeedInterval = _settingsPage.SpeedSelector.Value;
-            _trafficTracker.RestartAveraging();
-            Save();
-        };
+        WireSettings();
+        WireOverlay();
         _routingPage.RulesChanged += (_, _) => OnRulesChanged();
         _routingPage.ReconnectRequested += (_, _) => Reconnect();
         _search.QueryChanged += (_, _) => _list.Filter(_search.Query);
@@ -203,7 +159,7 @@ public class MainForm : Form, IMessageFilter
                 return;
             }
 
-            Disconnect();
+            Disconnect(true);
         };
         Application.AddMessageFilter(this);
         FormClosed += (_, _) =>
@@ -214,12 +170,11 @@ public class MainForm : Form, IMessageFilter
             _scaleDelay.Dispose();
             _tray.Dispose();
             _traffic.Dispose();
+            _overlay.Dispose();
             _connection.Dispose();
         };
 
-        _selected = Data.LastServerLink == AutoLink && Data.Servers.Count > 0
-            ? _auto
-            : Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink) ?? Data.Servers.FirstOrDefault();
+        _selected = RestoreSelection();
         RebuildList();
         UpdateHero();
         ShowPage(startPage);
@@ -250,7 +205,7 @@ public class MainForm : Form, IMessageFilter
     {
         _exiting = true;
         var wasConnected = _connection.IsRunning;
-        Disconnect();
+        Disconnect(true);
         return wasConnected;
     }
 
@@ -282,9 +237,15 @@ public class MainForm : Form, IMessageFilter
         for (var i = 0; i < nav.Length; i++)
             AddNavButton(sidebar, new IconButton(nav[i].Kind, nav[i].Title) { Location = new Point(Theme.Px(12), Theme.Px(156 + i * 54)) });
 
+        var about = new IconButton(IconKind.About, L.T("О приложении")) { Location = new Point(Theme.Px(12), Theme.Px(546)) };
+        AddNavButton(sidebar, about);
         var settings = new IconButton(IconKind.Settings, L.T("Настройки")) { Location = new Point(Theme.Px(12), Theme.Px(600)) };
         AddNavButton(sidebar, settings);
-        sidebar.Resize += (_, _) => settings.Top = sidebar.Height - settings.Height - Theme.Px(18);
+        sidebar.Resize += (_, _) =>
+        {
+            settings.Top = sidebar.Height - settings.Height - Theme.Px(18);
+            about.Top = settings.Top - about.Height - Theme.Px(10);
+        };
 
         Theme.Bind(_middle, () => Theme.Surface);
         Theme.Bind(_countLabel, () => Theme.Surface, () => Theme.TextMuted);
@@ -333,6 +294,8 @@ public class MainForm : Form, IMessageFilter
         _pages[IconKind.Settings] = _settingsPage;
         _pages[IconKind.Ping] = _pingPage;
         _pages[IconKind.Interface] = _interfacePage;
+        _pages[IconKind.Overlay] = _overlayPage;
+        _pages[IconKind.About] = _aboutPage;
 
         foreach (var page in _pages.Values)
         {
@@ -372,7 +335,7 @@ public class MainForm : Form, IMessageFilter
         foreach (var pair in _pages)
             pair.Value.Visible = pair.Key == kind;
 
-        var active = kind is IconKind.Routing or IconKind.Log or IconKind.Ping or IconKind.Interface ? IconKind.Settings : kind;
+        var active = kind is IconKind.Routing or IconKind.Log or IconKind.Ping or IconKind.Interface or IconKind.Overlay ? IconKind.Settings : kind;
         foreach (var button in _navButtons)
             button.Active = button.Kind == active;
     }
@@ -402,7 +365,7 @@ public class MainForm : Form, IMessageFilter
 
     private void RebuildList()
     {
-        _list.Rebuild(Data.Servers, Data.Servers.Count > 0 ? _auto : null, _selected, _active);
+        _list.Rebuild(Data.Servers, _autos.For, _selected, _active);
         _countLabel.Text = Data.Servers.Count == 0
             ? L.T("Ключей пока нет").ToUpperInvariant()
             : ServerText.Plural(Data.Servers.Count, L.T("сервер"), L.T("сервера"), L.T("серверов")).ToUpperInvariant();
@@ -503,6 +466,9 @@ public class MainForm : Form, IMessageFilter
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (ActiveControl is HotkeyBox)
+            return;
+
         if (e.Control && e.KeyCode is Keys.Oemplus or Keys.Add)
         {
             ChangeScale(1);
@@ -527,7 +493,7 @@ public class MainForm : Form, IMessageFilter
         if (ActiveControl is TextBoxBase)
             return;
 
-        if (e.KeyCode == Keys.Delete && _selected != null && _selected != _auto && _pages[IconKind.Servers].Visible)
+        if (e.KeyCode == Keys.Delete && _selected != null && !AutoServers.IsAuto(_selected) && _pages[IconKind.Servers].Visible)
         {
             Delete(_selected);
             e.Handled = true;
@@ -660,7 +626,7 @@ public class MainForm : Form, IMessageFilter
 
     private void AfterServersChanged()
     {
-        if (_selected == null || (_selected != _auto && !Data.Servers.Contains(_selected)))
+        if (_selected == null || (AutoServers.IsAuto(_selected) ? _autos.Members(_selected).Count == 0 : !Data.Servers.Contains(_selected)))
             _selected = Data.Servers.FirstOrDefault();
 
         RebuildList();
@@ -677,9 +643,9 @@ public class MainForm : Form, IMessageFilter
         if (server == null)
             return;
 
-        if (server == _auto)
+        if (AutoServers.IsAuto(server))
         {
-            await FindFastest();
+            await FindFastest(server);
             UpdateCards();
             UpdateHero();
             return;
@@ -690,13 +656,19 @@ public class MainForm : Form, IMessageFilter
             _hero.SetPing($"{ServerText.CleanName(server)}: {PingText(server)}", Theme.PingColor(server.PingMs));
     }
 
-    private string SelectedLink() => _selected == _auto ? AutoLink : _selected?.Link ?? "";
+    private string SelectedLink() => AutoServers.IsAuto(_selected) ? AutoServers.Link(_selected!) : _selected?.Link ?? "";
 
-    private async Task<ProxyServer?> FindFastest()
+    private ProxyServer? RestoreSelection() =>
+        _autos.Restore(Data.LastServerLink)
+        ?? Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink)
+        ?? Data.Servers.FirstOrDefault();
+
+    private async Task<ProxyServer?> FindFastest(ProxyServer auto)
     {
-        await PingServers(Data.Servers.ToList());
-        var best = Data.Servers.Where(s => s.PingMs >= 0).OrderBy(s => s.PingMs).FirstOrDefault();
-        _auto.PingMs = best?.PingMs ?? -1;
+        var servers = _autos.Members(auto);
+        await PingServers(servers);
+        var best = servers.Where(s => s.PingMs >= 0).OrderBy(s => s.PingMs).FirstOrDefault();
+        auto.PingMs = best?.PingMs ?? -1;
         return best;
     }
 
@@ -722,7 +694,7 @@ public class MainForm : Form, IMessageFilter
 
     private void Delete(ProxyServer server)
     {
-        if (server == _auto)
+        if (AutoServers.IsAuto(server))
             return;
 
         if (server == _active)
@@ -739,13 +711,16 @@ public class MainForm : Form, IMessageFilter
 
     private void ToggleConnection()
     {
-        if (!_connection.IsRunning && Data.Servers.Count == 0)
+        if (_busy)
+            return;
+
+        if (_active == null && Data.Servers.Count == 0)
         {
             ShowAddDialog();
             return;
         }
 
-        if (_connection.IsRunning)
+        if (_active != null)
             Disconnect();
         else
             Connect();
@@ -753,16 +728,28 @@ public class MainForm : Form, IMessageFilter
 
     private async void Connect()
     {
-        if (_connecting)
+        if (_busy)
             return;
 
-        var server = _selected;
-        if (server == _auto)
+        _busy = true;
+        try
         {
-            _connecting = true;
+            await ConnectTo(_selected);
+        }
+        finally
+        {
+            _busy = false;
+            if (!IsDisposed)
+                _hero.Connecting = false;
+        }
+    }
+
+    private async Task ConnectTo(ProxyServer? server)
+    {
+        if (AutoServers.IsAuto(server))
+        {
             _hero.SetPing(L.T("Ищу самый быстрый сервер…"), Theme.TextMuted);
-            server = await FindFastest();
-            _connecting = false;
+            server = await FindFastest(server!);
             if (server == null)
             {
                 _hero.SetPing(L.T("Ни один сервер не ответил"), Theme.PingBad);
@@ -770,8 +757,16 @@ public class MainForm : Form, IMessageFilter
             }
         }
 
-        if (server == null || !Start(server))
+        if (server == null)
             return;
+
+        _hero.Connecting = true;
+        if (!await Start(server))
+        {
+            if (_active != null)
+                Disconnect();
+            return;
+        }
 
         _active = server;
         _connectedAt = DateTime.Now;
@@ -781,7 +776,9 @@ public class MainForm : Form, IMessageFilter
         Save();
 
         _hero.ElapsedText = "00:00:00";
+        _hero.Connecting = false;
         _hero.Connected = true;
+        _overlay.SetConnected(true);
         _clock.Start();
         _statsPage.SetSpeed(0, 0, true);
         _traffic.Start();
@@ -790,9 +787,13 @@ public class MainForm : Form, IMessageFilter
         Log(L.F("Подключено к {0}", ServerText.CleanName(server)));
     }
 
-    private bool Start(ProxyServer server)
+    private async Task<bool> Start(ProxyServer server)
     {
-        switch (_connection.Start(server, Data.Tun, Data.Rules))
+        var result = await _connection.StartAsync(server, Data.Tun, Data.Rules);
+        if (IsDisposed)
+            return false;
+
+        switch (result)
         {
             case ConnectResult.Ok:
                 return true;
@@ -837,10 +838,13 @@ public class MainForm : Form, IMessageFilter
         }
     }
 
-    private void Disconnect()
+    private void Disconnect(bool wait = false)
     {
-        var wasRunning = _connection.IsRunning;
-        _connection.Stop();
+        var wasRunning = _active != null || _connection.IsRunning;
+        if (wait)
+            _connection.Stop();
+        else
+            _ = _connection.StopAsync();
         _clock.Stop();
         _traffic.Stop();
 
@@ -854,6 +858,7 @@ public class MainForm : Form, IMessageFilter
 
         _hero.Connected = false;
         _hero.SetSpeed(null, null);
+        _overlay.SetConnected(false);
         _statsPage.SetSpeed(0, 0, false);
         UpdateCards();
         UpdateHero();
@@ -868,21 +873,29 @@ public class MainForm : Form, IMessageFilter
         _routingPage.ShowReconnectHint(_active != null && _connection.IsRunning);
     }
 
-    private void Reconnect()
+    private async void Reconnect()
     {
         _routingPage.ShowReconnectHint(false);
-        if (_active == null || !_connection.IsRunning)
+        if (_busy || _active == null || !_connection.IsRunning)
             return;
 
-        _trafficTracker.ResetCounters();
-        if (Start(_active))
-            Log(L.T("Правила применены"));
-        else
-            Disconnect();
+        _busy = true;
+        _hero.Connecting = true;
+        try
+        {
+            _trafficTracker.ResetCounters();
+            if (await Start(_active))
+                Log(L.T("Правила применены"));
+            else
+                Disconnect();
+        }
+        finally
+        {
+            _busy = false;
+            if (!IsDisposed)
+                _hero.Connecting = false;
+        }
     }
-
-    private bool _startHidden;
-    private bool _started;
 
     protected override void SetVisibleCore(bool value)
     {
@@ -924,6 +937,7 @@ public class MainForm : Form, IMessageFilter
         var delta = _trafficTracker.Process(counters);
         _history.Add(delta);
         _statsPage.SetSpeed(delta.ProxyDown + delta.DirectDown, delta.ProxyUp + delta.DirectUp, true);
+        _overlay.SetSpeed(delta.ProxyDown + delta.DirectDown, delta.ProxyUp + delta.DirectUp);
 
         if (_trafficTracker.TryGetAverage(out var averageDown, out var averageUp))
             _hero.SetSpeed(ServerText.Bytes(averageDown) + L.T("/с"), ServerText.Bytes(averageUp) + L.T("/с"));
@@ -937,7 +951,7 @@ public class MainForm : Form, IMessageFilter
 
     private void OnCoreExited()
     {
-        if (IsDisposed)
+        if (IsDisposed || _exiting)
             return;
 
         if (InvokeRequired)
@@ -945,6 +959,9 @@ public class MainForm : Form, IMessageFilter
             BeginInvoke(new Action(OnCoreExited));
             return;
         }
+
+        if (_busy || _active == null)
+            return;
 
         Log(L.T("Ядро VPN завершилось. Причина обычно видна в строках выше"));
         Disconnect();
@@ -962,12 +979,93 @@ public class MainForm : Form, IMessageFilter
         Save();
         Log(tun ? L.T("Режим TUN: через VPN идёт весь трафик") : L.T("Режим прокси: через VPN идут браузер и программы"));
 
-        if (_active != null && _connection.IsRunning)
+        if (_active != null && !_busy)
         {
             Disconnect();
             Connect();
         }
     }
+
+    private void WireSettings()
+    {
+        _settingsPage.ModeSelector.SelectedIndexChanged += (_, _) => SetMode(_settingsPage.ModeSelector.SelectedIndex == 1);
+        _interfacePage.DarkToggle.CheckedChanged += (_, _) => SetDarkTheme(_interfacePage.DarkToggle.Checked);
+        _interfacePage.LanguageSelector.SelectedIndexChanged += (_, _) =>
+        {
+            Data.Language = _interfacePage.Language;
+            Save();
+            ReloadRequested?.Invoke(this, EventArgs.Empty);
+        };
+
+        _settingsPage.InterfaceRow.Click += (_, _) => ShowPage(IconKind.Interface);
+        _settingsPage.OverlayRow.Click += (_, _) => ShowPage(IconKind.Overlay);
+        _settingsPage.RoutingRow.Click += (_, _) => ShowPage(IconKind.Routing);
+        _settingsPage.LogRow.Click += (_, _) => ShowPage(IconKind.Log);
+        _settingsPage.PingRow.Click += (_, _) => ShowPage(IconKind.Ping);
+
+        BindToggle(_settingsPage.RefreshToggle, on => Data.RefreshOnStart = on);
+        BindToggle(_settingsPage.PingToggle, on => Data.PingOnStart = on);
+        BindToggle(_settingsPage.ConnectToggle, on => Data.ConnectOnStart = on);
+        BindToggle(_settingsPage.AutoStartToggle, on =>
+        {
+            Data.AutoStart = on;
+            Autostart.Apply(on);
+        });
+        Autostart.Apply(Data.AutoStart);
+
+        _statsPage.PeriodChanged += minutes =>
+        {
+            Data.StatsPeriod = minutes;
+            Save();
+        };
+        _pingPage.Changed += (_, _) =>
+        {
+            Data.RealPing = _pingPage.IsReal;
+            var url = _pingPage.Url.Query;
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https"))
+                Data.PingUrl = url;
+            _settingsPage.ShowPingMode(Data.RealPing);
+            Save();
+        };
+        _settingsPage.SpeedSelector.ValueChanged += (_, _) =>
+        {
+            Data.SpeedInterval = _settingsPage.SpeedSelector.Value;
+            _trafficTracker.RestartAveraging();
+            Save();
+        };
+    }
+
+    private void BindToggle(ToggleSwitch toggle, Action<bool> apply) =>
+        toggle.CheckedChanged += (_, _) =>
+        {
+            apply(toggle.Checked);
+            Save();
+        };
+
+    private void WireOverlay()
+    {
+        _overlay.ApplyHotkey();
+        _overlayPage.ShowHotkeyState(_overlay.HotkeyFailed);
+        _overlayPage.HotkeyChanged += (_, _) =>
+        {
+            Save();
+            _overlay.ApplyHotkey();
+            _overlayPage.ShowHotkeyState(_overlay.HotkeyFailed);
+        };
+        _overlayPage.OptionsChanged += (_, _) =>
+        {
+            Save();
+            _overlay.Redraw();
+        };
+        _overlayPage.ShowToggle.CheckedChanged += (_, _) =>
+        {
+            if (_overlayPage.ShowToggle.Checked != _overlay.IsShown)
+                _overlay.Toggle();
+        };
+        _overlay.VisibilityChanged += (_, _) => _overlayPage.ShowToggle.Checked = _overlay.IsShown;
+    }
+
+    private int? ProxyPort() => _connection.IsRunning ? XrayConfigBuilder.HttpPort : null;
 
     private AppData Data => _settings.Data;
 

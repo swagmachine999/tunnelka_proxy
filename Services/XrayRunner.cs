@@ -27,6 +27,7 @@ public sealed class XrayRunner : IDisposable
     public event Action? Exited;
 
     public static string CoreDir => Path.Combine(AppContext.BaseDirectory, "core");
+    public static string ConfigDir => Storage.AppStorage.Folder;
     public static string XrayPath => Path.Combine(CoreDir, "xray.exe");
     public static string SingBoxPath => Path.Combine(CoreDir, "sing-box.exe");
 
@@ -43,7 +44,8 @@ public sealed class XrayRunner : IDisposable
         if (!File.Exists(_exePath))
             throw new FileNotFoundException(L.F("Не найден {0}", Path.GetFileName(_exePath)), _exePath);
 
-        var configPath = Path.Combine(CoreDir, _configName);
+        Directory.CreateDirectory(ConfigDir);
+        var configPath = Path.Combine(ConfigDir, _configName);
         File.WriteAllText(configPath, configJson);
 
         var process = new Process

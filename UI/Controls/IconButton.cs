@@ -74,6 +74,12 @@ public class IconButton : ThemedControl
                 g.FillEllipse(fill, cx - 2.5f, cy - 0.5f, 5, 5);
                 break;
 
+            case IconKind.About:
+                g.DrawEllipse(pen, cx - 10, cy - 10, 20, 20);
+                g.DrawLine(pen, cx, cy - 1, cx, cy + 5);
+                g.FillEllipse(fill, cx - 1.6f, cy - 6.4f, 3.2f, 3.2f);
+                break;
+
             case IconKind.Settings:
                 using (var teeth = new Pen(color, 3.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
                 {
