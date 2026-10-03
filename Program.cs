@@ -8,6 +8,13 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Contains("--cleanup"))
+        {
+            ConnectionService.CleanUpAfterCrash();
+            Autostart.Apply(false);
+            return;
+        }
+
         L.Use(AppStorage.Load().Language);
 
         using var instance = new Mutex(false, "Tunnelka.SingleInstance");

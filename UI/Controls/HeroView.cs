@@ -32,6 +32,7 @@ public class HeroView : ThemedControl
     private bool _hoverToggle;
 
     private bool _connected;
+    private bool _connecting;
     private bool _tun;
     private string _elapsed = "00:00:00";
     private IReadOnlyList<NamePart> _serverParts = Array.Empty<NamePart>();
@@ -59,6 +60,11 @@ public class HeroView : ThemedControl
     public bool Connected
     {
         set { _connected = value; Invalidate(); }
+    }
+
+    public bool Connecting
+    {
+        set { _connecting = value; Invalidate(); }
     }
 
     public bool Tun
@@ -340,7 +346,12 @@ public class HeroView : ThemedControl
             g.DrawLine(pen, cx, cy - size * 0.62f, cx, cy - size * 0.08f);
         }
 
-        if (_connected)
+        if (_connecting)
+        {
+            DrawSpinner(g, body);
+            DrawSpaced(g, L.T("ПОДКЛЮЧЕНИЕ"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
+        }
+        else if (_connected)
         {
             DrawSpaced(g, L.T("ПОДКЛЮЧЕНО"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.6f);
             DrawTimer(g, cx, r.Y + r.Height * 0.6f + 12, Theme.AccentStrong);
@@ -349,6 +360,16 @@ public class HeroView : ThemedControl
         {
             DrawSpaced(g, L.T("ОТКЛЮЧЕНО"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
         }
+    }
+
+    private void DrawSpinner(Graphics g, RectangleF body)
+    {
+        var ring = Inflate(body, 7);
+        var start = _time * 300 % 360;
+        var sweep = 70 + 50 * (float)Math.Sin(_time * 3);
+        using var brush = new LinearGradientBrush(ring, Theme.Pink, Theme.Accent, 45f);
+        using var pen = new Pen(brush, 3.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        g.DrawArc(pen, ring, start, sweep);
     }
 
     private readonly Dictionary<string, float[]> _spacedWidths = new();

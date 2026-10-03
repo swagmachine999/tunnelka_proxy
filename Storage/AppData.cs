@@ -26,6 +26,7 @@ public class AppData
     public bool PingOnStart { get; set; }
     public bool AutoStart { get; set; }
     public bool ConnectOnStart { get; set; }
+    public OverlayOptions Overlay { get; set; } = new();
 
     [JsonPropertyName("Subscriptions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -10,5 +10,7 @@ public enum IconKind
     Log,
     Settings,
     Ping,
-    Interface
+    Interface,
+    Overlay,
+    About
 }
