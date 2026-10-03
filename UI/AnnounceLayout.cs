@@ -7,6 +7,7 @@ public static class AnnounceLayout
     public const float SymbolSize = 16;
 
     private static readonly Regex UrlPattern = new(@"https?://\S+", RegexOptions.Compiled);
+    private static readonly Regex ColorPattern = new(@"^#([0-9A-Fa-f]{6})", RegexOptions.Compiled);
 
     public static List<List<AnnounceToken>> Build(string announce, float maxWidth) => Wrap(Tokenize(announce), maxWidth);
 
@@ -24,20 +25,21 @@ public static class AnnounceLayout
 
             var line = paragraphs[p];
             var position = 0;
+            Color? color = null;
             foreach (Match match in UrlPattern.Matches(line))
             {
-                AddText(tokens, line.Substring(position, match.Index - position));
+                AddText(tokens, line.Substring(position, match.Index - position), ref color);
                 var url = match.Value.TrimEnd('.', ',', ')', '!');
                 tokens.Add(new AnnounceToken(url, false, url, Theme.Measure(url, Theme.CaptionBold).Width));
                 position = match.Index + match.Value.Length;
             }
-            AddText(tokens, line.Substring(position));
+            AddText(tokens, line.Substring(position), ref color);
         }
 
         return tokens;
     }
 
-    private static void AddText(List<AnnounceToken> tokens, string text)
+    private static void AddText(List<AnnounceToken> tokens, string text, ref Color? color)
     {
         if (text.Trim().Length == 0)
             return;
@@ -50,8 +52,21 @@ public static class AnnounceLayout
                 continue;
             }
 
-            foreach (var word in part.Text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
-                tokens.Add(new AnnounceToken(word, false, null, Theme.Measure(word, Theme.Caption).Width));
+            foreach (var raw in part.Text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var word = raw;
+                var match = ColorPattern.Match(word);
+                if (match.Success)
+                {
+                    color = ColorTranslator.FromHtml("#" + match.Groups[1].Value);
+                    word = word.Substring(match.Length);
+                    if (word.Length == 0)
+                        continue;
+                }
+
+                var font = color == null ? Theme.Caption : Theme.CaptionBold;
+                tokens.Add(new AnnounceToken(word, false, null, Theme.Measure(word, font).Width, color: color));
+            }
         }
     }
 
