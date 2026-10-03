@@ -23,6 +23,7 @@ public class SearchBox : ThemedControl
     };
 
     public event EventHandler? QueryChanged;
+    public event EventHandler? Submitted;
 
     public SearchBox(string? placeholder = null, bool icon = true)
     {
@@ -43,6 +44,13 @@ public class SearchBox : ThemedControl
         {
             _placeholder.Visible = _box.Text.Length == 0;
             QueryChanged?.Invoke(this, EventArgs.Empty);
+        };
+        _box.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode != Keys.Enter)
+                return;
+            e.SuppressKeyPress = true;
+            Submitted?.Invoke(this, EventArgs.Empty);
         };
         _box.GotFocus += (_, _) => Invalidate();
         _box.LostFocus += (_, _) => Invalidate();

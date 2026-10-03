@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -46,7 +45,7 @@ public static class XrayConfigBuilder
         }
     }
 
-    public static string Build(ProxyServer server, IEnumerable<RoutingRule> rules)
+    public static string Build(ProxyServer server, RoutingSettings routing)
     {
         var routingRules = new JsonArray
         {
@@ -58,11 +57,11 @@ public static class XrayConfigBuilder
             }
         };
 
-        foreach (var rule in rules.Where(r => r.Enabled))
-        {
-            foreach (var node in RuleNodes(rule))
-                routingRules.Add(node);
-        }
+        foreach (var rule in routing.ActiveRules)
+            routingRules.Add(RuleNode(rule));
+
+        if (routing.Final == RoutingRule.Direct)
+            routingRules.Add(new JsonObject { ["type"] = "field", ["network"] = "tcp,udp", ["outboundTag"] = "direct" });
 
         var config = new JsonObject
         {
@@ -98,107 +97,16 @@ public static class XrayConfigBuilder
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public const string ProcessPrefix = "process:";
-
-    public static IEnumerable<string> SplitValues(string values)
+    private static JsonObject RuleNode(RoutingRule rule)
     {
-        foreach (var chunk in values.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
-        {
-            var trimmed = chunk.Trim();
-            if (trimmed.StartsWith(ProcessPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                yield return trimmed;
-                continue;
-            }
-
-            foreach (var word in trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
-                yield return word;
-        }
-    }
-
-    private static IEnumerable<JsonObject> RuleNodes(RoutingRule rule)
-    {
-        var domains = new JsonArray();
-        var ips = new JsonArray();
-        var processes = new JsonArray();
-
-        foreach (var raw in SplitValues(rule.Values))
-        {
-            if (raw.StartsWith(ProcessPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                var process = Process(raw.Substring(ProcessPrefix.Length));
-                if (process.Length > 0)
-                    processes.Add(JsonValue.Create(process));
-                continue;
-            }
-
-            var value = raw.ToLowerInvariant();
-            if (IsIp(value))
-                ips.Add(JsonValue.Create(value));
-            else
-                domains.Add(JsonValue.Create(Domain(value)));
-        }
-
-        var tag = rule.Action switch
-        {
-            RoutingRule.Proxy => "proxy",
-            RoutingRule.Block => "block",
-            _ => "direct"
-        };
-
-        if (processes.Count > 0)
-            yield return new JsonObject { ["type"] = "field", ["process"] = processes, ["outboundTag"] = tag };
-        if (domains.Count > 0)
-            yield return new JsonObject { ["type"] = "field", ["domain"] = domains, ["outboundTag"] = tag };
-        if (ips.Count > 0)
-            yield return new JsonObject { ["type"] = "field", ["ip"] = ips, ["outboundTag"] = tag };
-    }
-
-    private static string Process(string value)
-    {
-        value = value.Trim().Trim('"').Replace('\\', '/');
-        if (value.Contains('/'))
-            return value;
-
-        return value.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? value.Substring(0, value.Length - 4) : value;
-    }
-
-    private static bool IsIp(string value)
-    {
-        if (value.StartsWith("geoip:"))
-            return true;
-
-        var address = value.Split('/')[0];
-        return IPAddress.TryParse(address, out _) && (address.Contains('.') || address.Contains(':'));
-    }
-
-    private static string Domain(string value)
-    {
-        foreach (var prefix in new[] { "regexp:", "keyword:", "geosite:" })
-        {
-            if (value.StartsWith(prefix))
-                return value;
-        }
-
-        var kind = "domain:";
-        foreach (var prefix in new[] { "domain:", "full:" })
-        {
-            if (value.StartsWith(prefix))
-            {
-                kind = prefix;
-                value = value[prefix.Length..];
-            }
-        }
-
-        if (value.Contains("://"))
-            value = value[(value.IndexOf("://", StringComparison.Ordinal) + 3)..];
-
-        value = value.Split('/')[0].TrimStart('*').TrimStart('.');
-
-        if (value.Any(c => c > 127))
-            value = new IdnMapping().GetAscii(value);
-
-        return kind + value;
+        var node = new JsonObject { ["type"] = "field", ["outboundTag"] = rule.Action == RoutingRule.Proxy ? "proxy" : "direct" };
+        if (rule.IsProcess)
+            node["process"] = new JsonArray(JsonValue.Create(rule.Target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? rule.Target[..^4] : rule.Target));
+        else if (RoutingValues.IsIp(rule.Value))
+            node["ip"] = new JsonArray(JsonValue.Create(rule.Value));
+        else
+            node["domain"] = new JsonArray(JsonValue.Create(rule.Value.Contains(':') ? rule.Value : "domain:" + rule.Value));
+        return node;
     }
 
     private static JsonObject Inbound(string tag, string protocol, int port, JsonObject settings) => new()
