@@ -118,6 +118,9 @@ public static class ServerText
 
     public static string Describe(ProxyServer server)
     {
+        if (server.Protocol == "auto")
+            return L.T("Самый быстрый сервер по пингу");
+
         if (server.Protocol == "ss")
             return "SHADOWSOCKS";
 
