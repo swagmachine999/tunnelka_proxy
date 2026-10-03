@@ -11,7 +11,7 @@ public static class TunConfigBuilder
 
     private static readonly string[] DirectProcesses = { "xray.exe", "sing-box.exe", "Tunnelka.exe" };
 
-    public static string Build(int socksPort, IEnumerable<RoutingRule> rules, string serverHost)
+    public static string Build(int socksPort, RoutingSettings routing, string serverHost, string? physicalInterface)
     {
         var routeRules = new JsonArray
         {
@@ -25,26 +25,10 @@ public static class TunConfigBuilder
             new JsonObject { ["ip_is_private"] = true, ["outbound"] = "direct" }
         };
 
-        foreach (var rule in rules.Where(r => r.Enabled))
+        foreach (var rule in routing.ActiveRules)
         {
-            var names = new JsonArray();
-            var paths = new JsonArray();
-            foreach (var value in XrayConfigBuilder.SplitValues(rule.Values))
-            {
-                if (!value.StartsWith(XrayConfigBuilder.ProcessPrefix, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                var target = value.Substring(XrayConfigBuilder.ProcessPrefix.Length).Trim().Trim('"');
-                if (target.Contains('/') || target.Contains('\\'))
-                    paths.Add(JsonValue.Create(target.Replace('/', '\\')));
-                else
-                    names.Add(JsonValue.Create(target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? target : target + ".exe"));
-            }
-
-            if (names.Count > 0)
-                routeRules.Add(Rule("process_name", names, rule.Action));
-            if (paths.Count > 0)
-                routeRules.Add(Rule("process_path", paths, rule.Action));
+            if (Rule(rule) is { } node)
+                routeRules.Add(node);
         }
 
         var config = new JsonObject
@@ -89,12 +73,17 @@ public static class TunConfigBuilder
             },
             ["route"] = new JsonObject
             {
-                ["auto_detect_interface"] = true,
                 ["default_domain_resolver"] = "local",
                 ["rules"] = routeRules,
-                ["final"] = "proxy"
+                ["final"] = routing.Final == RoutingRule.Direct ? "direct" : "proxy"
             }
         };
+
+        var route = config["route"]!.AsObject();
+        if (physicalInterface != null)
+            route["default_interface"] = physicalInterface;
+        else
+            route["auto_detect_interface"] = true;
 
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
@@ -116,13 +105,34 @@ public static class TunConfigBuilder
         return rules;
     }
 
-    private static JsonObject Rule(string field, JsonArray values, string action)
+    private static JsonObject? Rule(RoutingRule rule)
     {
-        var rule = new JsonObject { [field] = values };
-        if (action == RoutingRule.Block)
-            rule["action"] = "reject";
-        else
-            rule["outbound"] = action == RoutingRule.Direct ? "direct" : "proxy";
-        return rule;
+        var (field, value) = Match(rule);
+        if (field == null)
+            return null;
+
+        return new JsonObject
+        {
+            [field] = new JsonArray(JsonValue.Create(value)),
+            ["outbound"] = rule.Action == RoutingRule.Proxy ? "proxy" : "direct"
+        };
+    }
+
+    private static (string? Field, string Value) Match(RoutingRule rule)
+    {
+        if (rule.IsProcess)
+            return ("process_name", RoutingRule.ProcessName(rule.Target));
+
+        var value = rule.Value;
+        if (RoutingValues.IsIp(value))
+            return value.StartsWith("geoip:") ? (null, value) : ("ip_cidr", value.Contains('/') ? value : value + (value.Contains(':') ? "/128" : "/32"));
+
+        foreach (var (prefix, field) in new[] { ("full:", "domain"), ("domain:", "domain_suffix"), ("keyword:", "domain_keyword"), ("regexp:", "domain_regex") })
+        {
+            if (value.StartsWith(prefix))
+                return (field, value[prefix.Length..]);
+        }
+
+        return value.StartsWith("geosite:") ? (null, value) : ("domain_suffix", value);
     }
 }

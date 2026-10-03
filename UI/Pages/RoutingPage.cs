@@ -1,12 +1,11 @@
 using Tunnelka.Models;
-using Tunnelka.Services;
 using Tunnelka.UI.Controls;
 
 namespace Tunnelka.UI.Pages;
 
 public class RoutingPage : Panel
 {
-    private readonly List<RoutingRule> _rules;
+    private readonly RoutingSettings _routing;
     private readonly FlowLayoutPanel _list = new()
     {
         Dock = DockStyle.Fill,
@@ -15,102 +14,88 @@ public class RoutingPage : Panel
         AutoScroll = true
     };
 
-    private readonly SearchBox _input = new(L.T("Домены или IP через запятую"), false);
-    private readonly Segmented _action = new(L.T("Напрямую"), L.T("Через VPN"), L.T("Блок"));
-
-    private static readonly string RoutingBottomComment = L.T("Напрямую - использование без VPN\nЧерез VPN - использование через VPN\nБлок - полная блокировка трафика");
-
+    private readonly ToggleSwitch _enabled = new();
+    private readonly Segmented _mode = new(L.T("Что-то через VPN"), L.T("Что-то без VPN"));
+    private readonly Label _hint;
+    private readonly Label _tunNote;
+    private readonly SearchBox _input = new(L.T("Сайт или IP, например sberbank.ru"), false);
     private readonly Panel _reconnectBar = new() { Dock = DockStyle.Top, Visible = false };
 
     public event EventHandler? RulesChanged;
     public event EventHandler? ReconnectRequested;
 
-    public RoutingPage(List<RoutingRule> rules, Action onBack)
+    public RoutingPage(RoutingSettings routing, Action onBack)
     {
-        _rules = rules;
+        _routing = routing;
         Dock = DockStyle.Fill;
         Theme.Bind(this, () => Theme.Surface);
         Theme.Bind(_list, () => Theme.Surface);
-        var title = PageParts.Header(L.T("Маршрутизация"), onBack);
-        var subtitle = PageParts.Caption(L.T("Правила проверяются сверху вниз. Всё остальное идёт через VPN."), 34);
 
-        var form = new Panel { Dock = DockStyle.Top, Height = Theme.Px(184) };
-        Theme.Bind(form, () => Theme.Surface);
-
-        var commentLabel = Theme.Bind(new Label
+        var header = PageParts.Header(L.T("Маршрутизация"), onBack);
+        _enabled.Checked = routing.Enabled;
+        header.Controls.Add(_enabled);
+        _enabled.BringToFront();
+        header.Resize += (_, _) => _enabled.Location = new Point(header.Width - _enabled.Width - Theme.Px(8), (header.Height - _enabled.Height) / 2);
+        _enabled.CheckedChanged += (_, _) =>
         {
-            Text = RoutingBottomComment,
-            AutoSize = false,
-            Dock = DockStyle.Bottom,
-            Height = Theme.Px(84),
-            TextAlign = ContentAlignment.TopLeft,
-            Padding = Theme.Px(4, 10, 4, 8),
-            Font = Theme.Scaled(Theme.Caption)
-        }, () => Theme.Surface, () => Theme.TextMuted);
+            _routing.Enabled = _enabled.Checked;
+            Changed(true);
+        };
 
-        var add = PageParts.Button(L.T("Добавить"), true);
-        add.Click += (_, _) => AddFromInput();
+        _mode.Dock = DockStyle.Top;
+        _mode.SelectedIndex = routing.Mode == RoutingMode.SomeViaVpn ? 0 : 1;
+        _mode.SelectedIndexChanged += (_, _) =>
+        {
+            _routing.Mode = _mode.SelectedIndex == 0 ? RoutingMode.SomeViaVpn : RoutingMode.SomeDirect;
+            Changed(true);
+        };
 
-        var preset = PageParts.Button(L.T("Российские сайты напрямую"), false);
-        preset.Click += (_, _) => AddRule("domain:ru, domain:su, domain:рф", RoutingRule.Direct);
+        _hint = PageParts.Caption("", 36);
+        _tunNote = PageParts.Caption(L.T("Правила для программ надёжно работают в режиме TUN"), 30);
+        Theme.Bind(_tunNote, () => Theme.Surface, () => Theme.PingMid);
 
-        var process = PageParts.Button(L.T("Процесс"), false);
-        process.Click += (_, _) =>
+        var addRow = new Panel { Dock = DockStyle.Top, Height = Theme.Px(96) };
+        Theme.Bind(addRow, () => Theme.Surface);
+        var program = PageParts.Button(L.T("+ Программа"), false);
+        program.Click += (_, _) =>
         {
             var name = ProcessPicker.Show(FindForm());
             if (name != null)
-                AddRule(XrayConfigBuilder.ProcessPrefix + name, SelectedAction());
+                Add(RoutingRule.ForProcess(name, _routing.NewRuleAction));
         };
-
-        var file = PageParts.Button(L.T("Файл .exe"), false);
+        var file = PageParts.Button(L.T("+ Файл .exe"), false);
         file.Click += (_, _) =>
         {
             using var dialog = new OpenFileDialog { Filter = L.T("Программы (*.exe)|*.exe"), Title = L.T("Выбери программу") };
             if (dialog.ShowDialog(FindForm()) == DialogResult.OK)
-                AddRule(XrayConfigBuilder.ProcessPrefix + dialog.FileName, SelectedAction());
+                Add(RoutingRule.ForProcess(dialog.FileName, _routing.NewRuleAction));
         };
-
-        form.Controls.AddRange(new Control[] { _input, _action, add, process, file, preset });
-        form.Resize += (_, _) =>
+        var add = PageParts.Button(L.T("Добавить"), true);
+        add.Click += (_, _) => AddFromInput();
+        _input.Submitted += (_, _) => AddFromInput();
+        addRow.Controls.AddRange(new Control[] { program, file, _input, add });
+        addRow.Resize += (_, _) =>
         {
-            var width = form.Width - Theme.Px(6);
-            _input.SetBounds(0, 0, width, Theme.Px(42));
-            _action.SetBounds(0, Theme.Px(52), width - Theme.Px(120), Theme.Px(38));
-            add.SetBounds(width - Theme.Px(110), Theme.Px(52), Theme.Px(110), Theme.Px(38));
+            var width = addRow.Width - Theme.Px(6);
             var gap = Theme.Px(10);
             var half = (width - gap) / 2;
-            process.SetBounds(0, Theme.Px(100), half, Theme.Px(34));
-            file.SetBounds(half + gap, Theme.Px(100), width - half - gap, Theme.Px(34));
-            preset.SetBounds(0, Theme.Px(144), width, Theme.Px(34));
+            program.SetBounds(0, 0, half, Theme.Px(38));
+            file.SetBounds(half + gap, 0, width - half - gap, Theme.Px(38));
+            _input.SetBounds(0, Theme.Px(48), width - Theme.Px(120), Theme.Px(42));
+            add.SetBounds(width - Theme.Px(110), Theme.Px(50), Theme.Px(110), Theme.Px(38));
         };
 
-        var gap = new Panel { Dock = DockStyle.Top, Height = Theme.Px(12) };
-        Theme.Bind(gap, () => Theme.Surface);
+        BuildReconnectBar();
 
-        _reconnectBar.Height = Theme.Px(52);
-        _reconnectBar.Padding = Theme.Px(0, 4, 6, 10);
-        Theme.Bind(_reconnectBar, () => Theme.Surface);
-        var reconnect = PageParts.Button(L.T("Переподключить"), true);
-        reconnect.Dock = DockStyle.Right;
-        reconnect.Width = Theme.Px(150);
-        reconnect.Click += (_, _) => ReconnectRequested?.Invoke(this, EventArgs.Empty);
-        var hint = Theme.Bind(new Label
-        {
-            Text = L.T("Правила изменены. Они заработают после переподключения"),
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font = Theme.Scaled(Theme.CaptionBold)
-        }, () => Theme.Surface, () => Theme.AccentStrong);
-        _reconnectBar.Controls.Add(hint);
-        _reconnectBar.Controls.Add(reconnect);
-
-        Controls.Add(commentLabel);
+        var gap = Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(8) }, () => Theme.Surface);
         Controls.Add(_list);
+        Controls.Add(_tunNote);
         Controls.Add(gap);
-        Controls.Add(form);
+        Controls.Add(addRow);
         Controls.Add(_reconnectBar);
-        Controls.Add(subtitle);
-        Controls.Add(title);
+        Controls.Add(_hint);
+        Controls.Add(_mode);
+        Controls.Add(header);
 
         _list.Resize += (_, _) => ResizeCards();
         Rebuild();
@@ -118,51 +103,86 @@ public class RoutingPage : Panel
 
     public void ShowReconnectHint(bool show) => _reconnectBar.Visible = show;
 
-    private void AddFromInput()
-    {
-        if (_input.Query.Length == 0)
-            return;
+    public void SetTunMode(bool tun) => _tunNote.Visible = !tun && _routing.Rules.Any(r => r.IsProcess);
 
-        AddRule(_input.Query, SelectedAction());
-        _input.Clear();
+    private void BuildReconnectBar()
+    {
+        _reconnectBar.Height = Theme.Px(52);
+        _reconnectBar.Padding = Theme.Px(0, 4, 6, 10);
+        Theme.Bind(_reconnectBar, () => Theme.Surface);
+        var reconnect = PageParts.Button(L.T("Переподключить"), true);
+        reconnect.Dock = DockStyle.Right;
+        reconnect.Width = Theme.Px(150);
+        reconnect.Click += (_, _) => ReconnectRequested?.Invoke(this, EventArgs.Empty);
+        var text = Theme.Bind(new Label
+        {
+            Text = L.T("Правила изменены. Они заработают после переподключения"),
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = Theme.Scaled(Theme.CaptionBold)
+        }, () => Theme.Surface, () => Theme.AccentStrong);
+        _reconnectBar.Controls.Add(text);
+        _reconnectBar.Controls.Add(reconnect);
     }
 
-    private string SelectedAction() => _action.SelectedIndex switch
+    private void AddFromInput()
     {
-        1 => RoutingRule.Proxy,
-        2 => RoutingRule.Block,
-        _ => RoutingRule.Direct
-    };
+        foreach (var value in RoutingValues.Split(_input.Query))
+            Add(new RoutingRule { Value = RoutingValues.Clean(value), Action = _routing.NewRuleAction }, false);
 
-    private void AddRule(string values, string action)
+        _input.Clear();
+        Changed(true);
+    }
+
+    private void Add(RoutingRule rule, bool notify = true)
     {
-        _rules.Add(new RoutingRule { Values = values, Action = action });
-        Rebuild();
+        if (rule.Target.Length == 0)
+            return;
+
+        var existing = _routing.Rules.FirstOrDefault(r => string.Equals(r.Value, rule.Value, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+            existing.Action = rule.Action;
+        else
+            _routing.Rules.Insert(0, rule);
+
+        if (notify)
+            Changed(true);
+    }
+
+    private void Changed(bool rebuild)
+    {
+        if (rebuild)
+            Rebuild();
         RulesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void Rebuild()
     {
+        _hint.Text = !_routing.Enabled
+            ? L.T("Правила выключены — весь интернет идёт через VPN")
+            : _routing.Mode == RoutingMode.SomeViaVpn
+                ? L.T("Через VPN — только строки с пометкой VPN, остальное напрямую")
+                : L.T("Напрямую — только строки с пометкой ПРЯМОЕ, остальное через VPN");
+
         _list.SuspendLayout();
         foreach (Control control in _list.Controls)
             control.Dispose();
         _list.Controls.Clear();
 
-        foreach (var rule in _rules)
+        foreach (var rule in _routing.Rules)
         {
-            var card = new RuleCard(rule);
-            card.Changed += (_, _) => RulesChanged?.Invoke(this, EventArgs.Empty);
+            var card = new RuleCard(rule) { Dimmed = !_routing.Enabled };
+            card.Changed += (_, _) => Changed(false);
             card.DeleteClicked += (_, _) =>
             {
-                _rules.Remove(rule);
-                Rebuild();
-                RulesChanged?.Invoke(this, EventArgs.Empty);
+                _routing.Rules.Remove(rule);
+                Changed(true);
             };
             _list.Controls.Add(card);
         }
 
-        if (_rules.Count == 0)
-            _list.Controls.Add(PageParts.Caption(L.T("Правил пока нет"), 30));
+        if (_routing.Rules.Count == 0)
+            _list.Controls.Add(PageParts.Caption(L.T("Список пуст. Добавь программу или сайт"), 30));
 
         ResizeCards();
         _list.ResumeLayout();
