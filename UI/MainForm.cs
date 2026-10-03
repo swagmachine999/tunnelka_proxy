@@ -53,6 +53,7 @@ public class MainForm : Form, IMessageFilter
     private readonly OverlayPage _overlayPage;
     private readonly AboutPage _aboutPage;
     private readonly OverlayController _overlay;
+    private readonly UpdateWatcher _updates;
 
     private readonly System.Windows.Forms.Timer _autoUpdate = new() { Interval = 60_000 };
 
@@ -72,6 +73,7 @@ public class MainForm : Form, IMessageFilter
     public MainForm(bool reconnect = false, IconKind startPage = IconKind.Servers, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal, bool startHidden = false)
     {
         _settings = new Settings(_log);
+        Data.AutoStart = Autostart.IsEnabled();
         _connection = new ConnectionService(_log);
         _subscriptions = new SubscriptionService(_settings, _log, ProxyPort);
         _autos = new AutoServers(_settings, _subscriptions);
@@ -101,6 +103,7 @@ public class MainForm : Form, IMessageFilter
         _overlayPage = new OverlayPage(Data.Overlay, () => ShowPage(IconKind.Settings));
         _aboutPage = new AboutPage(ProxyPort);
         _overlay = new OverlayController(Data.Overlay, ProxyPort, () => Data.PingUrl);
+        _updates = new UpdateWatcher(ProxyPort);
 
         BuildLayout();
 
@@ -171,6 +174,7 @@ public class MainForm : Form, IMessageFilter
             _tray.Dispose();
             _traffic.Dispose();
             _overlay.Dispose();
+            _updates.Dispose();
             _connection.Dispose();
         };
 
@@ -918,6 +922,7 @@ public class MainForm : Form, IMessageFilter
 
         if (reconnect || Data.ConnectOnStart)
             Connect();
+        _updates.Start();
         await RunStartupTasks();
     }
 
@@ -1011,7 +1016,8 @@ public class MainForm : Form, IMessageFilter
             Data.AutoStart = on;
             Autostart.Apply(on);
         });
-        Autostart.Apply(Data.AutoStart);
+        if (Data.AutoStart)
+            Autostart.Apply(true);
 
         _statsPage.PeriodChanged += minutes =>
         {

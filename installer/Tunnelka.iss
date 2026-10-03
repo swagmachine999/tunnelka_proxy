@@ -32,8 +32,32 @@ RestartApplications=no
 Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
+[CustomMessages]
+ru.Options=Дополнительно:
+en.Options=Options:
+ru.AutoStart=Запускать вместе с Windows
+en.AutoStart=Start with Windows
+ru.CleanCache=Очистить кэш (ключи и настройки сохранятся)
+en.CleanCache=Clear cache (keys and settings are kept)
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+Name: "autostart"; Description: "{cm:AutoStart}"; GroupDescription: "{cm:Options}"; Flags: unchecked
+Name: "cleancache"; Description: "{cm:CleanCache}"; GroupDescription: "{cm:Options}"; Flags: unchecked
+
+[InstallDelete]
+Type: files; Name: "{localappdata}\Tunnelka\config.json"; Tasks: cleancache
+Type: files; Name: "{localappdata}\Tunnelka\tun.json"; Tasks: cleancache
+Type: files; Name: "{localappdata}\Tunnelka\ping-*.json"; Tasks: cleancache
+Type: files; Name: "{localappdata}\Tunnelka\crash.log"; Tasks: cleancache
+Type: files; Name: "{localappdata}\Tunnelka\*.broken"; Tasks: cleancache
+Type: files; Name: "{localappdata}\Tunnelka\*.moved"; Tasks: cleancache
+Type: files; Name: "{localappdata}\Tunnelka\*.tmp"; Tasks: cleancache
+Type: files; Name: "{app}\core\*.json"; Tasks: cleancache
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Tunnelka"; ValueData: """{app}\Tunnelka.exe"" --minimized"; Flags: uninsdeletevalue; Tasks: autostart
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "Tunnelka"; Flags: deletevalue; Tasks: not autostart; Check: not WizardSilent
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
