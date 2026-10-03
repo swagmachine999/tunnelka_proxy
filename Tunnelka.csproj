@@ -9,7 +9,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Tunnelka</AssemblyName>
     <RootNamespace>Tunnelka</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
+    <ApplicationIcon>Assets\tunnelka.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,6 +25,7 @@
   <ItemGroup>
     <None Update="core\**" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Assets\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

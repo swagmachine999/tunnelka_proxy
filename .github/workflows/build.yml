@@ -24,11 +24,20 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { $version = $env:GITHUB_REF_NAME.TrimStart('v'); $label = $version }
+          else { $version = ([xml](Get-Content Tunnelka.csproj)).Project.PropertyGroup.Version | Select-Object -First 1; $label = "dev-$($env:GITHUB_SHA.Substring(0, 7))" }
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ZIP_NAME=Tunnelka-$label-win-x64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "SETUP_NAME=Tunnelka-Setup-$version.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Check storage encryption
         run: dotnet run --project tests/DpapiCheck/DpapiCheck.csproj -c Release
 
       - name: Publish
-        run: dotnet publish Tunnelka.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+        run: dotnet publish Tunnelka.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:Version=${{ env.APP_VERSION }} -o publish
 
       - name: Add Xray and sing-box
         shell: pwsh
@@ -43,7 +52,6 @@ jobs:
           $dir = "singbox/sing-box-$env:SINGBOX_VERSION-windows-amd64"
           Copy-Item "$dir/sing-box.exe", "$dir/libcronet.dll" publish/core/
           Copy-Item "$dir/LICENSE" publish/core/LICENSE-sing-box.txt
-          Copy-Item THIRD-PARTY-NOTICES.md publish/
 
       - name: Report contents
         shell: pwsh
@@ -57,19 +65,34 @@ jobs:
 
       - name: Pack
         shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath $env:ZIP_NAME
+
+      - name: Installer
+        shell: pwsh
         run: |
-          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_SHA.Substring(0, 7))" }
-          "ZIP_NAME=Tunnelka-$version-win-x64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
-          Compress-Archive -Path publish/* -DestinationPath "Tunnelka-$version-win-x64.zip"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc "/DAppVersion=$env:APP_VERSION" "/DSourceDir=$PWD\publish" installer\Tunnelka.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item "dist\$env:SETUP_NAME" .
+          $size = (Get-Item $env:SETUP_NAME).Length / 1MB
+          Write-Output ("::notice title=Installer::{0} {1:N1} MB" -f $env:SETUP_NAME, $size)
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ZIP_NAME }}
           path: ${{ env.ZIP_NAME }}
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SETUP_NAME }}
+          path: ${{ env.SETUP_NAME }}
+
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ZIP_NAME }}
+          files: |
+            ${{ env.SETUP_NAME }}
+            ${{ env.ZIP_NAME }}
           generate_release_notes: true
