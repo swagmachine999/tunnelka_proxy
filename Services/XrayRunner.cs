@@ -45,7 +45,7 @@ public sealed class XrayRunner : IDisposable
             throw new FileNotFoundException(L.F("Не найден {0}", Path.GetFileName(_exePath)), _exePath);
 
         Directory.CreateDirectory(ConfigDir);
-        var configPath = Path.Combine(ConfigDir, _configName);
+        var configPath = ConfigPath;
         File.WriteAllText(configPath, configJson);
 
         var process = new Process
@@ -71,6 +71,49 @@ public sealed class XrayRunner : IDisposable
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
+    }
+
+    private string ConfigPath => Path.Combine(ConfigDir, _configName);
+
+    public static void DeleteConfigs()
+    {
+        try
+        {
+            if (!Directory.Exists(ConfigDir))
+                return;
+
+            foreach (var pattern in new[] { "config.json", "tun.json", "relay*.json", "ping-*.json" })
+            {
+                foreach (var file in Directory.GetFiles(ConfigDir, pattern))
+                    File.Delete(file);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    public bool WaitForPort(int port, int timeoutMs)
+    {
+        var deadline = Environment.TickCount64 + timeoutMs;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (!IsRunning)
+                return false;
+
+            try
+            {
+                using var client = new System.Net.Sockets.TcpClient();
+                client.Connect(System.Net.IPAddress.Loopback, port);
+                return true;
+            }
+            catch (System.Net.Sockets.SocketException)
+            {
+                Thread.Sleep(100);
+            }
+        }
+
+        return false;
     }
 
     public static void KillOrphans(string exePath)
@@ -116,6 +159,18 @@ public sealed class XrayRunner : IDisposable
         }
 
         process.Dispose();
+        DeleteConfig();
+    }
+
+    private void DeleteConfig()
+    {
+        try
+        {
+            File.Delete(ConfigPath);
+        }
+        catch (Exception)
+        {
+        }
     }
 
     public void Dispose() => Stop();

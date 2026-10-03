@@ -12,5 +12,6 @@ public enum IconKind
     Ping,
     Interface,
     Overlay,
+    Advanced,
     About
 }

@@ -7,8 +7,11 @@ namespace Tunnelka.Services;
 public static class TunConfigBuilder
 {
     public const string InterfaceName = "Tunnelka";
+    public const string Address = "172.19.0.1";
 
-    public static string Build(int socksPort, IEnumerable<RoutingRule> rules)
+    private static readonly string[] DirectProcesses = { "xray.exe", "sing-box.exe", "Tunnelka.exe" };
+
+    public static string Build(int socksPort, IEnumerable<RoutingRule> rules, string serverHost)
     {
         var routeRules = new JsonArray
         {
@@ -16,7 +19,7 @@ public static class TunConfigBuilder
             new JsonObject { ["protocol"] = "dns", ["action"] = "hijack-dns" },
             new JsonObject
             {
-                ["process_path"] = new JsonArray(JsonValue.Create(XrayRunner.XrayPath), JsonValue.Create(XrayRunner.SingBoxPath)),
+                ["process_name"] = new JsonArray(DirectProcesses.Select(p => (JsonNode)p).ToArray()),
                 ["outbound"] = "direct"
             },
             new JsonObject { ["ip_is_private"] = true, ["outbound"] = "direct" }
@@ -52,8 +55,9 @@ public static class TunConfigBuilder
                 ["servers"] = new JsonArray
                 {
                     new JsonObject { ["type"] = "tcp", ["tag"] = "remote", ["server"] = "1.1.1.1", ["detour"] = "proxy" },
-                    new JsonObject { ["type"] = "local", ["tag"] = "local" }
+                    new JsonObject { ["type"] = "udp", ["tag"] = "local", ["server"] = "77.88.8.8" }
                 },
+                ["rules"] = DnsRules(serverHost),
                 ["final"] = "remote",
                 ["strategy"] = "ipv4_only"
             },
@@ -64,7 +68,7 @@ public static class TunConfigBuilder
                     ["type"] = "tun",
                     ["tag"] = "tun-in",
                     ["interface_name"] = InterfaceName,
-                    ["address"] = new JsonArray(JsonValue.Create("172.19.0.1/30")),
+                    ["address"] = new JsonArray(JsonValue.Create(Address + "/30")),
                     ["mtu"] = 9000,
                     ["auto_route"] = true,
                     ["strict_route"] = true,
@@ -93,6 +97,23 @@ public static class TunConfigBuilder
         };
 
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static JsonArray DnsRules(string serverHost)
+    {
+        var rules = new JsonArray
+        {
+            new JsonObject
+            {
+                ["process_name"] = new JsonArray(DirectProcesses.Select(p => (JsonNode)p).ToArray()),
+                ["server"] = "local"
+            }
+        };
+
+        if (!System.Net.IPAddress.TryParse(serverHost, out _) && serverHost.Length > 0)
+            rules.Add(new JsonObject { ["domain"] = new JsonArray(JsonValue.Create(serverHost)), ["server"] = "local" });
+
+        return rules;
     }
 
     private static JsonObject Rule(string field, JsonArray values, string action)
