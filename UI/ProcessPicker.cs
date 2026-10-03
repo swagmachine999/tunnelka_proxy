@@ -63,7 +63,7 @@ public static class ProcessPicker
             Padding = Theme.Px(0, 0, 0, 6)
         };
 
-        var list = new ListBox
+        var list = new Controls.BufferedListBox
         {
             Dock = DockStyle.Fill,
             BorderStyle = BorderStyle.None,
@@ -79,14 +79,15 @@ public static class ProcessPicker
             var index = list.IndexFromPoint(e.Location);
             if (index != hover)
             {
+                list.InvalidateItem(hover);
                 hover = index;
-                list.Invalidate();
+                list.InvalidateItem(hover);
             }
         };
         list.MouseLeave += (_, _) =>
         {
+            list.InvalidateItem(hover);
             hover = -1;
-            list.Invalidate();
         };
         list.DrawItem += (_, e) =>
         {
