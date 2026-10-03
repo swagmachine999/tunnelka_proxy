@@ -12,7 +12,7 @@ public class ServerListView : FlowLayoutPanel
     private ServerCard? _menuCard;
     private SubscriptionCard? _menuSubscription;
     private string _query = "";
-    private readonly System.Windows.Forms.Timer _scrollTimer = new() { Interval = 10 };
+    private readonly System.Windows.Forms.Timer _scrollTimer = new() { Interval = 8 };
     private readonly System.Diagnostics.Stopwatch _scrollClock = new();
     private float _scrollTarget;
     private float _scrollCurrent;
@@ -152,17 +152,6 @@ public class ServerListView : FlowLayoutPanel
         }
     }
 
-    protected override CreateParams CreateParams
-    {
-        get
-        {
-            const int composited = 0x02000000;
-            var parameters = base.CreateParams;
-            parameters.ExStyle |= composited;
-            return parameters;
-        }
-    }
-
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         var max = Math.Max(0, DisplayRectangle.Height - ClientSize.Height);
@@ -170,6 +159,7 @@ public class ServerListView : FlowLayoutPanel
         {
             _scrollCurrent = _scrollTarget = -AutoScrollPosition.Y;
             _scrollClock.Restart();
+            TimeBeginPeriod(1);
             _scrollTimer.Start();
         }
 
@@ -187,12 +177,19 @@ public class ServerListView : FlowLayoutPanel
         {
             _scrollCurrent = _scrollTarget;
             _scrollTimer.Stop();
+            TimeEndPeriod(1);
         }
 
         var y = (int)Math.Round(_scrollCurrent);
         if (y != -AutoScrollPosition.Y)
             AutoScrollPosition = new Point(0, y);
     }
+
+    [System.Runtime.InteropServices.DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+    private static extern uint TimeBeginPeriod(uint milliseconds);
+
+    [System.Runtime.InteropServices.DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+    private static extern uint TimeEndPeriod(uint milliseconds);
 
     private ServerCard CreateCard(ProxyServer server)
     {
@@ -241,6 +238,8 @@ public class ServerListView : FlowLayoutPanel
         {
             _cardMenu.Dispose();
             _subscriptionMenu.Dispose();
+            if (_scrollTimer.Enabled)
+                TimeEndPeriod(1);
             _scrollTimer.Dispose();
         }
         base.Dispose(disposing);

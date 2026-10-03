@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Tunnelka.Services;
 using Tunnelka.UI.Controls;
 
@@ -9,7 +8,6 @@ public class AboutPage : Panel
     private readonly Func<int?> _proxyPort;
     private readonly Button _updateButton = PageParts.Button(L.T("Проверить"), true);
     private readonly SettingRow _updateRow;
-    private UpdateInfo? _update;
     private bool _working;
 
     public AboutPage(Func<int?> proxyPort)
@@ -24,7 +22,7 @@ public class AboutPage : Panel
         _updateRow = new SettingRow(L.T("Обновления"), L.T("Нажмите, чтобы проверить новую версию"), _updateButton);
 
         var releases = new SettingRow(L.T("Все версии"), L.T("Страница загрузок на GitHub"), chevron: true);
-        releases.Click += (_, _) => Open(UpdateService.ReleasesPage);
+        releases.Click += (_, _) => UpdateService.OpenPage(UpdateService.ReleasesPage);
 
         Controls.Add(releases);
         Controls.Add(_updateRow);
@@ -40,12 +38,22 @@ public class AboutPage : Panel
 
         _working = true;
         _updateButton.Enabled = false;
+        ShowStatus(L.T("Проверяю…"));
         try
         {
-            if (_update == null)
-                await Check();
-            else
-                await Install(_update);
+            var update = await UpdateService.CheckAsync(_proxyPort());
+            if (update == null)
+            {
+                ShowStatus(L.F("У вас последняя версия {0}", UpdateService.Current.ToString(3)));
+                return;
+            }
+
+            ShowStatus(L.F("Доступна версия {0}", update.Version.ToString(3)));
+            UpdateDialog.Show(update, _proxyPort);
+        }
+        catch (Exception ex)
+        {
+            ShowStatus(L.F("Не удалось проверить: {0}", ex.Message));
         }
         finally
         {
@@ -55,64 +63,10 @@ public class AboutPage : Panel
         }
     }
 
-    private async Task Check()
-    {
-        ShowStatus(L.T("Проверяю…"));
-        try
-        {
-            _update = await UpdateService.CheckAsync(_proxyPort());
-            if (_update == null)
-            {
-                ShowStatus(L.F("У вас последняя версия {0}", UpdateService.Current.ToString(3)));
-                return;
-            }
-
-            ShowStatus(L.F("Доступна версия {0}", _update.Version.ToString(3)));
-            _updateButton.Text = L.T("Обновить");
-        }
-        catch (Exception ex)
-        {
-            ShowStatus(L.F("Не удалось проверить: {0}", ex.Message));
-        }
-    }
-
-    private async Task Install(UpdateInfo update)
-    {
-        if (update.DownloadUrl.Length == 0)
-        {
-            Open(update.PageUrl);
-            return;
-        }
-
-        try
-        {
-            var progress = new Progress<int>(percent => ShowStatus(L.F("Загрузка {0}%", percent)));
-            var path = await UpdateService.DownloadAsync(update, _proxyPort(), progress);
-            ShowStatus(L.T("Устанавливаю…"));
-            UpdateService.RunInstaller(path);
-            Application.Exit();
-        }
-        catch (Exception ex)
-        {
-            ShowStatus(L.F("Не удалось обновить: {0}", ex.Message));
-        }
-    }
-
     private void ShowStatus(string text)
     {
         _updateRow.Subtitle = text;
         _updateRow.Invalidate();
-    }
-
-    private static void Open(string target)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-        }
-        catch (Exception)
-        {
-        }
     }
 
     private sealed class AboutCard : ThemedControl
