@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Tunnelka.Services;
-using Tunnelka.Storage;
 using Tunnelka.UI.Controls;
 
 namespace Tunnelka.UI.Pages;
@@ -26,13 +25,7 @@ public class AboutPage : Panel
 
         var releases = new SettingRow(L.T("Все версии"), L.T("Страница загрузок на GitHub"), chevron: true);
         releases.Click += (_, _) => Open(UpdateService.ReleasesPage);
-        var licenses = new SettingRow(L.T("Лицензии"), L.T("Xray, sing-box, шрифты и иконки"), chevron: true);
-        licenses.Click += (_, _) => Open(Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.md"));
-        var data = new SettingRow(L.T("Папка с данными"), AppStorage.Folder, chevron: true);
-        data.Click += (_, _) => Open(AppStorage.Folder);
 
-        Controls.Add(data);
-        Controls.Add(licenses);
         Controls.Add(releases);
         Controls.Add(_updateRow);
         Controls.Add(new AboutCard());
@@ -144,9 +137,8 @@ public class AboutPage : Panel
 
             var x = tile.Right + 18;
             var width = rect.Right - x - 16;
-            Theme.DrawText(g, "Tunnelka", Theme.Big, Theme.Text, new RectangleF(x, tile.Y - 4, width, 32));
-            Theme.DrawText(g, L.F("Версия {0}", UpdateService.Current.ToString(3)), Theme.BodyBold, Theme.AccentStrong, new RectangleF(x, tile.Y + 28, width, 20));
-            Theme.DrawText(g, L.T("VPN-клиент на Xray и sing-box"), Theme.Caption, Theme.TextMuted, new RectangleF(x, tile.Y + 48, width, 18));
+            Theme.DrawText(g, "Tunnelka", Theme.Big, Theme.Text, new RectangleF(x, tile.Y + 2, width, 32));
+            Theme.DrawText(g, L.F("Версия {0}", UpdateService.Current.ToString(3)), Theme.BodyBold, Theme.AccentStrong, new RectangleF(x, tile.Y + 36, width, 20));
         }
     }
 }

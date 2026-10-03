@@ -8,7 +8,7 @@ public sealed record UpdateInfo(Version Version, string DownloadUrl, string Page
 
 public static class UpdateService
 {
-    public const string Repository = "swagmachine999/vpnclient_tunnelka";
+    public const string Repository = "swagmachine999/tunnelka_proxy";
     public const string ReleasesPage = "https://github.com/" + Repository + "/releases";
 
     public static Version Current
