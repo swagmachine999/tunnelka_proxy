@@ -93,6 +93,37 @@ public static class AppStorage
 
     private static void Migrate(AppData data)
     {
+        MigrateSubscriptions(data);
+        MigrateRouting(data);
+    }
+
+    private static void MigrateRouting(AppData data)
+    {
+        var legacy = data.LegacyRules ?? new List<RoutingRule>();
+        var source = legacy.Where(r => r.Enabled != false).Concat(data.Routing.Rules).ToList();
+        var rules = new List<RoutingRule>();
+
+        foreach (var rule in source.Where(r => r.Action != RoutingRule.Block))
+        {
+            foreach (var value in RoutingValues.Split(rule.Value))
+            {
+                var clean = value.StartsWith(RoutingRule.ProcessPrefix, StringComparison.OrdinalIgnoreCase)
+                    ? RoutingRule.ForProcess(value[RoutingRule.ProcessPrefix.Length..], rule.Action)
+                    : new RoutingRule { Value = RoutingValues.Clean(value), Action = rule.Action };
+                if (clean.Target.Length > 0 && !rules.Any(r => string.Equals(r.Value, clean.Value, StringComparison.OrdinalIgnoreCase)))
+                    rules.Add(clean);
+            }
+        }
+
+        if (data.LegacyRules != null && rules.Count > 0)
+            data.Routing.Mode = rules.Any(r => r.Action == RoutingRule.Direct) ? RoutingMode.SomeDirect : RoutingMode.SomeViaVpn;
+
+        data.Routing.Rules = rules;
+        data.LegacyRules = null;
+    }
+
+    private static void MigrateSubscriptions(AppData data)
+    {
         if (data.LegacySubscriptions == null)
             return;
 

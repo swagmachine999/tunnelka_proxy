@@ -99,7 +99,8 @@ public class MainForm : Form, IMessageFilter
 
         _log.Written += Log;
         _logPage = new LogPage(() => ShowPage(IconKind.Settings));
-        _routingPage = new RoutingPage(Data.Rules, () => ShowPage(IconKind.Settings));
+        _routingPage = new RoutingPage(Data.Routing, () => ShowPage(IconKind.Settings));
+        _routingPage.SetTunMode(Data.Tun);
         _settingsPage = new SettingsPage(Data.SpeedInterval, Data.RealPing, Data.AutoStart, Data.ConnectOnStart);
         _advancedPage = new AdvancedPage(Data.Tun, Data.KillSwitch, Data.RefreshOnStart, Data.PingOnStart, () => ShowPage(IconKind.Settings));
         _killSwitch = new KillSwitch(_log);
@@ -825,7 +826,7 @@ public class MainForm : Form, IMessageFilter
 
     private async Task<bool> Start(ProxyServer server)
     {
-        var result = await _connection.StartAsync(server, Data.Tun, Data.Rules);
+        var result = await _connection.StartAsync(server, Data.Tun, Data.Routing);
         if (IsDisposed)
             return false;
 
@@ -933,6 +934,7 @@ public class MainForm : Form, IMessageFilter
     private void OnRulesChanged()
     {
         Save();
+        _routingPage.SetTunMode(Data.Tun);
         _routingPage.ShowReconnectHint(_active != null && _connection.IsRunning);
     }
 
@@ -1066,6 +1068,7 @@ public class MainForm : Form, IMessageFilter
         Data.Tun = tun;
         _hero.Tun = tun;
         _advancedPage.ModeSelector.SelectedIndex = tun ? 1 : 0;
+        _routingPage.SetTunMode(tun);
         Save();
         Log(tun ? L.T("Режим TUN: через VPN идёт весь трафик") : L.T("Режим прокси: через VPN идут браузер и программы"));
 

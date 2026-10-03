@@ -27,12 +27,12 @@ public sealed class ConnectionService : IDisposable
 
     public bool IsRunning => _xray.IsRunning;
 
-    public async Task<ConnectResult> StartAsync(ProxyServer server, bool tun, IReadOnlyList<RoutingRule> rules)
+    public async Task<ConnectResult> StartAsync(ProxyServer server, bool tun, RoutingSettings routing)
     {
         await _gate.WaitAsync();
         try
         {
-            return await Task.Run(() => StartCore(server, tun, rules));
+            return await Task.Run(() => StartCore(server, tun, routing));
         }
         finally
         {
@@ -66,7 +66,7 @@ public sealed class ConnectionService : IDisposable
         }
     }
 
-    private ConnectResult StartCore(ProxyServer server, bool tun, IReadOnlyList<RoutingRule> rules)
+    private ConnectResult StartCore(ProxyServer server, bool tun, RoutingSettings routing)
     {
         if (tun && !Elevation.IsAdministrator())
             return ConnectResult.NeedsAdministrator;
@@ -75,9 +75,9 @@ public sealed class ConnectionService : IDisposable
         XrayRunner.KillOrphans(XrayRunner.XrayPath);
         XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
 
-        var result = StartXray(server, rules);
+        var result = StartXray(server, routing);
         if (result == ConnectResult.Ok && tun)
-            result = StartTun(rules, server.Address);
+            result = StartTun(routing, server.Address);
 
         if (result != ConnectResult.Ok)
         {
@@ -118,7 +118,7 @@ public sealed class ConnectionService : IDisposable
         ApplySystemProxy(false);
     }
 
-    private ConnectResult StartXray(ProxyServer server, IReadOnlyList<RoutingRule> rules)
+    private ConnectResult StartXray(ProxyServer server, RoutingSettings routing)
     {
         if (!File.Exists(XrayRunner.XrayPath))
             return ConnectResult.XrayMissing;
@@ -132,7 +132,7 @@ public sealed class ConnectionService : IDisposable
             if (SingBoxRelay.Needs(server) && !StartRelay(server))
                 return ConnectResult.Failed;
 
-            _xray.Start(XrayConfigBuilder.Build(server, rules));
+            _xray.Start(XrayConfigBuilder.Build(server, routing));
             _log.Write(L.F("Порты: SOCKS5 127.0.0.1:{0}, HTTP 127.0.0.1:{1}", XrayConfigBuilder.SocksPort, XrayConfigBuilder.HttpPort));
             return ConnectResult.Ok;
         }
@@ -159,14 +159,14 @@ public sealed class ConnectionService : IDisposable
         return false;
     }
 
-    private ConnectResult StartTun(IReadOnlyList<RoutingRule> rules, string serverHost)
+    private ConnectResult StartTun(RoutingSettings routing, string serverHost)
     {
         if (!File.Exists(XrayRunner.SingBoxPath))
             return ConnectResult.SingBoxMissing;
 
         try
         {
-            _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, rules, serverHost));
+            _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, routing, serverHost));
             if (_singBox.WaitForExit(800))
             {
                 _log.Write(L.F("sing-box сразу завершился, код {0}", _singBox.ExitCode ?? -1));

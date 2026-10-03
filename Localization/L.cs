@@ -166,22 +166,10 @@ public static class L
         ["Тестовый адрес для реального пинга"] = "Test address for real ping",
         ["Сбросить адрес"] = "Reset address",
 
-        ["Домены или IP через запятую"] = "Domains or IPs, comma separated",
-        ["Напрямую"] = "Direct",
-        ["Через VPN"] = "Through VPN",
-        ["Блок"] = "Block",
-        ["Блокировать"] = "Block",
         ["Напрямую - использование без VPN\nЧерез VPN - использование через VPN\nБлок - полная блокировка трафика"] =
             "Direct - use without VPN\nThrough VPN - use through VPN\nBlock - block all traffic",
-        ["Правила проверяются сверху вниз. Всё остальное идёт через VPN."] = "Rules are checked top to bottom. Everything else goes through VPN.",
-        ["Российские сайты напрямую"] = "Russian sites direct",
-        ["Процесс"] = "Process",
-        ["Файл .exe"] = ".exe file",
         ["Программы (*.exe)|*.exe"] = "Programs (*.exe)|*.exe",
         ["Выбери программу"] = "Choose a program",
-        ["Правил пока нет"] = "No rules yet",
-        ["{0} (файл)"] = "{0} (file)",
-        ["{0} (процесс)"] = "{0} (process)",
 
         ["Выбор приложения"] = "Choose an app",
         ["Выберите приложение"] = "Choose an app",
@@ -290,6 +278,17 @@ public static class L
         ["Не удалось снять kill switch: {0}"] = "Could not remove the kill switch: {0}",
         ["TUN — весь трафик компьютера"] = "TUN — all computer traffic",
         ["Расширенное"] = "Advanced",
-        ["Режим туннеля, kill switch, действия при запуске"] = "Tunnel mode, kill switch, startup actions"
+        ["Режим туннеля, kill switch, действия при запуске"] = "Tunnel mode, kill switch, startup actions",
+        ["+ Программа"] = "+ App",
+        ["+ Файл .exe"] = "+ .exe file",
+        ["Напрямую — только строки с пометкой ПРЯМОЕ, остальное через VPN"] = "Only rows marked DIRECT go direct, the rest goes through VPN",
+        ["ПРЯМОЕ"] = "DIRECT",
+        ["Правила выключены — весь интернет идёт через VPN"] = "Rules are off — all traffic goes through VPN",
+        ["Правила для программ надёжно работают в режиме TUN"] = "App rules work reliably in TUN mode",
+        ["Сайт или IP, например sberbank.ru"] = "Site or IP, e.g. example.com",
+        ["Список пуст. Добавь программу или сайт"] = "The list is empty. Add an app or a site",
+        ["Через VPN — только строки с пометкой VPN, остальное напрямую"] = "Only rows marked VPN go through VPN, the rest goes direct",
+        ["Что-то без VPN"] = "Some without VPN",
+        ["Что-то через VPN"] = "Some via VPN"
     };
 }
