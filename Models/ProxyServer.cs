@@ -25,6 +25,11 @@ public class ProxyServer
     public string HeaderType { get; set; } = "";
     public string Alpn { get; set; } = "";
     public bool AllowInsecure { get; set; }
+    public string Password { get; set; } = "";
+    public string Obfs { get; set; } = "";
+    public string ObfsPassword { get; set; } = "";
+    public string Congestion { get; set; } = "";
+    public string UdpRelayMode { get; set; } = "";
     public string Link { get; set; } = "";
     public string? SubscriptionUrl { get; set; }
 

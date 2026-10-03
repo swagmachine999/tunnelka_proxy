@@ -6,22 +6,19 @@ public class SettingsPage : Panel
 {
     private static readonly int[] Intervals = { 1, 2, 3, 5, 10, 15, 30, 60, 300, 600, 1800, 3600 };
 
-    public SettingsPage(bool tun, int speedInterval, bool realPing, bool refreshOnStart, bool pingOnStart, bool autoStart, bool connectOnStart)
+    public SettingsPage(int speedInterval, bool realPing, bool autoStart, bool connectOnStart)
     {
         Dock = DockStyle.Fill;
         AutoScroll = true;
         Theme.Bind(this, () => Theme.Surface);
 
-        ModeSelector.Size = new Size(Theme.Px(156), Theme.Px(34));
-        ModeSelector.SelectedIndex = tun ? 1 : 0;
         SpeedSelector = new OptionStepper(Intervals, ServerText.Duration, speedInterval, 150);
-        RefreshToggle.Checked = refreshOnStart;
-        PingToggle.Checked = pingOnStart;
         AutoStartToggle.Checked = autoStart;
         ConnectToggle.Checked = connectOnStart;
 
         InterfaceRow = new SettingRow(L.T("Интерфейс"), L.T("Тема, масштаб и язык"), chevron: true);
         OverlayRow = new SettingRow(L.T("Оверлей"), L.T("Пинг и скорость поверх игр и окон"), chevron: true);
+        AdvancedRow = new SettingRow(L.T("Расширенное"), L.T("Режим туннеля, kill switch, действия при запуске"), chevron: true);
         RoutingRow = new SettingRow(L.T("Маршрутизация"), L.T("Какие сайты идут напрямую, через VPN или в блок"), chevron: true);
         LogRow = new SettingRow(L.T("Журнал"), L.T("Сообщения приложения и Xray"), chevron: true);
         PingRow = new SettingRow(L.T("Пинг"), "", chevron: true);
@@ -31,26 +28,22 @@ public class SettingsPage : Panel
         Controls.Add(LogRow);
         Controls.Add(RoutingRow);
         Controls.Add(PingRow);
-        Controls.Add(new SettingRow(L.T("Пинг при запуске"), L.T("Проверять все серверы при открытии приложения"), PingToggle));
-        Controls.Add(new SettingRow(L.T("Подписки при запуске"), L.T("Обновлять все подписки при открытии приложения"), RefreshToggle));
         Controls.Add(new SettingRow(L.T("Подключаться при запуске"), L.T("Сразу включать VPN к последнему серверу"), ConnectToggle));
         Controls.Add(new SettingRow(L.T("Запуск с Windows"), L.T("Открываться свёрнутым в трей при входе в систему"), AutoStartToggle));
         Controls.Add(new SettingRow(L.T("Скорость в окне"), L.T("Как часто обновлять"), SpeedSelector));
-        Controls.Add(new SettingRow(L.T("Режим"), L.T("Режим туннелирования"), ModeSelector));
+        Controls.Add(AdvancedRow);
         Controls.Add(OverlayRow);
         Controls.Add(InterfaceRow);
         Controls.Add(Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(10) }, () => Theme.Surface));
         Controls.Add(PageParts.Title(L.T("Настройки")));
     }
 
-    public Segmented ModeSelector { get; } = new(L.T("Прокси"), "TUN");
     public OptionStepper SpeedSelector { get; }
-    public ToggleSwitch RefreshToggle { get; } = new();
-    public ToggleSwitch PingToggle { get; } = new();
     public ToggleSwitch AutoStartToggle { get; } = new();
     public ToggleSwitch ConnectToggle { get; } = new();
     public SettingRow InterfaceRow { get; }
     public SettingRow OverlayRow { get; }
+    public SettingRow AdvancedRow { get; }
     public SettingRow RoutingRow { get; }
     public SettingRow LogRow { get; }
     public SettingRow PingRow { get; }
