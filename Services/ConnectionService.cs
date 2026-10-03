@@ -8,6 +8,7 @@ public sealed class ConnectionService : IDisposable
     private readonly AppLog _log;
     private readonly XrayRunner _xray = new();
     private readonly XrayRunner _singBox = new(XrayRunner.SingBoxPath, "tun.json");
+    private readonly XrayRunner _relay = new(XrayRunner.SingBoxPath, "relay.json");
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _proxyEnabled;
 
@@ -16,8 +17,10 @@ public sealed class ConnectionService : IDisposable
         _log = log;
         _xray.Output += _log.Write;
         _singBox.Output += line => _log.Write("[tun] " + line);
+        _relay.Output += line => _log.Write("[relay] " + line);
         _xray.Exited += () => Exited?.Invoke();
         _singBox.Exited += () => Exited?.Invoke();
+        _relay.Exited += () => Exited?.Invoke();
     }
 
     public event Action? Exited;
@@ -68,24 +71,29 @@ public sealed class ConnectionService : IDisposable
         if (tun && !Elevation.IsAdministrator())
             return ConnectResult.NeedsAdministrator;
 
-        _singBox.Stop();
+        StopCores();
+        XrayRunner.KillOrphans(XrayRunner.XrayPath);
+        XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
 
         var result = StartXray(server, rules);
-        if (result != ConnectResult.Ok)
-            return result;
+        if (result == ConnectResult.Ok && tun)
+            result = StartTun(rules, server.Address);
 
-        if (tun)
+        if (result != ConnectResult.Ok)
         {
-            result = StartTun(rules);
-            if (result != ConnectResult.Ok)
-            {
-                _xray.Stop();
-                return result;
-            }
+            StopCores();
+            return result;
         }
 
         ApplySystemProxy(!tun);
         return ConnectResult.Ok;
+    }
+
+    private void StopCores()
+    {
+        _singBox.Stop();
+        _xray.Stop();
+        _relay.Stop();
     }
 
     public static void CleanUpAfterCrash()
@@ -95,6 +103,9 @@ public sealed class ConnectionService : IDisposable
             SystemProxy.RestoreIfLeftOver();
             XrayRunner.KillOrphans(XrayRunner.XrayPath);
             XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
+            XrayRunner.DeleteConfigs();
+            if (KillSwitch.WasLeftOn() && Elevation.IsAdministrator())
+                new KillSwitch(new AppLog()).Release();
         }
         catch (Exception)
         {
@@ -103,8 +114,7 @@ public sealed class ConnectionService : IDisposable
 
     private void StopCore()
     {
-        _singBox.Stop();
-        _xray.Stop();
+        StopCores();
         ApplySystemProxy(false);
     }
 
@@ -115,11 +125,12 @@ public sealed class ConnectionService : IDisposable
 
         try
         {
-            _xray.Stop();
-            XrayRunner.KillOrphans(XrayRunner.XrayPath);
             XrayConfigBuilder.ChoosePorts();
             if (XrayConfigBuilder.SocksPort != XrayConfigBuilder.PreferredSocksPort)
                 _log.Write(L.F("Порт {0} занят другой программой (например, Happ или v2rayN), беру {1}", XrayConfigBuilder.PreferredSocksPort, XrayConfigBuilder.SocksPort));
+
+            if (SingBoxRelay.Needs(server) && !StartRelay(server))
+                return ConnectResult.Failed;
 
             _xray.Start(XrayConfigBuilder.Build(server, rules));
             _log.Write(L.F("Порты: SOCKS5 127.0.0.1:{0}, HTTP 127.0.0.1:{1}", XrayConfigBuilder.SocksPort, XrayConfigBuilder.HttpPort));
@@ -132,15 +143,30 @@ public sealed class ConnectionService : IDisposable
         }
     }
 
-    private ConnectResult StartTun(IReadOnlyList<RoutingRule> rules)
+    private bool StartRelay(ProxyServer server)
+    {
+        if (!File.Exists(XrayRunner.SingBoxPath))
+        {
+            _log.Write(L.F("Для {0} нужен sing-box.exe в папке core", server.Protocol));
+            return false;
+        }
+
+        _relay.Start(SingBoxRelay.Build(new[] { (server, XrayConfigBuilder.RelayPort) }));
+        if (_relay.WaitForPort(XrayConfigBuilder.RelayPort, 5000))
+            return true;
+
+        _log.Write(L.F("sing-box не запустил {0}, код {1}", server.Protocol, _relay.ExitCode ?? -1));
+        return false;
+    }
+
+    private ConnectResult StartTun(IReadOnlyList<RoutingRule> rules, string serverHost)
     {
         if (!File.Exists(XrayRunner.SingBoxPath))
             return ConnectResult.SingBoxMissing;
 
         try
         {
-            XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
-            _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, rules));
+            _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, rules, serverHost));
             if (_singBox.WaitForExit(800))
             {
                 _log.Write(L.F("sing-box сразу завершился, код {0}", _singBox.ExitCode ?? -1));
@@ -166,17 +192,20 @@ public sealed class ConnectionService : IDisposable
             if (!_singBox.IsRunning)
                 return;
 
-            var adapter = NetworkInterface.GetAllNetworkInterfaces()
-                .FirstOrDefault(n => n.Name == TunConfigBuilder.InterfaceName);
-            if (adapter is { OperationalStatus: OperationalStatus.Up })
+            if (FindAdapter() is { } adapter)
             {
-                _log.Write(L.T("Адаптер TUN создан"));
+                _log.Write(L.F("Адаптер TUN создан: {0}", adapter.Description));
                 return;
             }
         }
 
         _log.Write(L.T("Адаптер TUN не появился за 10 секунд. Его может блокировать антивирус или другой VPN"));
     }
+
+    private static NetworkInterface? FindAdapter() =>
+        NetworkInterface.GetAllNetworkInterfaces().FirstOrDefault(n =>
+            n.OperationalStatus == OperationalStatus.Up &&
+            n.GetIPProperties().UnicastAddresses.Any(a => a.Address.ToString() == TunConfigBuilder.Address));
 
     private void ApplySystemProxy(bool enable)
     {
@@ -204,5 +233,6 @@ public sealed class ConnectionService : IDisposable
         Stop();
         _xray.Dispose();
         _singBox.Dispose();
+        _relay.Dispose();
     }
 }
