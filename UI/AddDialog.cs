@@ -20,7 +20,7 @@ public static class AddDialog
 
         var label = new Label
         {
-            Text = L.T("Ключ сервера (vless, vmess, trojan, ss) или ключ подписки"),
+            Text = L.T("Ключ сервера (vless, vmess, trojan, ss, hysteria2, tuic) или ключ подписки"),
             Left = Theme.Px(20),
             Top = Theme.Px(18),
             AutoSize = true,

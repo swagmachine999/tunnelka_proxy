@@ -47,22 +47,30 @@ public static class RealPinger
         if (servers.Count == 0 || !File.Exists(XrayRunner.XrayPath))
             return results;
 
-        var ports = FreePorts(servers.Count);
+        var ports = FreePorts(servers.Count * 2);
+        var relayPorts = ports.Skip(servers.Count).ToList();
+        var relays = servers.Select((server, i) => (Server: server, Port: relayPorts[i]))
+            .Where(r => SingBoxRelay.Needs(r.Server)).ToList();
+
         Directory.CreateDirectory(XrayRunner.ConfigDir);
-        var configPath = Path.Combine(XrayRunner.ConfigDir, $"ping-{Guid.NewGuid():N}.json");
+        var id = Guid.NewGuid().ToString("N");
+        var configPath = Path.Combine(XrayRunner.ConfigDir, $"ping-{id}.json");
+        var relayPath = Path.Combine(XrayRunner.ConfigDir, $"ping-{id}-relay.json");
         Process? process = null;
+        Process? relay = null;
 
         try
         {
-            File.WriteAllText(configPath, BuildConfig(servers, ports));
-            process = Process.Start(new ProcessStartInfo(XrayRunner.XrayPath, $"run -c \"{configPath}\"")
+            if (relays.Count > 0 && File.Exists(XrayRunner.SingBoxPath))
             {
-                WorkingDirectory = XrayRunner.CoreDir,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            });
+                File.WriteAllText(relayPath, SingBoxRelay.Build(relays));
+                relay = Run(XrayRunner.SingBoxPath, relayPath);
+                if (relay == null || !await WaitForPort(relay, relays[0].Port))
+                    relay = null;
+            }
+
+            File.WriteAllText(configPath, BuildConfig(servers, ports, relayPorts));
+            process = Run(XrayRunner.XrayPath, configPath);
 
             if (process == null || !await WaitForPort(process, ports[0]))
                 return null;
@@ -90,23 +98,44 @@ public static class RealPinger
         }
         finally
         {
-            try
-            {
-                if (process is { HasExited: false })
-                    process.Kill(true);
-                process?.Dispose();
-            }
-            catch (Exception)
-            {
-            }
+            Kill(process);
+            Kill(relay);
+            Delete(configPath);
+            Delete(relayPath);
+        }
+    }
 
-            try
-            {
-                File.Delete(configPath);
-            }
-            catch (Exception)
-            {
-            }
+    private static Process? Run(string exe, string configPath) =>
+        Process.Start(new ProcessStartInfo(exe, $"run -c \"{configPath}\"")
+        {
+            WorkingDirectory = XrayRunner.CoreDir,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        });
+
+    private static void Kill(Process? process)
+    {
+        try
+        {
+            if (process is { HasExited: false })
+                process.Kill(true);
+            process?.Dispose();
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private static void Delete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception)
+        {
         }
     }
 
@@ -138,7 +167,7 @@ public static class RealPinger
         return best;
     }
 
-    private static string BuildConfig(IReadOnlyList<ProxyServer> servers, IReadOnlyList<int> ports)
+    private static string BuildConfig(IReadOnlyList<ProxyServer> servers, IReadOnlyList<int> ports, IReadOnlyList<int> relayPorts)
     {
         var inbounds = new JsonArray();
         var outbounds = new JsonArray();
@@ -149,7 +178,7 @@ public static class RealPinger
             JsonObject outbound;
             try
             {
-                outbound = XrayConfigBuilder.Outbound(servers[i], $"out-{i}");
+                outbound = XrayConfigBuilder.Outbound(servers[i], $"out-{i}", relayPorts[i]);
             }
             catch (Exception)
             {

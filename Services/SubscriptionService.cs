@@ -55,7 +55,7 @@ public sealed class SubscriptionService
         {
             _log.Write(L.T("Обновляю подписку"));
             SetStatus(url, RefreshState.Busy, "");
-            var result = await SubscriptionLoader.LoadAsync(url, _proxyPort());
+            var result = await Load(url);
             var index = _settings.Data.Profiles.FindIndex(p => p.Url == url);
             if (index < 0)
                 return false;
@@ -78,6 +78,19 @@ public sealed class SubscriptionService
             _log.Write(L.F("Ошибка подписки: {0}", ex.Message));
             SetStatus(url, RefreshState.Failed, Explain(ex));
             return false;
+        }
+    }
+
+    private async Task<SubscriptionResult> Load(string url)
+    {
+        try
+        {
+            return await SubscriptionLoader.LoadAsync(url);
+        }
+        catch (Exception) when (_proxyPort() is { } port)
+        {
+            _log.Write(L.T("Напрямую подписка не загрузилась, пробую через VPN"));
+            return await SubscriptionLoader.LoadAsync(url, port);
         }
     }
 
