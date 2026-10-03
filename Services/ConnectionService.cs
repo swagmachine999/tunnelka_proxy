@@ -28,6 +28,8 @@ public sealed class ConnectionService : IDisposable
         if (tun && !Elevation.IsAdministrator())
             return ConnectResult.NeedsAdministrator;
 
+        _singBox.Stop();
+
         var result = StartXray(server, rules);
         if (result != ConnectResult.Ok)
             return result;

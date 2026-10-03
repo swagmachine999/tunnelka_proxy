@@ -62,7 +62,7 @@ public class ServerListView : FlowLayoutPanel
         _subscriptionMenu.Opening += (_, _) => _menuSubscription = _subscriptionMenu.SourceControl as SubscriptionCard;
     }
 
-    public void Rebuild(IReadOnlyList<ProxyServer> servers, ProxyServer? selected, ProxyServer? active)
+    public void Rebuild(IReadOnlyList<ProxyServer> servers, ProxyServer? auto, ProxyServer? selected, ProxyServer? active)
     {
         SuspendLayout();
         foreach (Control control in Controls.Cast<Control>().ToList())
@@ -78,6 +78,9 @@ public class ServerListView : FlowLayoutPanel
             welcome.ManualClicked += (_, _) => AddRequested?.Invoke(this, EventArgs.Empty);
             controls.Add(welcome);
         }
+
+        if (auto != null)
+            controls.Add(CreateCard(auto));
 
         foreach (var info in _subscriptions.Profiles)
         {

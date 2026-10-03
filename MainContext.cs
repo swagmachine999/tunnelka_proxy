@@ -15,6 +15,7 @@ internal sealed class MainContext : ApplicationContext
     {
         var data = AppStorage.Load();
         Theme.SetScale(data.UiScale / 100f);
+        Theme.Use(data.DarkTheme);
         L.Use(data.Language);
     }
 
