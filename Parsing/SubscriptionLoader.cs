@@ -12,7 +12,8 @@ public static class SubscriptionLoader
     public static async Task<SubscriptionResult> LoadAsync(string url, int? proxyPort = null)
     {
         using var response = await Client(proxyPort).GetAsync(url);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidDataException(L.F("сервер подписки ответил ошибкой {0}", (int)response.StatusCode));
 
         var text = (await response.Content.ReadAsStringAsync()).Trim();
         if (!text.Contains("://"))

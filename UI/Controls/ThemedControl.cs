@@ -10,6 +10,7 @@ public abstract class ThemedControl : Control
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        SetStyle(ControlStyles.StandardDoubleClick, false);
     }
 
     protected float W => Width / Theme.S;

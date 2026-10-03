@@ -37,6 +37,7 @@ public class ServerListView : FlowLayoutPanel
         Resize += (_, _) => ResizeCards();
         DoubleBuffered = true;
         _scrollTimer.Tick += (_, _) => ScrollStep();
+        _subscriptions.StatusChanged += ShowStatus;
 
         _cardMenu.Items.Add(L.T("Подключиться"), null, (_, _) =>
         {
@@ -89,7 +90,12 @@ public class ServerListView : FlowLayoutPanel
         {
             var url = info.Url;
             var subscriptionServers = _subscriptions.Servers(url);
-            var header = new SubscriptionCard(info) { ContextMenuStrip = _subscriptionMenu, ServerCount = subscriptionServers.Count };
+            var header = new SubscriptionCard(info)
+            {
+                ContextMenuStrip = _subscriptionMenu,
+                ServerCount = subscriptionServers.Count,
+                Status = _subscriptions.StatusOf(url)
+            };
             header.RefreshClicked += (_, _) => SubscriptionRefreshRequested?.Invoke(url);
             header.PingClicked += (_, _) => SubscriptionPingRequested?.Invoke(url);
             header.MenuClicked += (_, point) => _subscriptionMenu.Show(header, point);
@@ -141,6 +147,12 @@ public class ServerListView : FlowLayoutPanel
             if (set.Contains(card.Server))
                 card.IsBusy = busy;
         }
+    }
+
+    private void ShowStatus(string url)
+    {
+        foreach (var header in Controls.OfType<SubscriptionCard>().Where(h => h.Info.Url == url))
+            header.Status = _subscriptions.StatusOf(url);
     }
 
     public void RefreshSubscriptionCards()
@@ -236,6 +248,7 @@ public class ServerListView : FlowLayoutPanel
     {
         if (disposing)
         {
+            _subscriptions.StatusChanged -= ShowStatus;
             _cardMenu.Dispose();
             _subscriptionMenu.Dispose();
             if (_scrollTimer.Enabled)
