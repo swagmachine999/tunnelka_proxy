@@ -11,7 +11,7 @@ public static class TunConfigBuilder
 
     private static readonly string[] DirectProcesses = { "xray.exe", "sing-box.exe", "Tunnelka.exe" };
 
-    public static string Build(int socksPort, RoutingSettings routing, string serverHost)
+    public static string Build(int socksPort, RoutingSettings routing, string serverHost, string? physicalInterface)
     {
         var routeRules = new JsonArray
         {
@@ -73,12 +73,17 @@ public static class TunConfigBuilder
             },
             ["route"] = new JsonObject
             {
-                ["auto_detect_interface"] = true,
                 ["default_domain_resolver"] = "local",
                 ["rules"] = routeRules,
                 ["final"] = routing.Final == RoutingRule.Direct ? "direct" : "proxy"
             }
         };
+
+        var route = config["route"]!.AsObject();
+        if (physicalInterface != null)
+            route["default_interface"] = physicalInterface;
+        else
+            route["auto_detect_interface"] = true;
 
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
