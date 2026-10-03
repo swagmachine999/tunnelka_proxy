@@ -33,6 +33,28 @@ public class SubscriptionCard : ThemedControl
 
     public int ServerCount { get; set; }
 
+    private const float DoneSeconds = 2.4f;
+    private RefreshStatus? _status;
+
+    public RefreshStatus? Status
+    {
+        get => _status;
+        set
+        {
+            _status = value;
+            UpdateLayout();
+            Invalidate();
+            Animate();
+        }
+    }
+
+    private bool Failed => _status?.State == RefreshState.Failed;
+
+    private float SinceStatus => _status == null ? float.MaxValue : (float)(DateTime.Now - _status.At).TotalSeconds;
+
+    protected override bool AnimateMore() =>
+        _status?.State == RefreshState.Busy || (_status?.State == RefreshState.Done && SinceStatus < DoneSeconds + 0.3f);
+
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
@@ -42,11 +64,12 @@ public class SubscriptionCard : ThemedControl
     public void UpdateLayout()
     {
         var warning = WarningText();
-        if (Width == _layoutWidth && warning == _layoutWarning)
+        if (Width == _layoutWidth && warning == _layoutWarning && Failed == _layoutFailed)
             return;
 
         _layoutWidth = Width;
         _layoutWarning = warning;
+        _layoutFailed = Failed;
         _lines = AnnounceLayout.Build(Info.Announce, W - Pad * 2);
         _warningHeight = warning == null ? 0
             : Theme.MeasureWrapped(warning, Theme.CaptionBold, W - Pad * 2 - WarningIndent - 12) + 20 + (Info.SupportUrl.Length > 0 ? 22 : 0);
@@ -63,7 +86,8 @@ public class SubscriptionCard : ThemedControl
     private const float WarningIndent = 40;
     private string? _layoutWarning;
     private float _warningHeight;
-    private int InfoRows => Info.Total > 0 ? 2 : 1;
+    private bool _layoutFailed;
+    private int InfoRows => (Info.Total > 0 ? 2 : 1) + (Failed ? 1 : 0);
 
     protected override bool CachePaint => true;
 
@@ -84,7 +108,7 @@ public class SubscriptionCard : ThemedControl
         x -= IconSize + 2;
         AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawPing, _ => PingClicked?.Invoke(this, EventArgs.Empty));
         x -= IconSize + 2;
-        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawRefresh, _ => RefreshClicked?.Invoke(this, EventArgs.Empty));
+        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawRefreshState, _ => RefreshClicked?.Invoke(this, EventArgs.Empty));
         if (Info.SupportUrl.Length > 0)
         {
             x -= IconSize + 2;
@@ -110,6 +134,14 @@ public class SubscriptionCard : ThemedControl
         {
             y += 22;
             DrawInfoRow(g, y, L.F("Трафик: {0} из {1}", ServerText.Bytes(Info.Upload + Info.Download), ServerText.Bytes(Info.Total)), Theme.Text);
+        }
+
+        if (Failed)
+        {
+            y += 22;
+            DrawWarningMark(g, Pad + 8, y + 1, 1f);
+            Theme.DrawText(g, L.F("Не удалось обновить: {0}", _status!.Message), Theme.CaptionBold, Theme.PingMid,
+                new RectangleF(Pad + 24, y, W - Pad * 2 - 24, 18));
         }
 
         if (_layoutWarning != null)
@@ -176,6 +208,10 @@ public class SubscriptionCard : ThemedControl
                     var url = token.Url;
                     _hits.Add((r, () => Open(url)));
                 }
+                else if (token.Color is { } color)
+                {
+                    Theme.DrawText(g, token.Text, Theme.CaptionBold, color, new RectangleF(x, y, token.Width + 2, LineHeight));
+                }
                 else
                 {
                     Theme.DrawText(g, token.Text, Theme.Caption, Theme.Text, new RectangleF(x, y, token.Width + 2, LineHeight));
@@ -196,16 +232,82 @@ public class SubscriptionCard : ThemedControl
         _hits.Add((r, () => click(r)));
     }
 
-    private static void DrawRefresh(Graphics g, RectangleF r)
+    private void DrawRefreshState(Graphics g, RectangleF r)
     {
-        using var pen = Theme.IconPen(Theme.TextMuted);
         var cx = r.X + r.Width / 2;
         var cy = r.Y + r.Height / 2;
-        g.DrawArc(pen, cx - 8, cy - 8, 16, 16, 40, 280);
+        switch (_status?.State)
+        {
+            case RefreshState.Busy:
+                DrawRefresh(g, cx, cy, (float)(DateTime.Now.TimeOfDay.TotalSeconds * 360 % 360), Theme.Accent);
+                return;
+            case RefreshState.Done when SinceStatus < DoneSeconds:
+                DrawCheck(g, cx, cy, SinceStatus);
+                return;
+        }
+
+        DrawRefresh(g, cx, cy, 0, Theme.TextMuted);
+        if (Failed)
+            DrawWarningMark(g, cx + 7, cy + 2, 0.75f);
+    }
+
+    private static void DrawRefresh(Graphics g, float cx, float cy, float rotation, Color color)
+    {
+        var state = g.Save();
+        g.TranslateTransform(cx, cy);
+        g.RotateTransform(rotation);
+        using var pen = Theme.IconPen(color);
+        g.DrawArc(pen, -8, -8, 16, 16, 40, 280);
         var angle = (40 + 280) * Math.PI / 180;
-        var tip = new PointF(cx + 8 * (float)Math.Cos(angle), cy + 8 * (float)Math.Sin(angle));
+        var tip = new PointF(8 * (float)Math.Cos(angle), 8 * (float)Math.Sin(angle));
         g.DrawLine(pen, tip.X, tip.Y, tip.X - 5, tip.Y - 1);
         g.DrawLine(pen, tip.X, tip.Y, tip.X + 0.5f, tip.Y - 5);
+        g.Restore(state);
+    }
+
+    private static void DrawCheck(Graphics g, float cx, float cy, float time)
+    {
+        var grow = Math.Min(1f, time / 0.25f);
+        var fade = Math.Min(1f, Math.Max(0f, (DoneSeconds - time) / 0.4f));
+        var radius = 10 * (0.6f + 0.4f * grow);
+        using (var brush = new SolidBrush(Color.FromArgb((int)(255 * fade), Theme.PingGood)))
+            g.FillEllipse(brush, cx - radius, cy - radius, radius * 2, radius * 2);
+
+        var stroke = Math.Min(1f, Math.Max(0f, (time - 0.15f) / 0.3f));
+        if (stroke <= 0)
+            return;
+
+        var a = new PointF(cx - 4.5f, cy + 0.2f);
+        var b = new PointF(cx - 1.2f, cy + 3.5f);
+        var c = new PointF(cx + 5f, cy - 3.5f);
+        using var pen = new Pen(Color.FromArgb((int)(255 * fade), Color.White), 2.2f)
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+            LineJoin = LineJoin.Round
+        };
+        if (stroke < 0.4f)
+        {
+            var t = stroke / 0.4f;
+            g.DrawLine(pen, a, Lerp(a, b, t));
+            return;
+        }
+
+        var t2 = (stroke - 0.4f) / 0.6f;
+        g.DrawLines(pen, new[] { a, b, Lerp(b, c, t2) });
+    }
+
+    private static PointF Lerp(PointF from, PointF to, float t) =>
+        new(from.X + (to.X - from.X) * t, from.Y + (to.Y - from.Y) * t);
+
+    private static void DrawWarningMark(Graphics g, float cx, float top, float scale)
+    {
+        var triangle = new[] { new PointF(cx, top), new PointF(cx + 9 * scale, top + 16 * scale), new PointF(cx - 9 * scale, top + 16 * scale) };
+        using (var fill = new SolidBrush(Theme.PingMid))
+            g.FillPolygon(fill, triangle);
+        using var mark = new Pen(Color.White, 1.8f * scale) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        g.DrawLine(mark, cx, top + 5 * scale, cx, top + 10 * scale);
+        g.DrawLine(mark, cx, top + 13 * scale, cx, top + 13.2f * scale);
     }
 
     private static void DrawSupport(Graphics g, RectangleF r)

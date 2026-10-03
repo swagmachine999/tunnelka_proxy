@@ -142,7 +142,7 @@ public class MainForm : Form, IMessageFilter
         _hero.Tun = Data.Tun;
         _hero.PowerClicked += (_, _) => ToggleConnection();
         _hero.PingClicked += async (_, _) => await PingCurrent();
-        _hero.RefreshClicked += async (_, _) => await UpdateSubscriptions();
+        _hero.RefreshClicked += async (_, _) => await RefreshCurrentSubscription();
         _hero.ModeSelected += SetMode;
         WireSettings();
         WireOverlay();
@@ -581,8 +581,20 @@ public class MainForm : Form, IMessageFilter
         ShowSubscriptionResult(await _subscriptions.RefreshAll(_active));
     }
 
+    private async Task RefreshCurrentSubscription()
+    {
+        var url = (_active ?? _selected)?.SubscriptionUrl;
+        if (url != null && _subscriptions.IsKnown(url))
+            await RefreshSubscription(url);
+        else
+            await UpdateSubscriptions();
+    }
+
     private async Task RefreshSubscription(string url)
     {
+        if (_subscriptions.StatusOf(url)?.State == RefreshState.Busy)
+            return;
+
         _hero.SetBusy(true);
         ShowSubscriptionResult(await _subscriptions.Refresh(url, _active));
     }
