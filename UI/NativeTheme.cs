@@ -4,17 +4,32 @@ namespace Tunnelka.UI;
 
 public static class NativeTheme
 {
+    private const int ImmersiveDarkMode = 20;
+    private const int CornerPreference = 33;
+    private const int BorderColor = 34;
+    private const int CaptionColor = 35;
+    private const int TextColor = 36;
+    private const int RoundCorners = 2;
+
     public static void TitleBar(Form form, bool dark)
     {
         try
         {
-            var value = dark ? 1 : 0;
-            DwmSetWindowAttribute(form.Handle, 20, ref value, sizeof(int));
+            Set(form, ImmersiveDarkMode, dark ? 1 : 0);
+            Set(form, CornerPreference, RoundCorners);
+            Set(form, CaptionColor, ColorRef(Theme.Sidebar));
+            Set(form, TextColor, ColorRef(Theme.Text));
+            Set(form, BorderColor, ColorRef(Theme.Border));
         }
         catch (Exception)
         {
         }
     }
+
+    private static void Set(Form form, int attribute, int value) =>
+        DwmSetWindowAttribute(form.Handle, attribute, ref value, sizeof(int));
+
+    private static int ColorRef(Color color) => color.R | (color.G << 8) | (color.B << 16);
 
     public static void Scrollbars(Control control, bool dark)
     {

@@ -9,10 +9,16 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Tunnelka</AssemblyName>
     <RootNamespace>Tunnelka</RootNamespace>
+    <Version>1.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="ZXing.Net" Version="0.16.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
   </ItemGroup>
 
   <ItemGroup>

@@ -5,16 +5,17 @@ namespace Tunnelka;
 
 internal sealed class MainContext : ApplicationContext
 {
-    public MainContext(bool connect)
+    public MainContext(bool connect, bool minimized)
     {
         ApplySettings();
-        MainForm = Attach(new MainForm(connect));
+        MainForm = Attach(new MainForm(connect, startHidden: minimized));
     }
 
     private static void ApplySettings()
     {
         var data = AppStorage.Load();
         Theme.SetScale(data.UiScale / 100f);
+        Theme.Use(data.DarkTheme);
         L.Use(data.Language);
     }
 

@@ -31,9 +31,8 @@ public class SettingRow : ThemedControl
 
     protected override void Draw(Graphics g)
     {
-        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 9.5f);
-        Theme.FillRounded(g, IsHovered && _chevron ? Theme.CardHover : Theme.Card, rect, 14);
-        Theme.DrawRounded(g, Theme.Border, rect, 14);
+        var rect = new RectangleF(Theme.ShadowSide, 1, W - Theme.ShadowSide * 2, H - 9);
+        Theme.DrawCard(g, rect, 14, _chevron ? Theme.Blend(Theme.Card, Theme.CardHover, Hover) : Theme.Card, Theme.Border);
 
         var right = _accessory != null ? _accessory.Width / Theme.S + 16 : _chevron ? 30 : 0;
         var textWidth = W - 32 - right;
@@ -42,11 +41,7 @@ public class SettingRow : ThemedControl
 
         if (_chevron)
         {
-            using var pen = new Pen(Theme.TextMuted, 2f)
-            {
-                StartCap = System.Drawing.Drawing2D.LineCap.Round,
-                EndCap = System.Drawing.Drawing2D.LineCap.Round
-            };
+            using var pen = Theme.IconPen(Theme.TextMuted);
             var cx = W - 24f;
             var cy = rect.Height / 2;
             g.DrawLine(pen, cx - 3, cy - 6, cx + 3, cy);

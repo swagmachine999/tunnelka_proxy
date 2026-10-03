@@ -211,9 +211,70 @@ public static class Theme
 
     public static void DrawRounded(Graphics g, Color color, RectangleF r, float radius, float width = 1)
     {
+        if (width <= 1)
+        {
+            using var matrix = g.Transform;
+            var scale = matrix.Elements[0];
+            r = Snap(r, scale, matrix.Elements[4], matrix.Elements[5]);
+            width = 1 / scale;
+        }
+
         using var path = RoundedRect(r, radius);
         using var pen = new Pen(color, width);
         g.DrawPath(pen, path);
+    }
+
+    private static RectangleF Snap(RectangleF r, float scale, float offsetX, float offsetY)
+    {
+        float Down(float value, float offset) => ((float)Math.Floor(value * scale + offset) + 0.5f - offset) / scale;
+        float Up(float value, float offset) => ((float)Math.Ceiling(value * scale + offset) - 0.5f - offset) / scale;
+
+        var left = Down(r.X, offsetX);
+        var top = Down(r.Y, offsetY);
+        return RectangleF.FromLTRB(left, top, Math.Max(left, Up(r.Right, offsetX)), Math.Max(top, Up(r.Bottom, offsetY)));
+    }
+
+    public const float IconStroke = 1.8f;
+
+    public static Pen IconPen(Color color, float width = IconStroke) => new(color, width)
+    {
+        StartCap = LineCap.Round,
+        EndCap = LineCap.Round,
+        LineJoin = LineJoin.Round
+    };
+
+    public const float ShadowSide = 3;
+    public const float ShadowBottom = 5;
+
+    public static RectangleF CardRect(float width, float height) =>
+        new(ShadowSide, 1, width - ShadowSide * 2, height - ShadowBottom - 1);
+
+    public static void DrawShadow(Graphics g, RectangleF r, float radius)
+    {
+        var color = IsDark ? Color.Black : Color.FromArgb(90, 70, 140);
+        var alpha = IsDark ? 22 : 10;
+        for (var i = 4; i >= 1; i--)
+        {
+            var layer = new RectangleF(r.X - i * 0.6f, r.Y + i * 0.5f, r.Width + i * 1.2f, r.Height + i * 0.9f);
+            FillRounded(g, Color.FromArgb(alpha, color), layer, radius + i * 0.6f);
+        }
+    }
+
+    public static void DrawCard(Graphics g, RectangleF r, float radius, Color fill, Color border)
+    {
+        DrawShadow(g, r, radius);
+        FillRounded(g, fill, r, radius);
+        DrawRounded(g, border, r, radius);
+    }
+
+    public static Color Blend(Color from, Color to, float amount)
+    {
+        amount = Math.Max(0, Math.Min(1, amount));
+        return Color.FromArgb(
+            (int)(from.A + (to.A - from.A) * amount),
+            (int)(from.R + (to.R - from.R) * amount),
+            (int)(from.G + (to.G - from.G) * amount),
+            (int)(from.B + (to.B - from.B) * amount));
     }
 
     public static void DrawText(Graphics g, string text, Font font, Color color, RectangleF r,
@@ -285,7 +346,7 @@ public static class Theme
 
     public static void DrawArrow(Graphics g, float x, float cy, bool down, Color color)
     {
-        using var pen = new Pen(color, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        using var pen = Theme.IconPen(color);
         var top = cy - 6;
         var bottom = cy + 6;
         g.DrawLine(pen, x + 5, top, x + 5, bottom);
