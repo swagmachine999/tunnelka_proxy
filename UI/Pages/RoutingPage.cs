@@ -14,9 +14,7 @@ public class RoutingPage : Panel
         AutoScroll = true
     };
 
-    private readonly ToggleSwitch _enabled = new();
-    private readonly Segmented _mode = new(L.T("Что-то через VPN"), L.T("Что-то без VPN"));
-    private readonly Label _hint;
+    private readonly Dictionary<RoutingMode, RadioCard> _modes = new();
     private readonly Label _tunNote;
     private readonly SearchBox _input = new(L.T("Сайт или IP, например sberbank.ru"), false);
     private readonly Panel _reconnectBar = new() { Dock = DockStyle.Top, Visible = false };
@@ -32,25 +30,11 @@ public class RoutingPage : Panel
         Theme.Bind(_list, () => Theme.Surface);
 
         var header = PageParts.Header(L.T("Маршрутизация"), onBack);
-        _enabled.Checked = routing.Enabled;
-        header.Controls.Add(_enabled);
-        _enabled.BringToFront();
-        header.Resize += (_, _) => _enabled.Location = new Point(header.Width - _enabled.Width - Theme.Px(8), (header.Height - _enabled.Height) / 2);
-        _enabled.CheckedChanged += (_, _) =>
-        {
-            _routing.Enabled = _enabled.Checked;
-            Changed(true);
-        };
+        AddMode(RoutingMode.AllVpn, L.T("Всё через VPN"), L.T("Список не действует, весь трафик идёт через VPN"));
+        AddMode(RoutingMode.DirectForListed, L.T("Без VPN для выбранных"), L.T("Программы и сайты из списка идут напрямую, остальное через VPN"));
+        AddMode(RoutingMode.VpnForListed, L.T("VPN только для выбранных"), L.T("Через VPN идут только программы и сайты из списка"));
+        var listTitle = PageParts.Caption(L.T("ВЫБРАННЫЕ ПРОГРАММЫ И САЙТЫ"), 34);
 
-        _mode.Dock = DockStyle.Top;
-        _mode.SelectedIndex = routing.Mode == RoutingMode.SomeViaVpn ? 0 : 1;
-        _mode.SelectedIndexChanged += (_, _) =>
-        {
-            _routing.Mode = _mode.SelectedIndex == 0 ? RoutingMode.SomeViaVpn : RoutingMode.SomeDirect;
-            Changed(true);
-        };
-
-        _hint = PageParts.Caption("", 36);
         _tunNote = PageParts.Caption(L.T("Правила для программ надёжно работают в режиме TUN"), 30);
         Theme.Bind(_tunNote, () => Theme.Surface, () => Theme.PingMid);
 
@@ -61,14 +45,14 @@ public class RoutingPage : Panel
         {
             var name = ProcessPicker.Show(FindForm());
             if (name != null)
-                Add(RoutingRule.ForProcess(name, _routing.NewRuleAction));
+                Add(RoutingRule.ForProcess(name));
         };
         var file = PageParts.Button(L.T("+ Файл .exe"), false);
         file.Click += (_, _) =>
         {
             using var dialog = new OpenFileDialog { Filter = L.T("Программы (*.exe)|*.exe"), Title = L.T("Выбери программу") };
             if (dialog.ShowDialog(FindForm()) == DialogResult.OK)
-                Add(RoutingRule.ForProcess(dialog.FileName, _routing.NewRuleAction));
+                Add(RoutingRule.ForProcess(dialog.FileName));
         };
         var add = PageParts.Button(L.T("Добавить"), true);
         add.Click += (_, _) => AddFromInput();
@@ -92,9 +76,10 @@ public class RoutingPage : Panel
         Controls.Add(_tunNote);
         Controls.Add(gap);
         Controls.Add(addRow);
+        Controls.Add(listTitle);
         Controls.Add(_reconnectBar);
-        Controls.Add(_hint);
-        Controls.Add(_mode);
+        foreach (var card in _modes.Values.Reverse())
+            Controls.Add(card);
         Controls.Add(header);
 
         _list.Resize += (_, _) => ResizeCards();
@@ -128,10 +113,10 @@ public class RoutingPage : Panel
     private void AddFromInput()
     {
         foreach (var value in RoutingValues.Split(_input.Query))
-            Add(new RoutingRule { Value = RoutingValues.Clean(value), Action = _routing.NewRuleAction }, false);
+            Add(new RoutingRule { Value = RoutingValues.Clean(value) }, false);
 
         _input.Clear();
-        Changed(true);
+        Changed();
     }
 
     private void Add(RoutingRule rule, bool notify = true)
@@ -139,30 +124,25 @@ public class RoutingPage : Panel
         if (rule.Target.Length == 0)
             return;
 
-        var existing = _routing.Rules.FirstOrDefault(r => string.Equals(r.Value, rule.Value, StringComparison.OrdinalIgnoreCase));
-        if (existing != null)
-            existing.Action = rule.Action;
-        else
-            _routing.Rules.Insert(0, rule);
+        if (_routing.Rules.Any(r => string.Equals(r.Value, rule.Value, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        _routing.Rules.Insert(0, rule);
 
         if (notify)
-            Changed(true);
+            Changed();
     }
 
-    private void Changed(bool rebuild)
+    private void Changed()
     {
-        if (rebuild)
-            Rebuild();
+        Rebuild();
         RulesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void Rebuild()
     {
-        _hint.Text = !_routing.Enabled
-            ? L.T("Правила выключены — весь интернет идёт через VPN")
-            : _routing.Mode == RoutingMode.SomeViaVpn
-                ? L.T("Через VPN — только строки с пометкой VPN, остальное напрямую")
-                : L.T("Напрямую — только строки с пометкой ПРЯМОЕ, остальное через VPN");
+        foreach (var pair in _modes)
+            pair.Value.Checked = pair.Key == _routing.ListMode;
 
         _list.SuspendLayout();
         foreach (Control control in _list.Controls)
@@ -171,12 +151,11 @@ public class RoutingPage : Panel
 
         foreach (var rule in _routing.Rules)
         {
-            var card = new RuleCard(rule) { Dimmed = !_routing.Enabled };
-            card.Changed += (_, _) => Changed(false);
+            var card = new RuleCard(rule) { Dimmed = _routing.ListMode == RoutingMode.AllVpn };
             card.DeleteClicked += (_, _) =>
             {
                 _routing.Rules.Remove(rule);
-                Changed(true);
+                Changed();
             };
             _list.Controls.Add(card);
         }
@@ -186,6 +165,17 @@ public class RoutingPage : Panel
 
         ResizeCards();
         _list.ResumeLayout();
+    }
+
+    private void AddMode(RoutingMode mode, string title, string subtitle)
+    {
+        var card = new RadioCard(title, subtitle);
+        card.Selected += (_, _) =>
+        {
+            _routing.ListMode = mode;
+            Changed();
+        };
+        _modes[mode] = card;
     }
 
     private void ResizeCards()

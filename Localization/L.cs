@@ -281,18 +281,19 @@ public static class L
         ["Режим туннеля, kill switch, действия при запуске"] = "Tunnel mode, kill switch, startup actions",
         ["+ Программа"] = "+ App",
         ["+ Файл .exe"] = "+ .exe file",
-        ["Напрямую — только строки с пометкой ПРЯМОЕ, остальное через VPN"] = "Only rows marked DIRECT go direct, the rest goes through VPN",
-        ["ПРЯМОЕ"] = "DIRECT",
-        ["Правила выключены — весь интернет идёт через VPN"] = "Rules are off — all traffic goes through VPN",
         ["Правила для программ надёжно работают в режиме TUN"] = "App rules work reliably in TUN mode",
         ["Сайт или IP, например sberbank.ru"] = "Site or IP, e.g. example.com",
         ["Список пуст. Добавь программу или сайт"] = "The list is empty. Add an app or a site",
-        ["Через VPN — только строки с пометкой VPN, остальное напрямую"] = "Only rows marked VPN go through VPN, the rest goes direct",
-        ["Что-то без VPN"] = "Some without VPN",
-        ["Что-то через VPN"] = "Some via VPN",
         ["Адаптер TUN не создан: мешает другой VPN ({0}). Закройте его и переподключитесь"] = "TUN adapter was not created: another VPN is in the way ({0}). Close it and reconnect",
         ["Для режима TUN нужны права администратора"] = "TUN mode needs administrator rights",
         ["Работает другой VPN в режиме TUN ({0}). Он может мешать адаптеру Tunnelka"] = "Another VPN is running in TUN mode ({0}). It may interfere with the Tunnelka adapter",
-        ["Трафик ядра идёт напрямую через адаптер {0}, мимо другого VPN"] = "Core traffic goes directly through adapter {0}, bypassing the other VPN"
+        ["Трафик ядра идёт напрямую через адаптер {0}, мимо другого VPN"] = "Core traffic goes directly through adapter {0}, bypassing the other VPN",
+        ["VPN только для выбранных"] = "VPN only for selected",
+        ["Без VPN для выбранных"] = "Without VPN for selected",
+        ["ВЫБРАННЫЕ ПРОГРАММЫ И САЙТЫ"] = "SELECTED APPS AND SITES",
+        ["Всё через VPN"] = "Everything via VPN",
+        ["Программы и сайты из списка идут напрямую, остальное через VPN"] = "Apps and sites from the list go direct, the rest goes through VPN",
+        ["Список не действует, весь трафик идёт через VPN"] = "The list is not used, all traffic goes through VPN",
+        ["Через VPN идут только программы и сайты из списка"] = "Only apps and sites from the list go through VPN"
     };
 }

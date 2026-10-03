@@ -4,22 +4,26 @@ namespace Tunnelka.Models;
 
 public enum RoutingMode
 {
-    SomeDirect,
-    SomeViaVpn
+    AllVpn,
+    DirectForListed,
+    VpnForListed
 }
 
 public class RoutingSettings
 {
-    public bool Enabled { get; set; } = true;
-    public RoutingMode Mode { get; set; } = RoutingMode.SomeDirect;
+    public RoutingMode ListMode { get; set; } = RoutingMode.AllVpn;
     public List<RoutingRule> Rules { get; set; } = new();
 
-    [JsonIgnore]
-    public IEnumerable<RoutingRule> ActiveRules => Enabled ? Rules : Enumerable.Empty<RoutingRule>();
+    [JsonPropertyName("Enabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? LegacyEnabled { get; set; }
 
     [JsonIgnore]
-    public string Final => Enabled && Mode == RoutingMode.SomeViaVpn ? RoutingRule.Direct : RoutingRule.Proxy;
+    public IEnumerable<RoutingRule> ActiveRules => ListMode == RoutingMode.AllVpn ? Enumerable.Empty<RoutingRule>() : Rules;
 
     [JsonIgnore]
-    public string NewRuleAction => Mode == RoutingMode.SomeViaVpn ? RoutingRule.Proxy : RoutingRule.Direct;
+    public string ListedAction => ListMode == RoutingMode.VpnForListed ? RoutingRule.Proxy : RoutingRule.Direct;
+
+    [JsonIgnore]
+    public string Final => ListMode == RoutingMode.VpnForListed ? RoutingRule.Direct : RoutingRule.Proxy;
 }

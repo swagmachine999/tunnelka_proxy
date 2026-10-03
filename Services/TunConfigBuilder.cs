@@ -27,7 +27,7 @@ public static class TunConfigBuilder
 
         foreach (var rule in routing.ActiveRules)
         {
-            if (Rule(rule) is { } node)
+            if (Rule(rule, routing) is { } node)
                 routeRules.Add(node);
         }
 
@@ -105,7 +105,7 @@ public static class TunConfigBuilder
         return rules;
     }
 
-    private static JsonObject? Rule(RoutingRule rule)
+    private static JsonObject? Rule(RoutingRule rule, RoutingSettings routing)
     {
         var (field, value) = Match(rule);
         if (field == null)
@@ -114,7 +114,7 @@ public static class TunConfigBuilder
         return new JsonObject
         {
             [field] = new JsonArray(JsonValue.Create(value)),
-            ["outbound"] = rule.Action == RoutingRule.Proxy ? "proxy" : "direct"
+            ["outbound"] = routing.ListedAction == RoutingRule.Proxy ? "proxy" : "direct"
         };
     }
 
