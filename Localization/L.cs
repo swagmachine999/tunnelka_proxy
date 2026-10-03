@@ -245,7 +245,6 @@ public static class L
         ["Не удалось обновить: {0}"] = "Update failed: {0}",
         ["Не удалось проверить: {0}"] = "Check failed: {0}",
         ["О приложении"] = "About",
-        ["Обновить"] = "Update",
         ["Обновления"] = "Updates",
         ["Оверлей"] = "Overlay",
         ["ПОДКЛЮЧЕНИЕ"] = "CONNECTING",
@@ -263,10 +262,13 @@ public static class L
         ["Страница загрузок на GitHub"] = "Downloads page on GitHub",
         ["У вас последняя версия {0}"] = "You have the latest version {0}",
         ["Угол экрана"] = "Screen corner",
-        ["Устанавливаю…"] = "Installing…",
         ["ЧТО ПОКАЗЫВАТЬ"] = "WHAT TO SHOW",
         ["Это сочетание занято другой программой, выберите другое"] = "This combination is used by another app, choose another",
         ["мс"] = "ms",
-        ["потери {0}%"] = "loss {0}%"
+        ["потери {0}%"] = "loss {0}%",
+        ["Доступна новая версия"] = "A new version is available",
+        ["Tunnelka {0}. Скачать и установить сейчас?"] = "Tunnelka {0}. Download and install now?",
+        ["Да"] = "Yes",
+        ["Нет"] = "No"
     };
 }
