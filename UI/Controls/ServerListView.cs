@@ -12,7 +12,8 @@ public class ServerListView : FlowLayoutPanel
     private ServerCard? _menuCard;
     private SubscriptionCard? _menuSubscription;
     private string _query = "";
-    private readonly System.Windows.Forms.Timer _scrollTimer = new() { Interval = 15 };
+    private readonly System.Windows.Forms.Timer _scrollTimer = new() { Interval = 10 };
+    private readonly System.Diagnostics.Stopwatch _scrollClock = new();
     private float _scrollTarget;
     private float _scrollCurrent;
 
@@ -67,7 +68,7 @@ public class ServerListView : FlowLayoutPanel
         _subscriptionMenu.Opening += (_, _) => _menuSubscription = _subscriptionMenu.SourceControl as SubscriptionCard;
     }
 
-    public void Rebuild(IReadOnlyList<ProxyServer> servers, ProxyServer? auto, ProxyServer? selected, ProxyServer? active)
+    public void Rebuild(IReadOnlyList<ProxyServer> servers, Func<string?, ProxyServer> autoFor, ProxyServer? selected, ProxyServer? active)
     {
         SuspendLayout();
         foreach (Control control in Controls.Cast<Control>().ToList())
@@ -84,9 +85,6 @@ public class ServerListView : FlowLayoutPanel
             controls.Add(welcome);
         }
 
-        if (auto != null)
-            controls.Add(CreateCard(auto));
-
         foreach (var info in _subscriptions.Profiles)
         {
             var url = info.Url;
@@ -102,12 +100,15 @@ public class ServerListView : FlowLayoutPanel
                 ApplyFilter();
             };
             controls.Add(header);
+            if (subscriptionServers.Count > 0)
+                controls.Add(CreateCard(autoFor(url)));
             controls.AddRange(subscriptionServers.Select(CreateCard));
         }
 
-        controls.AddRange(servers
-            .Where(s => s.SubscriptionUrl == null || !_subscriptions.IsKnown(s.SubscriptionUrl))
-            .Select(CreateCard));
+        var loose = servers.Where(s => s.SubscriptionUrl == null || !_subscriptions.IsKnown(s.SubscriptionUrl)).ToList();
+        if (loose.Count > 1)
+            controls.Add(CreateCard(autoFor(null)));
+        controls.AddRange(loose.Select(CreateCard));
 
         Controls.AddRange(controls.ToArray());
         Mark(selected, active);
@@ -151,28 +152,46 @@ public class ServerListView : FlowLayoutPanel
         }
     }
 
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            const int composited = 0x02000000;
+            var parameters = base.CreateParams;
+            parameters.ExStyle |= composited;
+            return parameters;
+        }
+    }
+
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         var max = Math.Max(0, DisplayRectangle.Height - ClientSize.Height);
         if (!_scrollTimer.Enabled)
+        {
             _scrollCurrent = _scrollTarget = -AutoScrollPosition.Y;
+            _scrollClock.Restart();
+            _scrollTimer.Start();
+        }
 
-        _scrollTarget = Math.Max(0, Math.Min(max, _scrollTarget - e.Delta / 120f * Theme.Px(110)));
-        _scrollTimer.Start();
+        _scrollTarget = Math.Max(0, Math.Min(max, _scrollTarget - e.Delta / 120f * Theme.Px(120)));
         if (e is HandledMouseEventArgs handled)
             handled.Handled = true;
     }
 
     private void ScrollStep()
     {
-        _scrollCurrent += (_scrollTarget - _scrollCurrent) * 0.25f;
+        var seconds = (float)_scrollClock.Elapsed.TotalSeconds;
+        _scrollClock.Restart();
+        _scrollCurrent += (_scrollTarget - _scrollCurrent) * (1 - (float)Math.Exp(-seconds * 14));
         if (Math.Abs(_scrollTarget - _scrollCurrent) < 0.5f)
         {
             _scrollCurrent = _scrollTarget;
             _scrollTimer.Stop();
         }
 
-        AutoScrollPosition = new Point(0, (int)Math.Round(_scrollCurrent));
+        var y = (int)Math.Round(_scrollCurrent);
+        if (y != -AutoScrollPosition.Y)
+            AutoScrollPosition = new Point(0, y);
     }
 
     private ServerCard CreateCard(ProxyServer server)
@@ -196,16 +215,24 @@ public class ServerListView : FlowLayoutPanel
 
     private void ApplyFilter()
     {
+        SuspendLayout();
         foreach (var header in Controls.OfType<SubscriptionCard>())
-            header.Visible = _query.Length == 0;
+            SetVisible(header, _query.Length == 0);
 
         foreach (var card in _cards)
         {
-            card.Visible = _query.Length == 0
+            SetVisible(card, _query.Length == 0
                 ? !_subscriptions.IsCollapsed(card.Server.SubscriptionUrl)
                 : card.DisplayName.IndexOf(_query, StringComparison.OrdinalIgnoreCase) >= 0
-                  || card.Server.Address.IndexOf(_query, StringComparison.OrdinalIgnoreCase) >= 0;
+                  || card.Server.Address.IndexOf(_query, StringComparison.OrdinalIgnoreCase) >= 0);
         }
+        ResumeLayout();
+    }
+
+    private void SetVisible(Control control, bool visible)
+    {
+        if (!Visible || control.Visible != visible)
+            control.Visible = visible;
     }
 
     protected override void Dispose(bool disposing)
