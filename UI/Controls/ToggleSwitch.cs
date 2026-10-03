@@ -3,6 +3,7 @@ namespace Tunnelka.UI.Controls;
 public class ToggleSwitch : ThemedControl
 {
     private bool _checked;
+    private float _position;
 
     public event EventHandler? CheckedChanged;
 
@@ -20,7 +21,7 @@ public class ToggleSwitch : ThemedControl
             if (_checked == value)
                 return;
             _checked = value;
-            Invalidate();
+            Animate();
             CheckedChanged?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -33,13 +34,21 @@ public class ToggleSwitch : ThemedControl
 
     protected override Color Background => Parent?.BackColor ?? Theme.Card;
 
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        _position = _checked ? 1 : 0;
+    }
+
+    protected override bool AnimateMore() => Animator.Approach(ref _position, _checked ? 1 : 0);
+
     protected override void Draw(Graphics g)
     {
         var track = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
-        Theme.FillRounded(g, _checked ? Theme.Accent : Theme.TrackOff, track, track.Height / 2);
+        Theme.FillRounded(g, Theme.Blend(Theme.TrackOff, Theme.Accent, _position), track, track.Height / 2);
 
         var knob = H - 7f;
-        var x = _checked ? W - knob - 4 : 3;
+        var x = 3 + (W - knob - 7) * _position;
         using var brush = new SolidBrush(Color.White);
         g.FillEllipse(brush, x, 3, knob, knob);
     }

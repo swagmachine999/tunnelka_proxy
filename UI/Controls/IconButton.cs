@@ -5,6 +5,7 @@ namespace Tunnelka.UI.Controls;
 public class IconButton : ThemedControl
 {
     private bool _active;
+    private float _activeAmount;
 
     public IconButton(IconKind kind, string title)
     {
@@ -21,21 +22,23 @@ public class IconButton : ThemedControl
     public bool Active
     {
         get => _active;
-        set { _active = value; Invalidate(); }
+        set { _active = value; Animate(); }
     }
 
     protected override Color Background => Backdrop();
 
+    protected override bool AnimateMore() => Animator.Approach(ref _activeAmount, _active ? 1 : 0);
+
     protected override void Draw(Graphics g)
     {
         var rect = new RectangleF(0, 0, W - 1, H - 1);
-        if (_active)
-            Theme.FillRounded(g, Color.FromArgb(Theme.IsDark ? 90 : 70, Theme.Accent), rect, 12);
-        else if (IsHovered)
-            Theme.FillRounded(g, Theme.SidebarHover, rect, 12);
+        if (Hover > 0.01f)
+            Theme.FillRounded(g, Color.FromArgb((int)(Theme.SidebarHover.A * Hover), Theme.SidebarHover), rect, 12);
+        if (_activeAmount > 0.01f)
+            Theme.FillRounded(g, Color.FromArgb((int)((Theme.IsDark ? 90 : 70) * _activeAmount), Theme.Accent), rect, 12);
 
-        var color = _active || IsHovered ? Theme.AccentStrong : Theme.Text;
-        using var pen = new Pen(color, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        var color = Theme.Blend(Theme.Text, Theme.AccentStrong, Math.Max(Hover, _activeAmount));
+        using var pen = Theme.IconPen(color);
         using var fill = new SolidBrush(color);
         var cx = W / 2f;
         var cy = H / 2f;
