@@ -53,6 +53,9 @@ public class MainForm : Form, IMessageFilter
 
     private readonly System.Windows.Forms.Timer _autoUpdate = new() { Interval = 60_000 };
 
+    private const string AutoLink = "auto";
+    private readonly ProxyServer _auto = new() { Protocol = "auto", Name = "⚡ " + L.T("Авто") };
+    private bool _connecting;
     private ProxyServer? _selected;
     private ProxyServer? _active;
     private DateTime _connectedAt;
@@ -62,7 +65,7 @@ public class MainForm : Form, IMessageFilter
 
     public event EventHandler? ReloadRequested;
 
-    public MainForm(bool reconnect = false, IconKind startPage = IconKind.Servers, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal)
+    public MainForm(bool reconnect = false, IconKind startPage = IconKind.Servers, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal, bool startHidden = false)
     {
         _settings = new Settings(_log);
         _connection = new ConnectionService(_log);
@@ -87,7 +90,7 @@ public class MainForm : Form, IMessageFilter
         _log.Written += Log;
         _logPage = new LogPage(() => ShowPage(IconKind.Settings));
         _routingPage = new RoutingPage(Data.Rules, () => ShowPage(IconKind.Settings));
-        _settingsPage = new SettingsPage(Data.Tun, Data.SpeedInterval, Data.RealPing, Data.RefreshOnStart, Data.PingOnStart);
+        _settingsPage = new SettingsPage(Data.Tun, Data.SpeedInterval, Data.RealPing, Data.RefreshOnStart, Data.PingOnStart, Data.AutoStart, Data.ConnectOnStart);
         _interfacePage = new InterfacePage(Data.DarkTheme, Data.UiScale, Data.Language, () => ShowPage(IconKind.Settings));
         _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
 
@@ -122,7 +125,8 @@ public class MainForm : Form, IMessageFilter
         _list.AddRequested += (_, _) => ShowAddDialog();
         _autoUpdate.Tick += async (_, _) => await RefreshDueSubscriptions();
         _autoUpdate.Start();
-        Shown += async (_, _) => await RunStartupTasks();
+        _startHidden = startHidden;
+        Shown += async (_, _) => await StartUp(reconnect);
 
         _hero.Tun = Data.Tun;
         _hero.PowerClicked += (_, _) => ToggleConnection();
@@ -148,6 +152,18 @@ public class MainForm : Form, IMessageFilter
             Data.PingOnStart = _settingsPage.PingToggle.Checked;
             Save();
         };
+        _settingsPage.AutoStartToggle.CheckedChanged += (_, _) =>
+        {
+            Data.AutoStart = _settingsPage.AutoStartToggle.Checked;
+            Autostart.Apply(Data.AutoStart);
+            Save();
+        };
+        _settingsPage.ConnectToggle.CheckedChanged += (_, _) =>
+        {
+            Data.ConnectOnStart = _settingsPage.ConnectToggle.Checked;
+            Save();
+        };
+        Autostart.Apply(Data.AutoStart);
         _statsPage.PeriodChanged += minutes =>
         {
             Data.StatsPeriod = minutes;
@@ -172,6 +188,7 @@ public class MainForm : Form, IMessageFilter
             Save();
         };
         _routingPage.RulesChanged += (_, _) => OnRulesChanged();
+        _routingPage.ReconnectRequested += (_, _) => Reconnect();
         _search.QueryChanged += (_, _) => _list.Filter(_search.Query);
         _clock.Tick += (_, _) => UpdateClock();
         _traffic.Updated += OnTraffic;
@@ -200,7 +217,9 @@ public class MainForm : Form, IMessageFilter
             _connection.Dispose();
         };
 
-        _selected = Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink) ?? Data.Servers.FirstOrDefault();
+        _selected = Data.LastServerLink == AutoLink && Data.Servers.Count > 0
+            ? _auto
+            : Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink) ?? Data.Servers.FirstOrDefault();
         RebuildList();
         UpdateHero();
         ShowPage(startPage);
@@ -225,8 +244,6 @@ public class MainForm : Form, IMessageFilter
             ReloadRequested?.Invoke(this, EventArgs.Empty);
         };
 
-        if (reconnect)
-            Shown += (_, _) => Connect();
     }
 
     public bool PrepareForReplace()
@@ -385,7 +402,7 @@ public class MainForm : Form, IMessageFilter
 
     private void RebuildList()
     {
-        _list.Rebuild(Data.Servers, _selected, _active);
+        _list.Rebuild(Data.Servers, Data.Servers.Count > 0 ? _auto : null, _selected, _active);
         _countLabel.Text = Data.Servers.Count == 0
             ? L.T("Ключей пока нет").ToUpperInvariant()
             : ServerText.Plural(Data.Servers.Count, L.T("сервер"), L.T("сервера"), L.T("серверов")).ToUpperInvariant();
@@ -510,7 +527,7 @@ public class MainForm : Form, IMessageFilter
         if (ActiveControl is TextBoxBase)
             return;
 
-        if (e.KeyCode == Keys.Delete && _selected != null && _pages[IconKind.Servers].Visible)
+        if (e.KeyCode == Keys.Delete && _selected != null && _selected != _auto && _pages[IconKind.Servers].Visible)
         {
             Delete(_selected);
             e.Handled = true;
@@ -643,7 +660,7 @@ public class MainForm : Form, IMessageFilter
 
     private void AfterServersChanged()
     {
-        if (_selected == null || !Data.Servers.Contains(_selected))
+        if (_selected == null || (_selected != _auto && !Data.Servers.Contains(_selected)))
             _selected = Data.Servers.FirstOrDefault();
 
         RebuildList();
@@ -660,9 +677,27 @@ public class MainForm : Form, IMessageFilter
         if (server == null)
             return;
 
+        if (server == _auto)
+        {
+            await FindFastest();
+            UpdateCards();
+            UpdateHero();
+            return;
+        }
+
         await PingServers(new List<ProxyServer> { server });
         if (server != (_active ?? _selected))
             _hero.SetPing($"{ServerText.CleanName(server)}: {PingText(server)}", Theme.PingColor(server.PingMs));
+    }
+
+    private string SelectedLink() => _selected == _auto ? AutoLink : _selected?.Link ?? "";
+
+    private async Task<ProxyServer?> FindFastest()
+    {
+        await PingServers(Data.Servers.ToList());
+        var best = Data.Servers.Where(s => s.PingMs >= 0).OrderBy(s => s.PingMs).FirstOrDefault();
+        _auto.PingMs = best?.PingMs ?? -1;
+        return best;
     }
 
     private async Task PingServers(List<ProxyServer> servers)
@@ -687,6 +722,9 @@ public class MainForm : Form, IMessageFilter
 
     private void Delete(ProxyServer server)
     {
+        if (server == _auto)
+            return;
+
         if (server == _active)
             Disconnect();
 
@@ -713,9 +751,25 @@ public class MainForm : Form, IMessageFilter
             Connect();
     }
 
-    private void Connect()
+    private async void Connect()
     {
+        if (_connecting)
+            return;
+
         var server = _selected;
+        if (server == _auto)
+        {
+            _connecting = true;
+            _hero.SetPing(L.T("Ищу самый быстрый сервер…"), Theme.TextMuted);
+            server = await FindFastest();
+            _connecting = false;
+            if (server == null)
+            {
+                _hero.SetPing(L.T("Ни один сервер не ответил"), Theme.PingBad);
+                return;
+            }
+        }
+
         if (server == null || !Start(server))
             return;
 
@@ -723,7 +777,7 @@ public class MainForm : Form, IMessageFilter
         _connectedAt = DateTime.Now;
         _trafficTracker.Reset();
         _hero.SetSpeed(ServerText.Bytes(0) + L.T("/с"), ServerText.Bytes(0) + L.T("/с"));
-        Data.LastServerLink = server.Link;
+        Data.LastServerLink = SelectedLink();
         Save();
 
         _hero.ElapsedText = "00:00:00";
@@ -771,6 +825,8 @@ public class MainForm : Form, IMessageFilter
 
         try
         {
+            Data.LastServerLink = SelectedLink();
+            Save();
             Elevation.RestartElevated("--connect");
             _exiting = true;
             Application.Exit();
@@ -789,6 +845,7 @@ public class MainForm : Form, IMessageFilter
         _traffic.Stop();
 
         _active = null;
+        _routingPage.ShowReconnectHint(false);
         if (wasRunning)
             Save();
 
@@ -808,6 +865,12 @@ public class MainForm : Form, IMessageFilter
     private void OnRulesChanged()
     {
         Save();
+        _routingPage.ShowReconnectHint(_active != null && _connection.IsRunning);
+    }
+
+    private void Reconnect()
+    {
+        _routingPage.ShowReconnectHint(false);
         if (_active == null || !_connection.IsRunning)
             return;
 
@@ -816,6 +879,33 @@ public class MainForm : Form, IMessageFilter
             Log(L.T("Правила применены"));
         else
             Disconnect();
+    }
+
+    private bool _startHidden;
+    private bool _started;
+
+    protected override void SetVisibleCore(bool value)
+    {
+        if (_startHidden && value)
+        {
+            _startHidden = false;
+            if (!IsHandleCreated)
+                CreateHandle();
+            BeginInvoke(new Action(() => OnShown(EventArgs.Empty)));
+            value = false;
+        }
+        base.SetVisibleCore(value);
+    }
+
+    private async Task StartUp(bool reconnect)
+    {
+        if (_started)
+            return;
+        _started = true;
+
+        if (reconnect || Data.ConnectOnStart)
+            Connect();
+        await RunStartupTasks();
     }
 
     private async Task RunStartupTasks()

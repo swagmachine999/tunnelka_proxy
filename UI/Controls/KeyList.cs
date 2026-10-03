@@ -31,7 +31,7 @@ public class KeyList : ThemedControl
             Theme.DrawRounded(g, selected ? Theme.Accent : Theme.Border, row, 12);
 
             var cy = row.Y + RowHeight / 2;
-            using (var pen = new Pen(selected ? Theme.Accent : Theme.TextMuted, 1.6f))
+            using (var pen = Theme.IconPen(selected ? Theme.Accent : Theme.TextMuted))
                 g.DrawEllipse(pen, 16, cy - 8, 16, 16);
             if (selected)
             {

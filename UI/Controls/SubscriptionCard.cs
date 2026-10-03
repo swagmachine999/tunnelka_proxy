@@ -25,7 +25,7 @@ public class SubscriptionCard : ThemedControl
     public SubscriptionCard(SubscriptionInfo info)
     {
         Info = info;
-        Margin = Theme.Px(0, 4, 0, 10);
+        Margin = Theme.Px(0, 4, 0, 6);
         Height = Theme.Px(120);
     }
 
@@ -54,7 +54,7 @@ public class SubscriptionCard : ThemedControl
         var height = (int)(InfoTop + InfoRows * 22 + 8 + (_warningHeight > 0 ? _warningHeight + 10 : 0));
         if (_lines.Count > 0)
             height += (int)(14 + _lines.Count * LineHeight + 6);
-        var device = Theme.Px(height);
+        var device = Theme.Px(height + Theme.ShadowBottom);
         if (Height != device)
             Height = device;
     }
@@ -69,7 +69,8 @@ public class SubscriptionCard : ThemedControl
     {
         _hits.Clear();
 
-        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
+        var rect = Theme.CardRect(W, H);
+        Theme.DrawShadow(g, rect, 16);
         using (var brush = new LinearGradientBrush(rect, Theme.Card, Theme.Lighten(Theme.CardSelected, Theme.IsDark ? 0f : 0.3f), 90f))
         using (var path = Theme.RoundedRect(rect, 16))
             g.FillPath(brush, path);
@@ -128,7 +129,7 @@ public class SubscriptionCard : ThemedControl
     private void DrawInfoRow(Graphics g, float y, string text, Color color)
     {
         var icon = new RectangleF(Pad, y + 1, 16, 16);
-        using (var pen = new Pen(Theme.Accent, 1.6f))
+        using (var pen = Theme.IconPen(Theme.Accent))
             g.DrawEllipse(pen, icon);
         using (var brush = new SolidBrush(Theme.Accent))
         {
@@ -195,7 +196,7 @@ public class SubscriptionCard : ThemedControl
 
     private static void DrawRefresh(Graphics g, RectangleF r)
     {
-        using var pen = new Pen(Theme.TextMuted, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var pen = Theme.IconPen(Theme.TextMuted);
         var cx = r.X + r.Width / 2;
         var cy = r.Y + r.Height / 2;
         g.DrawArc(pen, cx - 8, cy - 8, 16, 16, 40, 280);
@@ -221,7 +222,7 @@ public class SubscriptionCard : ThemedControl
 
     private static void DrawChevron(Graphics g, float cx, float cy, bool collapsed)
     {
-        using var pen = new Pen(Theme.TextMuted, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        using var pen = Theme.IconPen(Theme.TextMuted);
         var points = collapsed
             ? new[] { new PointF(cx - 2, cy - 5), new PointF(cx + 3, cy), new PointF(cx - 2, cy + 5) }
             : new[] { new PointF(cx - 5, cy - 2), new PointF(cx, cy + 3), new PointF(cx + 5, cy - 2) };
@@ -232,7 +233,7 @@ public class SubscriptionCard : ThemedControl
     {
         var cx = r.X + r.Width / 2;
         var cy = r.Y + r.Height / 2 + 2;
-        using var pen = new Pen(Theme.TextMuted, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var pen = Theme.IconPen(Theme.TextMuted);
         using var brush = new SolidBrush(Theme.TextMuted);
         g.DrawArc(pen, cx - 8, cy - 8, 16, 16, 180, 180);
         g.DrawLine(pen, cx, cy, cx + 4, cy - 5);
@@ -286,7 +287,7 @@ public class SubscriptionCard : ThemedControl
         var triangle = new[] { new PointF(cx, top), new PointF(cx + 9, top + 16), new PointF(cx - 9, top + 16) };
         using (var fill = new SolidBrush(color))
             g.FillPolygon(fill, triangle);
-        using (var mark = new Pen(Color.White, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+        using (var mark = Theme.IconPen(Color.White))
         {
             g.DrawLine(mark, cx, top + 5, cx, top + 10);
             g.DrawLine(mark, cx, top + 13, cx, top + 13.2f);
