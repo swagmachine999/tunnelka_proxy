@@ -24,7 +24,7 @@ public class WelcomeCard : ThemedControl
 
     public WelcomeCard()
     {
-        Margin = Theme.Px(0, 4, 0, 10);
+        Margin = Theme.Px(0, 4, 0, 6);
         Height = Theme.Px(420);
     }
 
@@ -47,14 +47,15 @@ public class WelcomeCard : ThemedControl
         var half = (W - Pad * 2 - 10) / 2;
         _pasteRect = new RectangleF(Pad, y + 6, half, ButtonHeight);
         _manualRect = new RectangleF(Pad + half + 10, y + 6, half, ButtonHeight);
-        var device = Theme.Px(_pasteRect.Bottom + Pad);
+        var device = Theme.Px(_pasteRect.Bottom + Pad + Theme.ShadowBottom);
         if (Height != device)
             Height = device;
     }
 
     protected override void Draw(Graphics g)
     {
-        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
+        var rect = Theme.CardRect(W, H);
+        Theme.DrawShadow(g, rect, 16);
         using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(rect, Theme.Card, Theme.Lighten(Theme.CardSelected, Theme.IsDark ? 0f : 0.3f), 90f))
         using (var path = Theme.RoundedRect(rect, 16))
             g.FillPath(brush, path);

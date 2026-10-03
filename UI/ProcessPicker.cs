@@ -37,6 +37,7 @@ public static class ProcessPicker
             Font = Theme.Scaled(Theme.Body),
             Padding = Theme.Px(20, 16, 20, 16)
         };
+        NativeTheme.TitleBar(form, Theme.IsDark);
 
         var title = new Label
         {

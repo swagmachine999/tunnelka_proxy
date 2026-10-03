@@ -16,6 +16,7 @@ public static class AddDialog
             BackColor = Theme.Window,
             Font = Theme.Scaled(Theme.Body)
         };
+        NativeTheme.TitleBar(form, Theme.IsDark);
 
         var label = new Label
         {

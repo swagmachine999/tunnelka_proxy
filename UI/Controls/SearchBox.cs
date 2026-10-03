@@ -72,7 +72,7 @@ public class SearchBox : ThemedControl
         if (!_icon)
             return;
 
-        using var pen = new Pen(Theme.TextMuted, 1.8f) { EndCap = System.Drawing.Drawing2D.LineCap.Round };
+        using var pen = Theme.IconPen(Theme.TextMuted);
         var cy = H / 2f;
         g.DrawEllipse(pen, 15, cy - 8, 12, 12);
         g.DrawLine(pen, 25, cy + 2, 29, cy + 6);

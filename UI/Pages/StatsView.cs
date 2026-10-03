@@ -43,7 +43,7 @@ public class StatsView : ThemedControl
 
         var icon = new RectangleF(r.X + 16, r.Y + 16, 28, 28);
         Theme.FillRounded(g, Color.FromArgb(50, color), icon, 9);
-        using (var pen = new Pen(color, 2.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+        using (var pen = Theme.IconPen(color))
         {
             var cx = icon.X + 14;
             var top = icon.Y + 8;
@@ -115,7 +115,7 @@ public class StatsView : ThemedControl
             g.FillPath(brush, area);
         }
 
-        using var pen = new Pen(color, 2.2f) { LineJoin = LineJoin.Round };
+        using var pen = Theme.IconPen(color, 2.2f);
         g.DrawLines(pen, points);
     }
 
@@ -153,8 +153,6 @@ public class StatsView : ThemedControl
 
     private static void Card(Graphics g, RectangleF r)
     {
-        var rect = new RectangleF(r.X + 0.5f, r.Y + 0.5f, r.Width - 1, r.Height - 1);
-        Theme.FillRounded(g, Theme.Card, rect, 14);
-        Theme.DrawRounded(g, Theme.Border, rect, 14);
+        Theme.DrawCard(g, new RectangleF(r.X + 2, r.Y, r.Width - 4, r.Height - 3), 14, Theme.Card, Theme.Border);
     }
 }

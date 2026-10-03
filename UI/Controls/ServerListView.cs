@@ -12,6 +12,9 @@ public class ServerListView : FlowLayoutPanel
     private ServerCard? _menuCard;
     private SubscriptionCard? _menuSubscription;
     private string _query = "";
+    private readonly System.Windows.Forms.Timer _scrollTimer = new() { Interval = 15 };
+    private float _scrollTarget;
+    private float _scrollCurrent;
 
     public event Action<ProxyServer>? ServerSelected;
     public event Action<ProxyServer>? ServerConnectRequested;
@@ -31,6 +34,8 @@ public class ServerListView : FlowLayoutPanel
         AutoScroll = true;
         Theme.Bind(this, () => Theme.Surface);
         Resize += (_, _) => ResizeCards();
+        DoubleBuffered = true;
+        _scrollTimer.Tick += (_, _) => ScrollStep();
 
         _cardMenu.Items.Add(L.T("Подключиться"), null, (_, _) =>
         {
@@ -146,6 +151,30 @@ public class ServerListView : FlowLayoutPanel
         }
     }
 
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        var max = Math.Max(0, DisplayRectangle.Height - ClientSize.Height);
+        if (!_scrollTimer.Enabled)
+            _scrollCurrent = _scrollTarget = -AutoScrollPosition.Y;
+
+        _scrollTarget = Math.Max(0, Math.Min(max, _scrollTarget - e.Delta / 120f * Theme.Px(110)));
+        _scrollTimer.Start();
+        if (e is HandledMouseEventArgs handled)
+            handled.Handled = true;
+    }
+
+    private void ScrollStep()
+    {
+        _scrollCurrent += (_scrollTarget - _scrollCurrent) * 0.25f;
+        if (Math.Abs(_scrollTarget - _scrollCurrent) < 0.5f)
+        {
+            _scrollCurrent = _scrollTarget;
+            _scrollTimer.Stop();
+        }
+
+        AutoScrollPosition = new Point(0, (int)Math.Round(_scrollCurrent));
+    }
+
     private ServerCard CreateCard(ProxyServer server)
     {
         var card = new ServerCard(server) { ContextMenuStrip = _cardMenu };
@@ -185,6 +214,7 @@ public class ServerListView : FlowLayoutPanel
         {
             _cardMenu.Dispose();
             _subscriptionMenu.Dispose();
+            _scrollTimer.Dispose();
         }
         base.Dispose(disposing);
     }
