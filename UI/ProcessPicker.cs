@@ -146,7 +146,7 @@ public static class ProcessPicker
         {
             if (list.SelectedItem is AppItem item)
             {
-                result = item.Name;
+                result = item.Path.Length > 0 ? item.Path : item.Name;
                 form.DialogResult = DialogResult.OK;
             }
         }
