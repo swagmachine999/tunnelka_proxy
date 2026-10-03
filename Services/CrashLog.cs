@@ -2,7 +2,7 @@ namespace Tunnelka.Services;
 
 public static class CrashLog
 {
-    public static string FilePath => Path.Combine(AppContext.BaseDirectory, "crash.log");
+    public static string FilePath => Path.Combine(Storage.AppStorage.Folder, "crash.log");
 
     public static void Write(Exception? exception)
     {

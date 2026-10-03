@@ -21,15 +21,13 @@ public class SettingsPage : Panel
         ConnectToggle.Checked = connectOnStart;
 
         InterfaceRow = new SettingRow(L.T("Интерфейс"), L.T("Тема, масштаб и язык"), chevron: true);
+        OverlayRow = new SettingRow(L.T("Оверлей"), L.T("Пинг и скорость поверх игр и окон"), chevron: true);
         RoutingRow = new SettingRow(L.T("Маршрутизация"), L.T("Какие сайты идут напрямую, через VPN или в блок"), chevron: true);
         LogRow = new SettingRow(L.T("Журнал"), L.T("Сообщения приложения и Xray"), chevron: true);
         PingRow = new SettingRow(L.T("Пинг"), "", chevron: true);
         ShowPingMode(realPing);
 
-        var version = typeof(SettingsPage).Assembly.GetName().Version;
-        var about = PageParts.Caption($"Tunnelka {version?.ToString(3)}", 40);
-        about.TextAlign = ContentAlignment.MiddleCenter;
-        Controls.Add(about);
+        Controls.Add(Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(16) }, () => Theme.Surface));
         Controls.Add(LogRow);
         Controls.Add(RoutingRow);
         Controls.Add(PingRow);
@@ -39,6 +37,7 @@ public class SettingsPage : Panel
         Controls.Add(new SettingRow(L.T("Запуск с Windows"), L.T("Открываться свёрнутым в трей при входе в систему"), AutoStartToggle));
         Controls.Add(new SettingRow(L.T("Скорость в окне"), L.T("Как часто обновлять"), SpeedSelector));
         Controls.Add(new SettingRow(L.T("Режим"), L.T("Режим туннелирования"), ModeSelector));
+        Controls.Add(OverlayRow);
         Controls.Add(InterfaceRow);
         Controls.Add(Theme.Bind(new Panel { Dock = DockStyle.Top, Height = Theme.Px(10) }, () => Theme.Surface));
         Controls.Add(PageParts.Title(L.T("Настройки")));
@@ -51,6 +50,7 @@ public class SettingsPage : Panel
     public ToggleSwitch AutoStartToggle { get; } = new();
     public ToggleSwitch ConnectToggle { get; } = new();
     public SettingRow InterfaceRow { get; }
+    public SettingRow OverlayRow { get; }
     public SettingRow RoutingRow { get; }
     public SettingRow LogRow { get; }
     public SettingRow PingRow { get; }

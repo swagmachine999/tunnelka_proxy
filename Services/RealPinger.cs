@@ -9,8 +9,6 @@ namespace Tunnelka.Services;
 
 public static class RealPinger
 {
-    public const string DefaultUrl = "https://www.gstatic.com/generate_204";
-
     private const int Parallel = 16;
     private const int TimeoutMs = 5000;
 
@@ -50,7 +48,8 @@ public static class RealPinger
             return results;
 
         var ports = FreePorts(servers.Count);
-        var configPath = Path.Combine(XrayRunner.CoreDir, $"ping-{Guid.NewGuid():N}.json");
+        Directory.CreateDirectory(XrayRunner.ConfigDir);
+        var configPath = Path.Combine(XrayRunner.ConfigDir, $"ping-{Guid.NewGuid():N}.json");
         Process? process = null;
 
         try
