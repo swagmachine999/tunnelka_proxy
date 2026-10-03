@@ -269,6 +269,11 @@ public static class L
         ["Доступна новая версия"] = "A new version is available",
         ["Tunnelka {0}. Скачать и установить сейчас?"] = "Tunnelka {0}. Download and install now?",
         ["Да"] = "Yes",
-        ["Нет"] = "No"
+        ["Нет"] = "No",
+        ["В ответе нет серверов"] = "the response has no servers",
+        ["не удалось прочитать ответ сервера"] = "could not read the server response",
+        ["нет связи с сервером подписки"] = "cannot reach the subscription server",
+        ["сервер подписки не ответил вовремя"] = "the subscription server timed out",
+        ["сервер подписки ответил ошибкой {0}"] = "the subscription server returned error {0}"
     };
 }
