@@ -24,6 +24,7 @@ public sealed class ConnectionService : IDisposable
     }
 
     public event Action? Exited;
+    public event Action<string>? Warning;
 
     public bool IsRunning => _xray.IsRunning;
 
@@ -166,7 +167,14 @@ public sealed class ConnectionService : IDisposable
 
         try
         {
-            _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, routing, serverHost));
+            var other = NetworkAdapters.OtherTunnel();
+            if (other != null)
+                _log.Write(L.F("Работает другой VPN в режиме TUN ({0}). Он может мешать адаптеру Tunnelka", other));
+
+            var physical = other != null ? NetworkAdapters.Physical() : null;
+            if (physical != null)
+                _log.Write(L.F("Трафик ядра идёт напрямую через адаптер {0}, мимо другого VPN", physical));
+            _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, routing, serverHost, physical));
             if (_singBox.WaitForExit(800))
             {
                 _log.Write(L.F("sing-box сразу завершился, код {0}", _singBox.ExitCode ?? -1));
@@ -199,13 +207,17 @@ public sealed class ConnectionService : IDisposable
             }
         }
 
-        _log.Write(L.T("Адаптер TUN не появился за 10 секунд. Его может блокировать антивирус или другой VPN"));
+        var blocker = NetworkAdapters.OtherTunnel();
+        var text = blocker != null
+            ? L.F("Адаптер TUN не создан: мешает другой VPN ({0}). Закройте его и переподключитесь", blocker)
+            : L.T("Адаптер TUN не появился за 10 секунд. Его может блокировать антивирус или другой VPN");
+        _log.Write(text);
+        Warning?.Invoke(text);
     }
 
     private static NetworkInterface? FindAdapter() =>
         NetworkInterface.GetAllNetworkInterfaces().FirstOrDefault(n =>
-            n.OperationalStatus == OperationalStatus.Up &&
-            n.GetIPProperties().UnicastAddresses.Any(a => a.Address.ToString() == TunConfigBuilder.Address));
+            n.OperationalStatus == OperationalStatus.Up && NetworkAdapters.HasAddress(n, TunConfigBuilder.Address));
 
     private void ApplySystemProxy(bool enable)
     {
