@@ -115,9 +115,6 @@ public static class AppStorage
             }
         }
 
-        if (data.LegacyRules != null && rules.Count > 0)
-            data.Routing.Mode = rules.Any(r => r.Action == RoutingRule.Direct) ? RoutingMode.SomeDirect : RoutingMode.SomeViaVpn;
-
         data.Routing.Rules = rules;
         data.LegacyRules = null;
     }
