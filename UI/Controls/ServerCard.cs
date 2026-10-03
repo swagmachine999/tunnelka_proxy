@@ -17,6 +17,7 @@ public class ServerCard : ThemedControl
     {
         Server = server;
         Parts = ServerText.Parts(server);
+        SetStyle(ControlStyles.StandardDoubleClick, true);
         DisplayName = ServerText.CleanName(server);
         Code = ServerText.CountryCode(server.Name);
         Description = ServerText.Describe(server);
