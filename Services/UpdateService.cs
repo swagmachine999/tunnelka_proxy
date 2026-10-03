@@ -69,7 +69,18 @@ public static class UpdateService
     }
 
     public static void RunInstaller(string path) =>
-        Process.Start(new ProcessStartInfo(path, "/SILENT /SUPPRESSMSGBOXES /NORESTART") { UseShellExecute = true });
+        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+
+    public static void OpenPage(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception)
+        {
+        }
+    }
 
     private static HttpClient CreateClient(int? proxyPort, TimeSpan timeout)
     {

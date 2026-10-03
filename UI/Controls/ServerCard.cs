@@ -89,6 +89,8 @@ public class ServerCard : ThemedControl
 
     protected override bool AnimateMore() => Animator.Approach(ref _selection, _selected ? 1 : 0);
 
+    protected override bool CachePaint => true;
+
     protected override void Draw(Graphics g)
     {
         var rect = Theme.CardRect(W, H);
