@@ -29,7 +29,7 @@ public class MainForm : Form, IMessageFilter
 
     private readonly HeroView _hero = new() { Dock = DockStyle.Fill };
     private readonly TipBubble _tip = new();
-    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(535), Padding = Theme.Px(22, 20, 14, 10) };
+    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(490), Padding = Theme.Px(20, 20, 12, 10) };
     private readonly Dictionary<IconKind, Control> _pages = new();
     private readonly List<IconButton> _navButtons = new();
 
@@ -51,6 +51,8 @@ public class MainForm : Form, IMessageFilter
     private readonly InterfacePage _interfacePage;
     private readonly StatsPage _statsPage;
     private readonly OverlayPage _overlayPage;
+    private readonly AdvancedPage _advancedPage;
+    private readonly KillSwitch _killSwitch;
     private readonly AboutPage _aboutPage;
     private readonly OverlayController _overlay;
     private readonly UpdateWatcher _updates;
@@ -86,8 +88,9 @@ public class MainForm : Form, IMessageFilter
         Theme.Use(Data.DarkTheme);
 
         Text = "Tunnelka";
-        ClientSize = new Size(1110, 660);
-        MinimumSize = new Size(870, 540);
+        var screen = Screen.PrimaryScreen?.WorkingArea.Size ?? new Size(1920, 1080);
+        ClientSize = new Size(Math.Min(Theme.Px(1233), screen.Width - 40), Math.Min(Theme.Px(733), screen.Height - 60));
+        MinimumSize = new Size(Math.Min(Theme.Px(900), screen.Width - 40), Math.Min(Theme.Px(600), screen.Height - 60));
         StartPosition = FormStartPosition.CenterScreen;
         Font = Theme.Scaled(Theme.Body);
         KeyPreview = true;
@@ -97,7 +100,9 @@ public class MainForm : Form, IMessageFilter
         _log.Written += Log;
         _logPage = new LogPage(() => ShowPage(IconKind.Settings));
         _routingPage = new RoutingPage(Data.Rules, () => ShowPage(IconKind.Settings));
-        _settingsPage = new SettingsPage(Data.Tun, Data.SpeedInterval, Data.RealPing, Data.RefreshOnStart, Data.PingOnStart, Data.AutoStart, Data.ConnectOnStart);
+        _settingsPage = new SettingsPage(Data.SpeedInterval, Data.RealPing, Data.AutoStart, Data.ConnectOnStart);
+        _advancedPage = new AdvancedPage(Data.Tun, Data.KillSwitch, Data.RefreshOnStart, Data.PingOnStart, () => ShowPage(IconKind.Settings));
+        _killSwitch = new KillSwitch(_log);
         _interfacePage = new InterfacePage(Data.DarkTheme, Data.UiScale, Data.Language, () => ShowPage(IconKind.Settings));
         _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
         _overlayPage = new OverlayPage(Data.Overlay, () => ShowPage(IconKind.Settings));
@@ -298,6 +303,7 @@ public class MainForm : Form, IMessageFilter
         _pages[IconKind.Settings] = _settingsPage;
         _pages[IconKind.Ping] = _pingPage;
         _pages[IconKind.Interface] = _interfacePage;
+        _pages[IconKind.Advanced] = _advancedPage;
         _pages[IconKind.Overlay] = _overlayPage;
         _pages[IconKind.About] = _aboutPage;
 
@@ -339,7 +345,7 @@ public class MainForm : Form, IMessageFilter
         foreach (var pair in _pages)
             pair.Value.Visible = pair.Key == kind;
 
-        var active = kind is IconKind.Routing or IconKind.Log or IconKind.Ping or IconKind.Interface or IconKind.Overlay ? IconKind.Settings : kind;
+        var active = kind is IconKind.Routing or IconKind.Log or IconKind.Ping or IconKind.Interface or IconKind.Overlay or IconKind.Advanced ? IconKind.Settings : kind;
         foreach (var button in _navButtons)
             button.Active = button.Kind == active;
     }
@@ -542,7 +548,7 @@ public class MainForm : Form, IMessageFilter
         var servers = LinkParser.ParseInput(text);
         if (servers.Count == 0)
         {
-            Log(L.T("Не нашёл поддерживаемых ключей (vless, vmess, trojan, ss)"));
+            Log(L.T("Не нашёл поддерживаемых ключей (vless, vmess, trojan, ss, hysteria2, tuic)"));
             _hero.SetPing(L.T("Ключ не распознан"), Theme.PingBad);
             return;
         }
@@ -578,7 +584,10 @@ public class MainForm : Form, IMessageFilter
         }
 
         _hero.SetBusy(true);
-        ShowSubscriptionResult(await _subscriptions.RefreshAll(_active));
+        var ok = await _subscriptions.RefreshAll(_active);
+        AfterServersChanged();
+        WarnAboutExpiring();
+        ShowHeroResult(ok);
     }
 
     private async Task RefreshCurrentSubscription()
@@ -595,14 +604,20 @@ public class MainForm : Form, IMessageFilter
         if (_subscriptions.StatusOf(url)?.State == RefreshState.Busy)
             return;
 
-        _hero.SetBusy(true);
-        ShowSubscriptionResult(await _subscriptions.Refresh(url, _active));
-    }
-
-    private void ShowSubscriptionResult(bool ok)
-    {
+        var shown = HeroServer?.SubscriptionUrl == url;
+        if (shown)
+            _hero.SetBusy(true);
+        var ok = await _subscriptions.Refresh(url, _active);
         AfterServersChanged();
         WarnAboutExpiring();
+        if (shown)
+            ShowHeroResult(ok);
+    }
+
+    private ProxyServer? HeroServer => _active ?? _selected;
+
+    private void ShowHeroResult(bool ok)
+    {
         if (ok)
             _hero.SetPing(L.T("Подписка обновлена"), Theme.PingGood);
         else
@@ -693,7 +708,10 @@ public class MainForm : Form, IMessageFilter
         if (servers.Count == 0)
             return;
 
-        _hero.SetBusy(true);
+        var hero = HeroServer;
+        var shown = hero != null && (servers.Contains(hero) || (AutoServers.IsAuto(hero) && _autos.Members(hero).Any(servers.Contains)));
+        if (shown)
+            _hero.SetBusy(true);
         _list.SetBusy(servers, true);
         try
         {
@@ -705,7 +723,8 @@ public class MainForm : Form, IMessageFilter
         }
 
         UpdateCards();
-        UpdateHero();
+        if (shown)
+            UpdateHero();
     }
 
     private void Delete(ProxyServer server)
@@ -798,6 +817,7 @@ public class MainForm : Form, IMessageFilter
         _clock.Start();
         _statsPage.SetSpeed(0, 0, true);
         _traffic.Start();
+        await EngageKillSwitch();
         UpdateCards();
         UpdateHero();
         Log(L.F("Подключено к {0}", ServerText.CleanName(server)));
@@ -832,6 +852,26 @@ public class MainForm : Form, IMessageFilter
         return false;
     }
 
+    private void OfferKillSwitchRelease()
+    {
+        var answer = MessageBox.Show(this,
+            L.T("Kill switch остался включённым после сбоя, поэтому интернет может не работать. Перезапустить Tunnelka от имени администратора, чтобы снять блокировку?"),
+            "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (answer != DialogResult.Yes)
+            return;
+
+        try
+        {
+            Elevation.RestartElevated("--elevated");
+            _exiting = true;
+            Application.Exit();
+        }
+        catch (Exception ex)
+        {
+            Log(L.F("Перезапуск отменён: {0}", ex.Message));
+        }
+    }
+
     private void OfferElevation()
     {
         var answer = MessageBox.Show(this,
@@ -854,13 +894,20 @@ public class MainForm : Form, IMessageFilter
         }
     }
 
-    private void Disconnect(bool wait = false)
+    private void Disconnect(bool wait = false, bool keepKillSwitch = false)
     {
         var wasRunning = _active != null || _connection.IsRunning;
         if (wait)
             _connection.Stop();
         else
             _ = _connection.StopAsync();
+        if (!keepKillSwitch)
+        {
+            if (wait)
+                _killSwitch.Release();
+            else
+                _ = ReleaseKillSwitch();
+        }
         _clock.Stop();
         _traffic.Stop();
 
@@ -932,6 +979,14 @@ public class MainForm : Form, IMessageFilter
             return;
         _started = true;
 
+        if (KillSwitch.WasLeftOn())
+        {
+            if (Elevation.IsAdministrator())
+                await ReleaseKillSwitch();
+            else
+                OfferKillSwitchRelease();
+        }
+
         if (reconnect || Data.ConnectOnStart)
             Connect();
         _updates.Start();
@@ -981,9 +1036,27 @@ public class MainForm : Form, IMessageFilter
             return;
 
         Log(L.T("Ядро VPN завершилось. Причина обычно видна в строках выше"));
-        Disconnect();
+        var blocked = _killSwitch.IsEngaged;
+        Disconnect(keepKillSwitch: blocked);
         ShowPage(IconKind.Log);
+        if (!blocked)
+            return;
+
+        _hero.SetPing(L.T("VPN упал — интернет заблокирован. Нажми кнопку, чтобы переподключиться"), Theme.PingBad);
+        _tray.ShowBalloonTip(10000, "Tunnelka", L.T("VPN отключился, kill switch заблокировал интернет. Переподключитесь или выключите kill switch в «Расширенное»."), ToolTipIcon.Warning);
     }
+
+    private async Task EngageKillSwitch()
+    {
+        if (!Data.KillSwitch || !Data.Tun)
+            return;
+
+        if (!await Task.Run(_killSwitch.Engage))
+            _hero.SetPing(L.T("Kill switch не включился, подробности в журнале"), Theme.PingMid);
+    }
+
+    private Task ReleaseKillSwitch() =>
+        _killSwitch.IsEngaged || KillSwitch.WasLeftOn() ? Task.Run(_killSwitch.Release) : Task.CompletedTask;
 
     private void SetMode(bool tun)
     {
@@ -992,7 +1065,7 @@ public class MainForm : Form, IMessageFilter
 
         Data.Tun = tun;
         _hero.Tun = tun;
-        _settingsPage.ModeSelector.SelectedIndex = tun ? 1 : 0;
+        _advancedPage.ModeSelector.SelectedIndex = tun ? 1 : 0;
         Save();
         Log(tun ? L.T("Режим TUN: через VPN идёт весь трафик") : L.T("Режим прокси: через VPN идут браузер и программы"));
 
@@ -1005,7 +1078,16 @@ public class MainForm : Form, IMessageFilter
 
     private void WireSettings()
     {
-        _settingsPage.ModeSelector.SelectedIndexChanged += (_, _) => SetMode(_settingsPage.ModeSelector.SelectedIndex == 1);
+        _advancedPage.ModeSelector.SelectedIndexChanged += (_, _) => SetMode(_advancedPage.ModeSelector.SelectedIndex == 1);
+        _settingsPage.AdvancedRow.Click += (_, _) => ShowPage(IconKind.Advanced);
+        BindToggle(_advancedPage.KillSwitchToggle, on =>
+        {
+            Data.KillSwitch = on;
+            if (on && _active != null)
+                _ = EngageKillSwitch();
+            else if (!on)
+                _ = ReleaseKillSwitch();
+        });
         _interfacePage.DarkToggle.CheckedChanged += (_, _) => SetDarkTheme(_interfacePage.DarkToggle.Checked);
         _interfacePage.LanguageSelector.SelectedIndexChanged += (_, _) =>
         {
@@ -1020,8 +1102,8 @@ public class MainForm : Form, IMessageFilter
         _settingsPage.LogRow.Click += (_, _) => ShowPage(IconKind.Log);
         _settingsPage.PingRow.Click += (_, _) => ShowPage(IconKind.Ping);
 
-        BindToggle(_settingsPage.RefreshToggle, on => Data.RefreshOnStart = on);
-        BindToggle(_settingsPage.PingToggle, on => Data.PingOnStart = on);
+        BindToggle(_advancedPage.RefreshToggle, on => Data.RefreshOnStart = on);
+        BindToggle(_advancedPage.PingToggle, on => Data.PingOnStart = on);
         BindToggle(_settingsPage.ConnectToggle, on => Data.ConnectOnStart = on);
         BindToggle(_settingsPage.AutoStartToggle, on =>
         {

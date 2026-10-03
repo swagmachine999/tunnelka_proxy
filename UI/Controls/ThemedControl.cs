@@ -3,7 +3,9 @@ namespace Tunnelka.UI.Controls;
 public abstract class ThemedControl : Control
 {
     private float _hover;
-    private Bitmap? _cache;
+    private BufferedGraphicsContext? _cacheContext;
+    private BufferedGraphics? _cache;
+    private Size _cacheSize;
     private bool _cacheValid;
 
     protected ThemedControl()
@@ -48,22 +50,27 @@ public abstract class ThemedControl : Control
             return;
         }
 
-        if (_cache == null || _cache.Size != Size)
+        if (_cache == null || _cacheSize != Size)
         {
             _cache?.Dispose();
-            _cache = new Bitmap(Width, Height, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+            _cacheContext ??= new BufferedGraphicsContext();
+            _cacheContext.MaximumBuffer = new Size(Width + 1, Height + 1);
+            _cache = _cacheContext.Allocate(e.Graphics, ClientRectangle);
+            _cacheSize = Size;
             _cacheValid = false;
         }
 
         if (!_cacheValid)
         {
-            using var g = Graphics.FromImage(_cache);
+            var g = _cache.Graphics;
+            g.ResetTransform();
+            g.ResetClip();
             Theme.Begin(g, Background);
             Draw(g);
             _cacheValid = true;
         }
 
-        e.Graphics.DrawImageUnscaled(_cache, 0, 0);
+        _cache.Render(e.Graphics);
     }
 
     protected override void OnInvalidated(InvalidateEventArgs e)
@@ -75,7 +82,10 @@ public abstract class ThemedControl : Control
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             _cache?.Dispose();
+            _cacheContext?.Dispose();
+        }
         base.Dispose(disposing);
     }
 

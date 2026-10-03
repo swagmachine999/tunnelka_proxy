@@ -6,7 +6,7 @@ namespace Tunnelka.Parsing;
 
 public static class SubscriptionLoader
 {
-    private static readonly HttpClient Http = CreateClient(new HttpClientHandler());
+    private static readonly HttpClient Http = CreateClient(new HttpClientHandler { UseProxy = false });
     private static readonly Dictionary<int, HttpClient> Proxied = new();
 
     public static async Task<SubscriptionResult> LoadAsync(string url, int? proxyPort = null)
