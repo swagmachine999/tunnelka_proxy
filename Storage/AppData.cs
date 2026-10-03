@@ -14,7 +14,11 @@ public class AppData
     public int UiScale { get; set; } = 90;
     public bool RealPing { get; set; } = true;
     public string PingUrl { get; set; } = "https://www.gstatic.com/generate_204";
-    public List<RoutingRule> Rules { get; set; } = new();
+    public RoutingSettings Routing { get; set; } = new();
+
+    [JsonPropertyName("Rules")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<RoutingRule>? LegacyRules { get; set; }
     public long TotalDownload { get; set; }
     public long TotalUpload { get; set; }
     public long TotalDirectDownload { get; set; }
@@ -27,6 +31,7 @@ public class AppData
     public bool AutoStart { get; set; }
     public bool ConnectOnStart { get; set; }
     public bool KillSwitch { get; set; }
+    public bool ResumeAfterRestart { get; set; }
     public OverlayOptions Overlay { get; set; } = new();
 
     [JsonPropertyName("Subscriptions")]
