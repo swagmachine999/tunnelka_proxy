@@ -11,6 +11,7 @@ public class ServerCard : ThemedControl
     private bool _busy;
     private bool _selected;
     private bool _active;
+    private float _selection;
 
     public ServerCard(ProxyServer server)
     {
@@ -20,8 +21,8 @@ public class ServerCard : ThemedControl
         Code = ServerText.CountryCode(server.Name);
         Description = ServerText.Describe(server);
         BackColor = Theme.Surface;
-        Height = Theme.Px(66);
-        Margin = Theme.Px(0, 0, 0, 8);
+        Height = Theme.Px(66 + Theme.ShadowBottom);
+        Margin = Theme.Px(0, 0, 0, 3);
         Cursor = Cursors.Hand;
     }
 
@@ -34,7 +35,7 @@ public class ServerCard : ThemedControl
     public bool IsSelected
     {
         get => _selected;
-        set { if (_selected != value) { _selected = value; Invalidate(); } }
+        set { if (_selected != value) { _selected = value; Animate(); } }
     }
 
     public bool IsBusy
@@ -86,17 +87,18 @@ public class ServerCard : ThemedControl
         set { if (_active != value) { _active = value; Invalidate(); } }
     }
 
+    protected override bool AnimateMore() => Animator.Approach(ref _selection, _selected ? 1 : 0);
+
     protected override void Draw(Graphics g)
     {
-        var rect = new RectangleF(0.5f, 0.5f, W - 1.5f, H - 1.5f);
-        var fill = _selected ? Theme.CardSelected : IsHovered ? Theme.CardHover : Theme.Card;
-        Theme.FillRounded(g, fill, rect, 14);
-        Theme.DrawRounded(g, _selected ? Color.FromArgb(140, Theme.Accent) : Theme.Border, rect, 14);
+        var rect = Theme.CardRect(W, H);
+        var fill = Theme.Blend(Theme.Blend(Theme.Card, Theme.CardHover, Hover), Theme.CardSelected, _selection);
+        Theme.DrawCard(g, rect, 14, fill, Theme.Blend(Theme.Border, Color.FromArgb(140, Theme.Accent), _selection));
 
-        if (_selected)
-            Theme.FillRounded(g, Theme.Accent, new RectangleF(rect.X + 1, 16, 4, H - 32), 2);
+        if (_selection > 0.01f)
+            Theme.FillRounded(g, Color.FromArgb((int)(255 * _selection), Theme.Accent), new RectangleF(rect.X + 1, rect.Y + 15, 4, rect.Height - 30), 2);
 
-        var badge = new RectangleF(16, (H - 34) / 2f, 34, 34);
+        var badge = new RectangleF(rect.X + 14, rect.Y + (rect.Height - 34) / 2f, 34, 34);
         Theme.DrawBadge(g, badge, Code);
 
         if (_active)
@@ -111,19 +113,19 @@ public class ServerCard : ThemedControl
         var pingWidth = 64f;
         var textWidth = W - textLeft - pingWidth - 8;
 
-        NamePainter.Draw(g, Parts, Theme.CardTitle, Theme.Text, new RectangleF(textLeft, 11, textWidth, 24));
-        Theme.DrawText(g, Description, Theme.Caption, Theme.TextMuted, new RectangleF(textLeft, 35, textWidth, 18));
+        NamePainter.Draw(g, Parts, Theme.CardTitle, Theme.Text, new RectangleF(textLeft, rect.Y + 10, textWidth, 24));
+        Theme.DrawText(g, Description, Theme.Caption, Theme.TextMuted, new RectangleF(textLeft, rect.Y + 34, textWidth, 18));
 
         if (_busy)
         {
-            Theme.DrawBusyDots(g, W - 54, H / 2, _busyTime, 6);
+            Theme.DrawBusyDots(g, rect.Right - 50, rect.Y + rect.Height / 2, _busyTime, 6);
             return;
         }
 
         var ping = Theme.PingLabel(Server.PingMs);
         if (ping.Length > 0)
         {
-            var pingRect = new RectangleF(W - pingWidth - 14, 0, pingWidth, H);
+            var pingRect = new RectangleF(rect.Right - pingWidth - 12, rect.Y, pingWidth, rect.Height);
             Theme.DrawText(g, ping, Theme.CaptionBold, Theme.PingColor(Server.PingMs), pingRect, StringAlignment.Far);
         }
     }

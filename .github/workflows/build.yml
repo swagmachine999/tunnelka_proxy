@@ -1,0 +1,75 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, 'release/**', 'feature/**' ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  XRAY_VERSION: v26.9.30
+  SINGBOX_VERSION: 1.14.2
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Check storage encryption
+        run: dotnet run --project tests/DpapiCheck/DpapiCheck.csproj -c Release
+
+      - name: Publish
+        run: dotnet publish Tunnelka.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
+
+      - name: Add Xray and sing-box
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force publish/core | Out-Null
+          Invoke-WebRequest "https://github.com/XTLS/Xray-core/releases/download/$env:XRAY_VERSION/Xray-windows-64.zip" -OutFile xray.zip
+          Expand-Archive xray.zip -DestinationPath xray
+          Copy-Item xray/xray.exe, xray/geoip.dat, xray/geosite.dat publish/core/
+          Copy-Item xray/LICENSE publish/core/LICENSE-xray.txt
+          Invoke-WebRequest "https://github.com/SagerNet/sing-box/releases/download/v$env:SINGBOX_VERSION/sing-box-$env:SINGBOX_VERSION-windows-amd64.zip" -OutFile singbox.zip
+          Expand-Archive singbox.zip -DestinationPath singbox
+          $dir = "singbox/sing-box-$env:SINGBOX_VERSION-windows-amd64"
+          Copy-Item "$dir/sing-box.exe", "$dir/libcronet.dll" publish/core/
+          Copy-Item "$dir/LICENSE" publish/core/LICENSE-sing-box.txt
+          Copy-Item THIRD-PARTY-NOTICES.md publish/
+
+      - name: Report contents
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem publish -Recurse -File |
+            Where-Object { $_.FullName -notmatch '[\\/]Assets[\\/](Flags|Fonts)[\\/]' } |
+            ForEach-Object { "{0} {1:N1} MB" -f $_.FullName.Substring((Resolve-Path publish).Path.Length + 1), ($_.Length / 1MB) }
+          $total = (Get-ChildItem publish -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
+          $text = ($lines + ("total {0:N1} MB" -f $total)) -join '%0A'
+          Write-Output "::notice title=Contents::$text"
+
+      - name: Pack
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_SHA.Substring(0, 7))" }
+          "ZIP_NAME=Tunnelka-$version-win-x64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Compress-Archive -Path publish/* -DestinationPath "Tunnelka-$version-win-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }}
+          path: ${{ env.ZIP_NAME }}
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true

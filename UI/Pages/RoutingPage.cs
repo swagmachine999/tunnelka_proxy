@@ -20,7 +20,10 @@ public class RoutingPage : Panel
 
     private static readonly string RoutingBottomComment = L.T("Напрямую - использование без VPN\nЧерез VPN - использование через VPN\nБлок - полная блокировка трафика");
 
+    private readonly Panel _reconnectBar = new() { Dock = DockStyle.Top, Visible = false };
+
     public event EventHandler? RulesChanged;
+    public event EventHandler? ReconnectRequested;
 
     public RoutingPage(List<RoutingRule> rules, Action onBack)
     {
@@ -39,9 +42,9 @@ public class RoutingPage : Panel
             Text = RoutingBottomComment,
             AutoSize = false,
             Dock = DockStyle.Bottom,
-            Height = Theme.Px(70),
+            Height = Theme.Px(84),
             TextAlign = ContentAlignment.TopLeft,
-            Padding = Theme.Px(16, 0, 16, 20),
+            Padding = Theme.Px(4, 10, 4, 8),
             Font = Theme.Scaled(Theme.Caption)
         }, () => Theme.Surface, () => Theme.TextMuted);
 
@@ -84,16 +87,36 @@ public class RoutingPage : Panel
         var gap = new Panel { Dock = DockStyle.Top, Height = Theme.Px(12) };
         Theme.Bind(gap, () => Theme.Surface);
 
+        _reconnectBar.Height = Theme.Px(52);
+        _reconnectBar.Padding = Theme.Px(0, 4, 6, 10);
+        Theme.Bind(_reconnectBar, () => Theme.Surface);
+        var reconnect = PageParts.Button(L.T("Переподключить"), true);
+        reconnect.Dock = DockStyle.Right;
+        reconnect.Width = Theme.Px(150);
+        reconnect.Click += (_, _) => ReconnectRequested?.Invoke(this, EventArgs.Empty);
+        var hint = Theme.Bind(new Label
+        {
+            Text = L.T("Правила изменены. Они заработают после переподключения"),
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = Theme.Scaled(Theme.CaptionBold)
+        }, () => Theme.Surface, () => Theme.AccentStrong);
+        _reconnectBar.Controls.Add(hint);
+        _reconnectBar.Controls.Add(reconnect);
+
         Controls.Add(commentLabel);
         Controls.Add(_list);
         Controls.Add(gap);
         Controls.Add(form);
+        Controls.Add(_reconnectBar);
         Controls.Add(subtitle);
         Controls.Add(title);
 
         _list.Resize += (_, _) => ResizeCards();
         Rebuild();
     }
+
+    public void ShowReconnectHint(bool show) => _reconnectBar.Visible = show;
 
     private void AddFromInput()
     {

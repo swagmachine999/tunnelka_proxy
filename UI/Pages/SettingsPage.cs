@@ -6,7 +6,7 @@ public class SettingsPage : Panel
 {
     private static readonly int[] Intervals = { 1, 2, 3, 5, 10, 15, 30, 60, 300, 600, 1800, 3600 };
 
-    public SettingsPage(bool tun, int speedInterval, bool realPing, bool refreshOnStart, bool pingOnStart)
+    public SettingsPage(bool tun, int speedInterval, bool realPing, bool refreshOnStart, bool pingOnStart, bool autoStart, bool connectOnStart)
     {
         Dock = DockStyle.Fill;
         AutoScroll = true;
@@ -17,6 +17,8 @@ public class SettingsPage : Panel
         SpeedSelector = new OptionStepper(Intervals, ServerText.Duration, speedInterval, 150);
         RefreshToggle.Checked = refreshOnStart;
         PingToggle.Checked = pingOnStart;
+        AutoStartToggle.Checked = autoStart;
+        ConnectToggle.Checked = connectOnStart;
 
         InterfaceRow = new SettingRow(L.T("Интерфейс"), L.T("Тема, масштаб и язык"), chevron: true);
         RoutingRow = new SettingRow(L.T("Маршрутизация"), L.T("Какие сайты идут напрямую, через VPN или в блок"), chevron: true);
@@ -24,11 +26,17 @@ public class SettingsPage : Panel
         PingRow = new SettingRow(L.T("Пинг"), "", chevron: true);
         ShowPingMode(realPing);
 
+        var version = typeof(SettingsPage).Assembly.GetName().Version;
+        var about = PageParts.Caption($"Tunnelka {version?.ToString(3)}", 40);
+        about.TextAlign = ContentAlignment.MiddleCenter;
+        Controls.Add(about);
         Controls.Add(LogRow);
         Controls.Add(RoutingRow);
         Controls.Add(PingRow);
         Controls.Add(new SettingRow(L.T("Пинг при запуске"), L.T("Проверять все серверы при открытии приложения"), PingToggle));
         Controls.Add(new SettingRow(L.T("Подписки при запуске"), L.T("Обновлять все подписки при открытии приложения"), RefreshToggle));
+        Controls.Add(new SettingRow(L.T("Подключаться при запуске"), L.T("Сразу включать VPN к последнему серверу"), ConnectToggle));
+        Controls.Add(new SettingRow(L.T("Запуск с Windows"), L.T("Открываться свёрнутым в трей при входе в систему"), AutoStartToggle));
         Controls.Add(new SettingRow(L.T("Скорость в окне"), L.T("Как часто обновлять"), SpeedSelector));
         Controls.Add(new SettingRow(L.T("Режим"), L.T("Режим туннелирования"), ModeSelector));
         Controls.Add(InterfaceRow);
@@ -40,6 +48,8 @@ public class SettingsPage : Panel
     public OptionStepper SpeedSelector { get; }
     public ToggleSwitch RefreshToggle { get; } = new();
     public ToggleSwitch PingToggle { get; } = new();
+    public ToggleSwitch AutoStartToggle { get; } = new();
+    public ToggleSwitch ConnectToggle { get; } = new();
     public SettingRow InterfaceRow { get; }
     public SettingRow RoutingRow { get; }
     public SettingRow LogRow { get; }

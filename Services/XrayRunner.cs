@@ -1,10 +1,13 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Tunnelka.Services;
 
 public sealed class XrayRunner : IDisposable
 {
+    private static readonly Regex Colors = new(@"\x1B\[[0-9;]*m", RegexOptions.Compiled);
+
     private readonly string _exePath;
     private readonly string _configName;
     private Process? _process;
@@ -28,6 +31,10 @@ public sealed class XrayRunner : IDisposable
     public static string SingBoxPath => Path.Combine(CoreDir, "sing-box.exe");
 
     public bool IsRunning => _process is { HasExited: false };
+
+    public int? ExitCode => _process is { HasExited: true } process ? process.ExitCode : null;
+
+    public bool WaitForExit(int milliseconds) => _process == null || _process.WaitForExit(milliseconds);
 
     public void Start(string configJson)
     {
@@ -54,8 +61,8 @@ public sealed class XrayRunner : IDisposable
             EnableRaisingEvents = true
         };
 
-        process.OutputDataReceived += (_, e) => { if (e.Data != null) Output?.Invoke(e.Data); };
-        process.ErrorDataReceived += (_, e) => { if (e.Data != null) Output?.Invoke(e.Data); };
+        process.OutputDataReceived += (_, e) => { if (e.Data != null) Output?.Invoke(Colors.Replace(e.Data, "")); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data != null) Output?.Invoke(Colors.Replace(e.Data, "")); };
         process.Exited += (_, _) => { if (ReferenceEquals(process, _process)) Exited?.Invoke(); };
 
         _process = process;

@@ -4,3 +4,7 @@ obj/
 *.user
 data.json
 /core/
+data.dat
+data.dat.*
+data.json.*
+crash.log
