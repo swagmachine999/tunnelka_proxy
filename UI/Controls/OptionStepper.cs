@@ -68,12 +68,7 @@ public class OptionStepper : ThemedControl
         if (hover && enabled)
             Theme.FillRounded(g, Color.FromArgb(70, Theme.Accent), inner, 8);
 
-        using var pen = new Pen(enabled ? Theme.AccentStrong : Theme.TrackOff, 2f)
-        {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round,
-            LineJoin = LineJoin.Round
-        };
+        using var pen = Theme.IconPen(enabled ? Theme.AccentStrong : Theme.TrackOff);
         var cx = r.X + r.Width / 2;
         var cy = r.Y + r.Height / 2;
         var dx = next ? 2.5f : -2.5f;
