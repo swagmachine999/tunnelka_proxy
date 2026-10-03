@@ -289,6 +289,10 @@ public static class L
         ["Список пуст. Добавь программу или сайт"] = "The list is empty. Add an app or a site",
         ["Через VPN — только строки с пометкой VPN, остальное напрямую"] = "Only rows marked VPN go through VPN, the rest goes direct",
         ["Что-то без VPN"] = "Some without VPN",
-        ["Что-то через VPN"] = "Some via VPN"
+        ["Что-то через VPN"] = "Some via VPN",
+        ["Адаптер TUN не создан: мешает другой VPN ({0}). Закройте его и переподключитесь"] = "TUN adapter was not created: another VPN is in the way ({0}). Close it and reconnect",
+        ["Для режима TUN нужны права администратора"] = "TUN mode needs administrator rights",
+        ["Работает другой VPN в режиме TUN ({0}). Он может мешать адаптеру Tunnelka"] = "Another VPN is running in TUN mode ({0}). It may interfere with the Tunnelka adapter",
+        ["Трафик ядра идёт напрямую через адаптер {0}, мимо другого VPN"] = "Core traffic goes directly through adapter {0}, bypassing the other VPN"
     };
 }

@@ -158,9 +158,16 @@ public class MainForm : Form, IMessageFilter
         _clock.Tick += (_, _) => UpdateClock();
         _traffic.Updated += OnTraffic;
         _connection.Exited += OnCoreExited;
+        _connection.Warning += text => BeginInvoke(new Action(() => _hero.SetPing(text, Theme.PingMid)));
         KeyDown += OnKeyDown;
         FormClosing += (_, e) =>
         {
+            if (e.CloseReason == CloseReason.ApplicationExitCall && _active != null)
+            {
+                Data.ResumeAfterRestart = true;
+                Save();
+            }
+
             if (!_exiting && e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
@@ -875,12 +882,6 @@ public class MainForm : Form, IMessageFilter
 
     private void OfferElevation()
     {
-        var answer = MessageBox.Show(this,
-            L.T("Для режима TUN нужны права администратора. Перезапустить Tunnelka от имени администратора?"),
-            "Tunnelka", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-        if (answer != DialogResult.Yes)
-            return;
-
         try
         {
             Data.LastServerLink = SelectedLink();
@@ -892,6 +893,7 @@ public class MainForm : Form, IMessageFilter
         catch (Exception ex)
         {
             Log(L.F("Перезапуск отменён: {0}", ex.Message));
+            _hero.SetPing(L.T("Для режима TUN нужны права администратора"), Theme.PingMid);
         }
     }
 
@@ -989,7 +991,14 @@ public class MainForm : Form, IMessageFilter
                 OfferKillSwitchRelease();
         }
 
-        if (reconnect || Data.ConnectOnStart)
+        var resume = Data.ResumeAfterRestart;
+        if (resume)
+        {
+            Data.ResumeAfterRestart = false;
+            Save();
+        }
+
+        if (reconnect || resume || Data.ConnectOnStart)
             Connect();
         _updates.Start();
         await RunStartupTasks();

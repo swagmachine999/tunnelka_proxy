@@ -31,6 +31,7 @@ public class AppData
     public bool AutoStart { get; set; }
     public bool ConnectOnStart { get; set; }
     public bool KillSwitch { get; set; }
+    public bool ResumeAfterRestart { get; set; }
     public OverlayOptions Overlay { get; set; } = new();
 
     [JsonPropertyName("Subscriptions")]
