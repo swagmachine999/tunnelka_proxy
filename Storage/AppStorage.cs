@@ -95,6 +95,7 @@ public static class AppStorage
     {
         MigrateSubscriptions(data);
         MigrateRouting(data);
+        SubscriptionUrlMigration.Apply(data);
     }
 
     private static void MigrateRouting(AppData data)

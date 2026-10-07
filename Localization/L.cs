@@ -283,6 +283,7 @@ public static class L
         ["+ Файл .exe"] = "+ .exe file",
         ["Правила для программ надёжно работают в режиме TUN"] = "App rules work reliably in TUN mode",
         ["Сайт или IP, например sberbank.ru"] = "Site or IP, e.g. example.com",
+        ["Сначала добавь программу или сайт"] = "Add an app or a site first",
         ["Список пуст. Добавь программу или сайт"] = "The list is empty. Add an app or a site",
         ["Адаптер TUN не создан: мешает другой VPN ({0}). Закройте его и переподключитесь"] = "TUN adapter was not created: another VPN is in the way ({0}). Close it and reconnect",
         ["Для режима TUN нужны права администратора"] = "TUN mode needs administrator rights",
