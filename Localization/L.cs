@@ -89,6 +89,9 @@ public static class L
 
         ["{0} · обновлено {1} · раз в {2} ч"] = "{0} · updated {1} · every {2} h",
         ["Трафик: {0} из {1}"] = "Traffic: {0} of {1}",
+        ["{0} из {1}"] = "{0} of {1}",
+        ["осталось {0}"] = "{0} left",
+        ["Подписка истекла"] = "Expired",
         ["Подписка без срока"] = "No expiry date",
         ["Подписка истекла {0:dd.MM.yyyy}"] = "Expired on {0:dd.MM.yyyy}",
         ["Истекает {0:dd.MM.yyyy} · осталось {1}"] = "Expires {0:dd.MM.yyyy} · {1} left",
