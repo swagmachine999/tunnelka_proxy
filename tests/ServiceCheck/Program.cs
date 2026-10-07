@@ -1,7 +1,9 @@
+using System.Drawing;
 using System.IO.Pipes;
 using Tunnelka.Models;
 using Tunnelka.Services;
 using Tunnelka.Services.Privileged;
+using Tunnelka.UI;
 
 var fails = 0;
 void Check(bool ok, string name) { Console.WriteLine((ok ? "OK   " : "FAIL ") + name); if (!ok) fails++; }
@@ -147,6 +149,17 @@ if (OperatingSystem.IsWindows() && System.Security.Principal.WindowsIdentity.Get
     Check(rules.AreAccessRulesProtected, "windows: data folder does not inherit user access");
     Directory.Delete(dir, true);
 }
+var screen = new Rectangle(0, 0, 1920, 1040);
+var grown = WindowResize.Scale(new Rectangle(100, 100, 1000, 600), 1.5f, screen);
+Check(grown.Width == 1500 && grown.Height == 900, "window grows with the scale");
+Check(grown.Right <= 1920 && grown.Bottom <= 1040 && grown.Left >= 0 && grown.Top >= 0, "window stays inside the work area");
+var capped = WindowResize.Scale(new Rectangle(0, 0, 1500, 900), 2f, screen);
+Check(capped.Width == 1920 && capped.Height == 1040, "window never bigger than the screen");
+var appLog = new AppLog();
+for (var i = 0; i < 400; i++) appLog.Write("line " + i);
+var recentLines = appLog.Recent();
+Check(recentLines.Count == 300 && recentLines[299].EndsWith("line 399"), "log keeps the last 300 lines");
+
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
 

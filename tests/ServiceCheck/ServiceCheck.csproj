@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="../../Models/*.cs;../../Localization/*.cs;../../Parsing/*.cs;../../Storage/*.cs;../../Services/*.cs;../../Services/Privileged/*.cs" Exclude="../../Services/TrafficMonitor.cs" />
+    <Compile Include="../../Models/*.cs;../../Localization/*.cs;../../Parsing/*.cs;../../Storage/*.cs;../../Services/*.cs;../../Services/Privileged/*.cs;../../UI/WindowResize.cs" Exclude="../../Services/TrafficMonitor.cs" />
   </ItemGroup>
 
 </Project>
