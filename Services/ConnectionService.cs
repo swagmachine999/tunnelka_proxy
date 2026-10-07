@@ -130,6 +130,9 @@ public sealed class ConnectionService : IDisposable
             if (XrayConfigBuilder.SocksPort != XrayConfigBuilder.PreferredSocksPort)
                 _log.Write(L.F("Порт {0} занят другой программой (например, Happ или v2rayN), беру {1}", XrayConfigBuilder.PreferredSocksPort, XrayConfigBuilder.SocksPort));
 
+            if (SingBoxRelay.Needs(server) && !File.Exists(XrayRunner.SingBoxPath))
+                return ConnectResult.SingBoxMissing;
+
             if (SingBoxRelay.Needs(server) && !StartRelay(server))
                 return ConnectResult.Failed;
 

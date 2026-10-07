@@ -108,7 +108,7 @@ public static class RealPinger
     private static Process? Run(string exe, string configPath) =>
         Process.Start(new ProcessStartInfo(exe, $"run -c \"{configPath}\"")
         {
-            WorkingDirectory = XrayRunner.CoreDir,
+            WorkingDirectory = Path.GetDirectoryName(exe) ?? AppContext.BaseDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,

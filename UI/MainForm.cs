@@ -879,12 +879,11 @@ public class MainForm : Form, IMessageFilter
             case ConnectResult.Ok:
                 return true;
             case ConnectResult.XrayMissing:
-                MessageBox.Show(this, L.F("Не найден {0}", XrayRunner.XrayPath), "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                break;
             case ConnectResult.SingBoxMissing:
-                MessageBox.Show(this,
-                    L.F("Не найден {0}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.", XrayRunner.SingBoxPath),
-                    "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (OfferCoreDownload())
+                    return await Start(server);
+
+                ShowMissingCore(result);
                 break;
             case ConnectResult.NeedsAdministrator:
                 OfferElevation();
@@ -895,6 +894,20 @@ public class MainForm : Form, IMessageFilter
         }
 
         return false;
+    }
+
+    private bool OfferCoreDownload()
+    {
+        var missing = CoreLocator.Missing();
+        return missing.Count > 0 && CoreDownloadDialog.Ask(this, missing);
+    }
+
+    private void ShowMissingCore(ConnectResult result)
+    {
+        var message = result == ConnectResult.XrayMissing
+            ? L.F("Не найден {0}", XrayRunner.XrayPath)
+            : L.F("Не найден {0}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.", XrayRunner.SingBoxPath);
+        MessageBox.Show(this, message, "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
     private void OfferKillSwitchRelease()
