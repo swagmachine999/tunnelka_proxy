@@ -1,4 +1,5 @@
 using Tunnelka.Services;
+using Tunnelka.Services.Privileged;
 using Tunnelka.Storage;
 
 namespace Tunnelka;
@@ -8,6 +9,12 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Contains(ServiceConstants.RunArgument))
+        {
+            WindowsServiceHost.Run(new TunnelkaServiceApp());
+            return;
+        }
+
         if (args.Contains("--cleanup"))
         {
             ConnectionService.CleanUpAfterCrash();

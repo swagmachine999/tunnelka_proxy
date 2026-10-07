@@ -2,39 +2,47 @@ using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using Tunnelka.Models;
 
-namespace Tunnelka.UI.Controls;
+namespace Tunnelka.UI.Controls.ServerList;
 
-public class SubscriptionCard : ThemedControl
+public sealed class SubscriptionRow : ListRow
 {
     private const float Pad = 16;
     private const float LineHeight = 21;
     private const float SymbolSize = AnnounceLayout.SymbolSize;
+    private const float IconSize = 28;
+    private const float HeaderHeight = 50;
+    private const float WarningIndent = 40;
+    private const float DoneSeconds = 2.4f;
+    private static readonly PointF Origin = new(4, 6);
 
     private static readonly string[] RefreshSymbols = { "\U0001F504", "\U0001F503", "♻" };
 
     private readonly List<(RectangleF Rect, Action Action)> _hits = new();
     private List<List<AnnounceToken>> _lines = new();
     private RectangleF _hoverRect = RectangleF.Empty;
+    private RefreshStatus? _status;
+    private float _width;
+    private float _cardHeight = HeaderHeight;
+    private float _warningHeight;
+    private string? _warning;
     private int _layoutWidth = -1;
 
-    public event EventHandler? RefreshClicked;
-    public event EventHandler? PingClicked;
-    public event EventHandler? CollapseClicked;
-    public event EventHandler<Point>? MenuClicked;
-
-    public SubscriptionCard(SubscriptionInfo info)
+    public SubscriptionRow(SubscriptionInfo info)
     {
         Info = info;
-        Margin = Theme.Px(0, 4, 0, 6);
-        Height = Theme.Px(120);
     }
+
+    public event Action? RefreshClicked;
+
+    public event Action? PingClicked;
+
+    public event Action? CollapseClicked;
+
+    public event Action<PointF>? MenuClicked;
 
     public SubscriptionInfo Info { get; }
 
     public int ServerCount { get; set; }
-
-    private const float DoneSeconds = 2.4f;
-    private RefreshStatus? _status;
 
     public RefreshStatus? Status
     {
@@ -42,136 +50,211 @@ public class SubscriptionCard : ThemedControl
         set
         {
             _status = value;
-            UpdateLayout();
-            Invalidate();
-            Animate();
+            _layoutWidth = -1;
+            RaiseChanged();
         }
     }
+
+    public override bool NeedsFrames =>
+        _status?.State == RefreshState.Busy || (_status?.State == RefreshState.Done && SinceStatus < DoneSeconds + 0.3f);
 
     private bool Failed => _status?.State == RefreshState.Failed;
 
     private float SinceStatus => _status == null ? float.MaxValue : (float)(DateTime.Now - _status.At).TotalSeconds;
 
-    protected override bool AnimateMore() =>
-        _status?.State == RefreshState.Busy || (_status?.State == RefreshState.Done && SinceStatus < DoneSeconds + 0.3f);
+    private bool HasDetails => !Info.Collapsed && (Failed || _warning != null || _lines.Count > 0);
 
-    protected override void OnResize(EventArgs e)
+    public void Refresh()
     {
-        base.OnResize(e);
-        UpdateLayout();
+        _layoutWidth = -1;
+        RaiseChanged();
     }
 
-    public void UpdateLayout()
+    public override float Measure(float width)
     {
+        _width = width - Origin.X * 2;
         var warning = WarningText();
-        if (Width == _layoutWidth && warning == _layoutWarning && Failed == _layoutFailed)
+        if (_layoutWidth != (int)width || warning != _warning)
+        {
+            _layoutWidth = (int)width;
+            _warning = warning;
+            _lines = AnnounceLayout.Build(Info.Announce, _width - Pad * 2);
+            _warningHeight = warning == null ? 0
+                : Theme.MeasureWrapped(warning, Theme.CaptionBold, _width - Pad * 2 - WarningIndent - 12) + 20 + (Info.SupportUrl.Length > 0 ? 22 : 0);
+        }
+
+        _cardHeight = HeaderHeight;
+        if (HasDetails)
+        {
+            _cardHeight += 6;
+            if (Failed)
+                _cardHeight += 24;
+            if (_warningHeight > 0)
+                _cardHeight += _warningHeight + 8;
+            if (_lines.Count > 0)
+                _cardHeight += 14 + _lines.Count * LineHeight;
+            _cardHeight += 8;
+        }
+
+        return Origin.Y + _cardHeight + 4;
+    }
+
+    public override void PointerMoved(PointF local)
+    {
+        var point = new PointF(local.X - Origin.X, local.Y - Origin.Y);
+        var hover = RectangleF.Empty;
+        foreach (var (rect, _) in _hits)
+        {
+            if (rect.Contains(point))
+                hover = rect;
+        }
+
+        if (hover == _hoverRect)
             return;
 
-        _layoutWidth = Width;
-        _layoutWarning = warning;
-        _layoutFailed = Failed;
-        _lines = AnnounceLayout.Build(Info.Announce, W - Pad * 2);
-        _warningHeight = warning == null ? 0
-            : Theme.MeasureWrapped(warning, Theme.CaptionBold, W - Pad * 2 - WarningIndent - 12) + 20 + (Info.SupportUrl.Length > 0 ? 22 : 0);
-
-        var height = (int)(InfoTop + InfoRows * 22 + 8 + (_warningHeight > 0 ? _warningHeight + 10 : 0));
-        if (_lines.Count > 0)
-            height += (int)(14 + _lines.Count * LineHeight + 6);
-        var device = Theme.Px(height + Theme.ShadowBottom);
-        if (Height != device)
-            Height = device;
+        _hoverRect = hover;
+        RaiseChanged();
     }
 
-    private const float InfoTop = 70;
-    private const float WarningIndent = 40;
-    private string? _layoutWarning;
-    private float _warningHeight;
-    private bool _layoutFailed;
-    private int InfoRows => (Info.Total > 0 ? 2 : 1) + (Failed ? 1 : 0);
+    public override void PointerLeft()
+    {
+        if (_hoverRect.IsEmpty)
+            return;
 
-    protected override bool CachePaint => true;
+        _hoverRect = RectangleF.Empty;
+        RaiseChanged();
+    }
 
-    protected override void Draw(Graphics g)
+    public override bool Hits(PointF local) => ActionAt(local) != null;
+
+    public override void Click(PointF local) => ActionAt(local)?.Invoke();
+
+    public override void RightClick(PointF local) => MenuClicked?.Invoke(local);
+
+    private Action? ActionAt(PointF local)
+    {
+        var point = new PointF(local.X - Origin.X, local.Y - Origin.Y);
+        foreach (var (rect, action) in _hits)
+        {
+            if (rect.Contains(point))
+                return action;
+        }
+
+        return null;
+    }
+
+    public override void Draw(Graphics g, float width, float time)
     {
         _hits.Clear();
+        _width = width - Origin.X * 2;
 
-        var rect = Theme.CardRect(W, H);
-        Theme.DrawShadow(g, rect, 16);
-        using (var brush = new LinearGradientBrush(rect, Theme.Card, Theme.Lighten(Theme.CardSelected, Theme.IsDark ? 0f : 0.3f), 90f))
-        using (var path = Theme.RoundedRect(rect, 16))
+        var card = new RectangleF(Origin.X, Origin.Y, _width, _cardHeight);
+        using (var brush = new LinearGradientBrush(card, Theme.Card, Theme.Lighten(Theme.CardSelected, Theme.IsDark ? 0f : 0.3f), 90f))
+        using (var path = Theme.RoundedRect(card, 14))
             g.FillPath(brush, path);
-        Theme.DrawRounded(g, Theme.Border, rect, 16);
+        Theme.DrawRounded(g, Theme.Border, card, 14);
 
-        var x = W - Pad - IconSize;
-        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawMenu, r =>
-            MenuClicked?.Invoke(this, new Point((int)(r.Left * Theme.S), (int)(r.Bottom * Theme.S))));
+        var state = g.Save();
+        g.TranslateTransform(Origin.X, Origin.Y);
+        DrawContent(g);
+        g.Restore(state);
+    }
+
+    private void DrawContent(Graphics g)
+    {
+        var iconTop = (HeaderHeight - IconSize) / 2;
+        var x = _width - Pad - IconSize + 4;
+        AddIcon(g, new RectangleF(x, iconTop, IconSize, IconSize), DrawMenu, r => MenuClicked?.Invoke(new PointF(r.Left + Origin.X, r.Bottom + Origin.Y)));
         x -= IconSize + 2;
-        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawPing, _ => PingClicked?.Invoke(this, EventArgs.Empty));
+        AddIcon(g, new RectangleF(x, iconTop, IconSize, IconSize), DrawPing, _ => PingClicked?.Invoke());
         x -= IconSize + 2;
-        AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawRefreshState, _ => RefreshClicked?.Invoke(this, EventArgs.Empty));
+        AddIcon(g, new RectangleF(x, iconTop, IconSize, IconSize), DrawRefreshState, _ => RefreshClicked?.Invoke());
         if (Info.SupportUrl.Length > 0)
         {
             x -= IconSize + 2;
-            AddIcon(g, new RectangleF(x, 12, IconSize, IconSize), DrawSupport, _ => Open(Info.SupportUrl));
+            AddIcon(g, new RectangleF(x, iconTop, IconSize, IconSize), DrawSupport, _ => Open(Info.SupportUrl));
         }
 
-        var titleRect = new RectangleF(Pad - 4, 10, x - Pad, 32);
-        _hits.Add((titleRect, () => CollapseClicked?.Invoke(this, EventArgs.Empty)));
-        DrawChevron(g, Pad + 4, 26, Info.Collapsed);
+        var titleRect = new RectangleF(Pad - 4, 4, x - Pad, HeaderHeight - 8);
+        _hits.Insert(0, (titleRect, () => CollapseClicked?.Invoke()));
+        DrawChevron(g, Pad + 4, 17, Info.Collapsed);
 
         var titleParts = ServerText.Parts(Info.Title, Info.Title);
-        NamePainter.Draw(g, titleParts, Theme.CardTitle, Theme.Text, new RectangleF(Pad + 16, 14, x - Pad - 20, 24));
+        NamePainter.Draw(g, titleParts, Theme.CardTitle, Theme.Text, new RectangleF(Pad + 16, 5, x - Pad - 20, 24));
+        DrawSubline(g, new RectangleF(Pad + 16, 28, x - Pad - 20, 16));
 
-        var updated = Info.UpdatedAt == default ? L.T("никогда")
-            : Info.UpdatedAt.Date == DateTime.Today ? L.F("в {0:HH:mm}", Info.UpdatedAt) : $"{Info.UpdatedAt:dd.MM HH:mm}";
-        var count = ServerText.Plural(ServerCount, L.T("сервер"), L.T("сервера"), L.T("серверов"));
-        Theme.DrawText(g, L.F("{0} · обновлено {1} · раз в {2} ч", count, updated, Info.UpdateIntervalHours),
-            Theme.Caption, Theme.TextMuted, new RectangleF(Pad + 16, 42, W - Pad * 2 - 16, 18));
+        if (!HasDetails)
+            return;
 
-        var y = InfoTop;
-        DrawInfoRow(g, y, ExpireText(), ExpireColor());
-        if (Info.Total > 0)
-        {
-            y += 22;
-            DrawInfoRow(g, y, L.F("Трафик: {0} из {1}", ServerText.Bytes(Info.Upload + Info.Download), ServerText.Bytes(Info.Total)), Theme.Text);
-        }
-
+        var y = HeaderHeight + 6;
         if (Failed)
         {
-            y += 22;
             DrawWarningMark(g, Pad + 8, y + 1, 1f);
             Theme.DrawText(g, L.F("Не удалось обновить: {0}", _status!.Message), Theme.CaptionBold, Theme.PingMid,
-                new RectangleF(Pad + 24, y, W - Pad * 2 - 24, 18));
+                new RectangleF(Pad + 24, y, _width - Pad * 2 - 24, 18));
+            y += 24;
         }
 
-        if (_layoutWarning != null)
+        if (_warning != null)
         {
-            DrawWarning(g, new RectangleF(Pad, y + 28, W - Pad * 2, _warningHeight), _layoutWarning);
-            y += _warningHeight + 10;
+            DrawWarning(g, new RectangleF(Pad, y, _width - Pad * 2, _warningHeight), _warning);
+            y += _warningHeight + 8;
         }
 
         if (_lines.Count == 0)
             return;
 
-        y += 30;
         using (var pen = new Pen(Theme.Border))
-            g.DrawLine(pen, Pad, y - 8, W - Pad, y - 8);
+            g.DrawLine(pen, Pad, y + 2, _width - Pad, y + 2);
 
-        DrawAnnounce(g, y);
+        DrawAnnounce(g, y + 14);
     }
 
-    private void DrawInfoRow(Graphics g, float y, string text, Color color)
+    private void DrawSubline(Graphics g, RectangleF area)
     {
-        var icon = new RectangleF(Pad, y + 1, 16, 16);
-        using (var pen = Theme.IconPen(Theme.Accent))
-            g.DrawEllipse(pen, icon);
-        using (var brush = new SolidBrush(Theme.Accent))
+        var segments = new List<(string Text, Color Color, Font Font)>
         {
-            g.FillEllipse(brush, icon.X + 7, icon.Y + 3.5f, 2.2f, 2.2f);
-            g.FillRectangle(brush, icon.X + 7.1f, icon.Y + 7, 2f, 5.5f);
-        }
+            (ServerText.Plural(ServerCount, L.T("сервер"), L.T("сервера"), L.T("серверов")), Theme.TextMuted, Theme.Caption)
+        };
 
-        Theme.DrawText(g, text, Theme.CaptionBold, color, new RectangleF(Pad + 24, y, W - Pad * 2 - 24, 18));
+        if (Info.Expire != null)
+            segments.Add((ExpireShort(), ExpireColor(), ExpireColor() == Theme.Text ? Theme.Caption : Theme.CaptionBold));
+
+        if (Info.Total > 0)
+            segments.Add((L.F("{0} из {1}", ServerText.Bytes(Info.Upload + Info.Download), ServerText.Bytes(Info.Total)), Theme.TextMuted, Theme.Caption));
+
+        var x = area.X;
+        for (var i = 0; i < segments.Count; i++)
+        {
+            var text = i == 0 ? segments[i].Text : "· " + segments[i].Text;
+            var width = Theme.Measure(text, segments[i].Font).Width + 2;
+            if (x + width > area.Right)
+                break;
+
+            var color = segments[i].Color == Theme.Text ? Theme.TextMuted : segments[i].Color;
+            Theme.DrawText(g, text, segments[i].Font, color, new RectangleF(x, area.Y, width, area.Height));
+            x += width + 3;
+        }
+    }
+
+    private string ExpireShort()
+    {
+        var left = Info.Expire!.Value - DateTime.Now;
+        if (left <= TimeSpan.Zero)
+            return L.T("Подписка истекла");
+
+        var tail = left.TotalDays >= 1
+            ? ServerText.Plural((int)left.TotalDays, L.T("день"), L.T("дня"), L.T("дней"))
+            : ServerText.Plural(Math.Max(1, (int)left.TotalHours), L.T("час"), L.T("часа"), L.T("часов"));
+        return L.F("осталось {0}", tail);
+    }
+
+    private void AddIcon(Graphics g, RectangleF r, Action<Graphics, RectangleF> draw, Action<RectangleF> click)
+    {
+        if (r == _hoverRect)
+            Theme.FillRounded(g, Theme.CardHover, r, 9);
+        draw(g, r);
+        _hits.Add((r, () => click(r)));
     }
 
     private void DrawAnnounce(Graphics g, float top)
@@ -182,7 +265,7 @@ public class SubscriptionCard : ThemedControl
         {
             var line = _lines[i];
             var lineWidth = line.Sum(t => t.Width) + space * Math.Max(0, line.Count - 1);
-            var x = (W - lineWidth) / 2;
+            var x = (_width - lineWidth) / 2;
             var y = top + i * LineHeight;
 
             foreach (var token in line)
@@ -195,7 +278,7 @@ public class SubscriptionCard : ThemedControl
                     {
                         var hit = RectangleF.Inflate(symbolRect, 4, 3);
                         Theme.FillRounded(g, Color.FromArgb(hit == _hoverRect ? 90 : 45, Theme.Accent), hit, 6);
-                        _hits.Add((hit, () => RefreshClicked?.Invoke(this, EventArgs.Empty)));
+                        _hits.Add((hit, () => RefreshClicked?.Invoke()));
                     }
                     NamePainter.Draw(g, new[] { new NamePart(token.Text, true) }, Theme.Caption, Theme.Text,
                         new RectangleF(x, y, SymbolSize + 2, LineHeight));
@@ -222,15 +305,6 @@ public class SubscriptionCard : ThemedControl
         }
     }
 
-    private const float IconSize = 28;
-
-    private void AddIcon(Graphics g, RectangleF r, Action<Graphics, RectangleF> draw, Action<RectangleF> click)
-    {
-        if (r == _hoverRect)
-            Theme.FillRounded(g, Theme.CardHover, r, 9);
-        draw(g, r);
-        _hits.Add((r, () => click(r)));
-    }
 
     private void DrawRefreshState(Graphics g, RectangleF r)
     {
@@ -353,21 +427,6 @@ public class SubscriptionCard : ThemedControl
             g.FillEllipse(brush, cx + i * 6 - 1.8f, cy - 1.8f, 3.6f, 3.6f);
     }
 
-    private string ExpireText()
-    {
-        if (Info.Expire == null)
-            return L.T("Подписка без срока");
-
-        var expire = Info.Expire.Value;
-        var left = expire - DateTime.Now;
-        if (left <= TimeSpan.Zero)
-            return L.F("Подписка истекла {0:dd.MM.yyyy}", expire);
-
-        var tail = left.TotalDays >= 1
-            ? ServerText.Plural((int)left.TotalDays, L.T("день"), L.T("дня"), L.T("дней"))
-            : ServerText.Plural(Math.Max(1, (int)left.TotalHours), L.T("час"), L.T("часа"), L.T("часов"));
-        return L.F("Истекает {0:dd.MM.yyyy} · осталось {1}", expire, tail);
-    }
 
     private string? WarningText()
     {
@@ -421,6 +480,7 @@ public class SubscriptionCard : ThemedControl
         return left <= TimeSpan.Zero ? Theme.PingBad : left.TotalDays < 3 ? Theme.PingMid : Theme.Text;
     }
 
+
     private static void Open(string url)
     {
         try
@@ -429,47 +489,6 @@ public class SubscriptionCard : ThemedControl
         }
         catch (Exception)
         {
-        }
-    }
-
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        base.OnMouseMove(e);
-        var hover = RectangleF.Empty;
-        foreach (var (rect, _) in _hits)
-        {
-            if (rect.Contains(Theme.Design(e.Location)))
-                hover = rect;
-        }
-
-        Cursor = hover.IsEmpty ? Cursors.Default : Cursors.Hand;
-        if (hover != _hoverRect)
-        {
-            _hoverRect = hover;
-            Invalidate();
-        }
-    }
-
-    protected override void OnMouseLeave(EventArgs e)
-    {
-        base.OnMouseLeave(e);
-        _hoverRect = RectangleF.Empty;
-        Invalidate();
-    }
-
-    protected override void OnMouseClick(MouseEventArgs e)
-    {
-        base.OnMouseClick(e);
-        if (e.Button != MouseButtons.Left)
-            return;
-
-        foreach (var (rect, action) in _hits)
-        {
-            if (rect.Contains(Theme.Design(e.Location)))
-            {
-                action();
-                return;
-            }
         }
     }
 }

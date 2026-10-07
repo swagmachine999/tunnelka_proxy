@@ -13,22 +13,29 @@ public static class Fonts
 
     static Fonts()
     {
-        var folder = Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts");
-        if (!Directory.Exists(folder))
-            return;
-
-        foreach (var file in Directory.GetFiles(folder, "*.ttf"))
+        foreach (var name in EmbeddedAssets.Names("Fonts", ".ttf"))
         {
-            try
-            {
-                AddFontResourceEx(file, PrivateFont, IntPtr.Zero);
-            }
-            catch (Exception)
-            {
-            }
-
-            Collection.AddFontFile(file);
+            var data = EmbeddedAssets.Read(name);
+            if (data != null)
+                Register(data);
         }
+    }
+
+    private static void Register(byte[] data)
+    {
+        var memory = Marshal.AllocCoTaskMem(data.Length);
+        Marshal.Copy(data, 0, memory, data.Length);
+
+        try
+        {
+            uint count = 0;
+            AddFontMemResourceEx(memory, (uint)data.Length, IntPtr.Zero, ref count);
+        }
+        catch (Exception)
+        {
+        }
+
+        Collection.AddMemoryFont(memory, data.Length);
     }
 
     public static Font Make(string family, float pixels, FontStyle style = FontStyle.Regular)
@@ -39,8 +46,6 @@ public static class Fonts
             : new Font("Segoe UI", pixels, family == Regular ? style : style | FontStyle.Bold, GraphicsUnit.Pixel);
     }
 
-    private const uint PrivateFont = 0x10;
-
-    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
-    private static extern int AddFontResourceEx(string name, uint flags, IntPtr reserved);
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr AddFontMemResourceEx(IntPtr font, uint size, IntPtr reserved, ref uint count);
 }
