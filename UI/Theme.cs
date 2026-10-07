@@ -341,11 +341,14 @@ public static class Theme
             return cached;
 
         Image? image = null;
-        var path = Path.Combine(AppContext.BaseDirectory, "Assets", "Flags", code + ".png");
         try
         {
-            if (File.Exists(path))
-                image = Image.FromFile(path);
+            using var stream = EmbeddedAssets.Open("Flags." + code + ".png");
+            if (stream != null)
+            {
+                using var source = Image.FromStream(stream);
+                image = new Bitmap(source);
+            }
         }
         catch (Exception)
         {
