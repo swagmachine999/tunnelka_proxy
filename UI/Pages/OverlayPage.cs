@@ -46,7 +46,7 @@ public class OverlayPage : Panel
 
         _keysRow = new SettingRow(L.T("Сочетание клавиш"), "", keys);
 
-        Controls.Add(new SettingRow(L.T("Потеря пакетов"), L.T("Сколько проверок не дошло за последние 30 секунд"), loss));
+        Controls.Add(new SettingRow(L.T("Потеря пакетов"), L.T("Сколько проверок до сервера не дошло за последние 10 секунд"), loss));
         Controls.Add(new SettingRow(L.T("Скорость"), L.T("Загрузка и отдача, каждую секунду"), speed));
         Controls.Add(new SettingRow(L.T("Пинг"), L.T("Задержка через VPN, каждую секунду"), ping));
         Controls.Add(PageParts.Caption(L.T("ЧТО ПОКАЗЫВАТЬ"), 36));

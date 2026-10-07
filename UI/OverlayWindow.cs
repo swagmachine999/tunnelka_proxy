@@ -86,7 +86,7 @@ public sealed class OverlayWindow : Form
             parts.Add(new Part("↑ " + ServerText.Bytes(state.Up) + L.T("/с"), Text, font));
         }
         if (options.ShowLoss)
-            parts.Add(new Part(L.F("потери {0}%", state.Loss), state.Loss == 0 ? Muted : state.Loss < 10 ? Mid : Bad, font));
+            parts.Add(new Part(L.F("потери {0}%", state.Loss), state.Loss == 0 ? Muted : state.Loss < 6 ? Mid : Bad, font));
 
         var pad = 12 * k;
         var gap = 14 * k;
