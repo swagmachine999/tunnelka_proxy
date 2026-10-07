@@ -122,7 +122,7 @@ using (var raw = new NamedPipeClientStream(".", name, PipeDirection.InOut))
 }
 Check(client.Send(new ServiceRequest { Command = "ping" }) is { Ok: true }, "server survives garbage");
 
-if (OperatingSystem.IsWindows())
+if (OperatingSystem.IsWindows() && System.Security.Principal.WindowsIdentity.GetCurrent().Groups!.Contains(new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.InteractiveSid, null)))
 {
     var wname = "tk-win-" + Environment.ProcessId;
     var wdispatch = new ServiceDispatcher(tun, ks, () => false, self, log.Add);
