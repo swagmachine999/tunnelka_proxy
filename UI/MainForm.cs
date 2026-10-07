@@ -3,6 +3,7 @@ using Tunnelka.Parsing;
 using Tunnelka.Services;
 using Tunnelka.Storage;
 using Tunnelka.UI.Controls;
+using Tunnelka.UI.Controls.ServerList;
 using Tunnelka.UI.Pages;
 
 namespace Tunnelka.UI;
@@ -29,6 +30,12 @@ public class MainForm : Form, IMessageFilter
 
     private readonly HeroView _hero = new() { Dock = DockStyle.Fill };
     private readonly TipBubble _tip = new();
+    private const int WmDpiChanged = 0x02E0;
+    private const int MinDesignWidth = 920;
+    private const float MiddleShare = 0.4f;
+    private const int MiddleMin = 440;
+    private const int MiddleMax = 600;
+
     private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(490), Padding = Theme.Px(20, 20, 12, 10) };
     private readonly Dictionary<IconKind, Control> _pages = new();
     private readonly List<IconButton> _navButtons = new();
@@ -89,8 +96,8 @@ public class MainForm : Form, IMessageFilter
 
         Text = "Tunnelka";
         var screen = Screen.PrimaryScreen?.WorkingArea.Size ?? new Size(1920, 1080);
-        ClientSize = new Size(Math.Min(Theme.Px(1233), screen.Width - 40), Math.Min(Theme.Px(733), screen.Height - 60));
-        MinimumSize = new Size(Math.Min(Theme.Px(900), screen.Width - 40), Math.Min(Theme.Px(600), screen.Height - 60));
+        ClientSize = new Size(Math.Min(Theme.Px(1233), screen.Width - 40), Math.Min(Theme.Px(HeroView.RequiredHeight + 5), screen.Height - 60));
+        MinimumSize = SizeFromClientSize(new Size(Math.Min(Theme.Px(MinDesignWidth), screen.Width - 40), Math.Min(Theme.Px(HeroView.RequiredHeight), screen.Height - 60)));
         StartPosition = FormStartPosition.CenterScreen;
         Font = Theme.Scaled(Theme.Body);
         KeyPreview = true;
@@ -160,6 +167,9 @@ public class MainForm : Form, IMessageFilter
         _connection.Exited += OnCoreExited;
         _connection.Warning += text => BeginInvoke(new Action(() => _hero.SetPing(text, Theme.PingMid)));
         KeyDown += OnKeyDown;
+        Resize += (_, _) => FitMiddle();
+        ResizeEnd += (_, _) => CheckDisplayScale();
+        FitMiddle();
         FormClosing += (_, e) =>
         {
             if (e.CloseReason == CloseReason.ApplicationExitCall && _active != null)
@@ -216,6 +226,28 @@ public class MainForm : Form, IMessageFilter
             ReloadRequested?.Invoke(this, EventArgs.Empty);
         };
 
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        base.WndProc(ref m);
+        if (m.Msg == WmDpiChanged && IsHandleCreated)
+            BeginInvoke(new Action(CheckDisplayScale));
+    }
+
+    private void FitMiddle()
+    {
+        var share = (int)(ClientSize.Width * MiddleShare);
+        _middle.Width = Math.Max(Theme.Px(MiddleMin), Math.Min(Theme.Px(MiddleMax), share));
+    }
+
+    private void CheckDisplayScale()
+    {
+        if (IsDisposed || !IsHandleCreated || _exiting)
+            return;
+
+        if (Math.Abs(DisplayScale.Of(this) - Theme.Base) > 0.01f)
+            ReloadRequested?.Invoke(this, EventArgs.Empty);
     }
 
     public bool PrepareForReplace()
@@ -472,6 +504,9 @@ public class MainForm : Form, IMessageFilter
     public bool PreFilterMessage(ref Message m)
     {
         const int WheelMessage = 0x020A;
+        if (m.Msg == WheelMessage && (ModifierKeys & Keys.Control) == 0 && ActiveForm == this && _list.ContainsCursor())
+            return _list.ScrollWheel((short)((long)m.WParam >> 16));
+
         if (m.Msg != WheelMessage || (ModifierKeys & Keys.Control) == 0 || ActiveForm != this)
             return false;
 
@@ -503,7 +538,7 @@ public class MainForm : Form, IMessageFilter
 
         if (e.Control && e.KeyCode is Keys.D0 or Keys.NumPad0)
         {
-            _interfacePage.ScaleSelector.SetValue(90);
+            _interfacePage.ScaleSelector.SetValue(UiScaleMigration.DefaultPercent);
             e.Handled = true;
             return;
         }
@@ -549,7 +584,7 @@ public class MainForm : Form, IMessageFilter
 
         if (text.StartsWith("http://") || text.StartsWith("https://"))
         {
-            _ = AddSubscriptionUrl(text);
+            _ = AddSubscriptionUrl(SubscriptionUrl.Normalize(text));
             return;
         }
 
@@ -796,6 +831,7 @@ public class MainForm : Form, IMessageFilter
             if (server == null)
             {
                 _hero.SetPing(L.T("Ни один сервер не ответил"), Theme.PingBad);
+                _hero.ConnectionFailed();
                 return;
             }
         }
@@ -806,6 +842,7 @@ public class MainForm : Form, IMessageFilter
         _hero.Connecting = true;
         if (!await Start(server))
         {
+            _hero.ConnectionFailed();
             if (_active != null)
                 Disconnect();
             return;
@@ -842,12 +879,11 @@ public class MainForm : Form, IMessageFilter
             case ConnectResult.Ok:
                 return true;
             case ConnectResult.XrayMissing:
-                MessageBox.Show(this, L.F("Не найден {0}", XrayRunner.XrayPath), "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                break;
             case ConnectResult.SingBoxMissing:
-                MessageBox.Show(this,
-                    L.F("Не найден {0}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.", XrayRunner.SingBoxPath),
-                    "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (OfferCoreDownload())
+                    return await Start(server);
+
+                ShowMissingCore(result);
                 break;
             case ConnectResult.NeedsAdministrator:
                 OfferElevation();
@@ -858,6 +894,20 @@ public class MainForm : Form, IMessageFilter
         }
 
         return false;
+    }
+
+    private bool OfferCoreDownload()
+    {
+        var missing = CoreLocator.Missing();
+        return missing.Count > 0 && CoreDownloadDialog.Ask(this, missing);
+    }
+
+    private void ShowMissingCore(ConnectResult result)
+    {
+        var message = result == ConnectResult.XrayMissing
+            ? L.F("Не найден {0}", XrayRunner.XrayPath)
+            : L.F("Не найден {0}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.", XrayRunner.SingBoxPath);
+        MessageBox.Show(this, message, "Tunnelka", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
     private void OfferKillSwitchRelease()
@@ -985,7 +1035,7 @@ public class MainForm : Form, IMessageFilter
 
         if (KillSwitch.WasLeftOn())
         {
-            if (Elevation.IsAdministrator())
+            if (KillSwitch.CanRelease)
                 await ReleaseKillSwitch();
             else
                 OfferKillSwitchRelease();
@@ -1054,6 +1104,7 @@ public class MainForm : Form, IMessageFilter
             return;
 
         _hero.SetPing(L.T("VPN упал — интернет заблокирован. Нажми кнопку, чтобы переподключиться"), Theme.PingBad);
+        _hero.ConnectionFailed();
         _tray.ShowBalloonTip(10000, "Tunnelka", L.T("VPN отключился, kill switch заблокировал интернет. Переподключитесь или выключите kill switch в «Расширенное»."), ToolTipIcon.Warning);
     }
 

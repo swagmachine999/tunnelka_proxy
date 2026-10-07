@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Tunnelka.UI.Kitten;
 using System.Drawing.Drawing2D;
 
 namespace Tunnelka.UI.Controls;
@@ -9,11 +10,21 @@ public class HeroView : ThemedControl
     private const float RippleDelay = 0.3f;
     private const float RippleLife = 2.6f;
     private const float RippleReach = 132;
-    private const float KittenDrop = 120;
+    private const float GroupScale = 0.94f;
+    private const float HeaderHeight = 72;
+    private const float RingMargin = 52;
+    private const float BelowRing = RippleReach + 10;
+    private const float KittenHeight = 152;
+    private const float FooterHeight = 12 + 34 + 18 + 44 + 26;
+    private const float BottomMargin = 16;
+
+    public const float RequiredHeight = HeaderHeight + BottomMargin + FooterHeight + (RingMargin + 200 + BelowRing + KittenHeight) * GroupScale;
 
     private readonly System.Windows.Forms.Timer _animation = new() { Interval = 25 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private float _time;
+    private readonly KittenBrain _brain = new();
+    private KittenPose _pose = new();
     private float _hoverAmount;
     private float _rippleStart = -100;
     private float _scale = 1;
@@ -66,6 +77,8 @@ public class HeroView : ThemedControl
     {
         set { _connecting = value; Invalidate(); }
     }
+
+    public void ConnectionFailed() => _brain.Fail(_time);
 
     public bool Tun
     {
@@ -122,7 +135,9 @@ public class HeroView : ThemedControl
         _hoverAmount += ((_hoverPower ? 1f : 0f) - _hoverAmount) * 0.15f;
         _animation.Interval = Rippling ? 15 : 25;
 
-        var area = RectangleF.Union(Inflate(_powerRect, Rippling ? RippleReach * _scale + 12 : 70), _kittenRect);
+        _pose = _brain.Evaluate(_time, _connected, _connecting);
+
+        var area = RectangleF.Union(Inflate(_powerRect, Rippling ? RippleReach * _scale + 12 : 70), Inflate(_kittenRect, 48 * _scale));
         Invalidate(ToDevice(area));
         if (_busy)
             Invalidate(ToDevice(_pingResultRect));
@@ -132,21 +147,18 @@ public class HeroView : ThemedControl
     {
         var w = ClientSize.Width / Theme.S;
         var h = ClientSize.Height / Theme.S;
-        const float header = 72;
-        const float ringMargin = 52;
-        const float fixedHeight = 12 + 34 + 18 + 44 + 26;
-        const float scaledHeight = ringMargin + 200 + RippleReach + 10 + 152;
-        var available = h - header - 16 - fixedHeight;
-        var scale = Math.Max(0.45f, Math.Min(1f, Math.Min(available / scaledHeight, (w - 32) / (200 + ringMargin * 2))));
+        var available = h - HeaderHeight - BottomMargin - FooterHeight;
+        var groupHeight = RingMargin + 200 + BelowRing + KittenHeight;
+        var scale = Math.Min(GroupScale, Math.Min(available / groupHeight, (w - 32) / (200 + RingMargin * 2)));
+        scale = Math.Max(0.45f, scale);
         _scale = scale;
 
-        var extra = Math.Max(0, available - scaledHeight * scale);
-        var drop = Math.Min(extra, KittenDrop * scale);
+        var extra = Math.Max(0, available - groupHeight * scale);
         var diameter = 200 * scale;
         var kittenW = 190 * scale;
-        var kittenH = 152 * scale;
-        var gap = (RippleReach + 10) * scale + drop;
-        var top = header + ringMargin * scale + (extra - drop) / 2;
+        var kittenH = KittenHeight * scale;
+        var gap = BelowRing * scale;
+        var top = HeaderHeight + RingMargin * scale + extra / 2;
         var cx = w / 2;
 
         _powerRect = new RectangleF(cx - diameter / 2, top, diameter, diameter);
@@ -173,7 +185,7 @@ public class HeroView : ThemedControl
         DrawToggle(g);
         DrawSpeed(g);
         DrawPower(g);
-        KittenPainter.Draw(g, _kittenRect, _connected, _time, _connected && _time % 4.4f < 0.16f);
+        KittenPainter.Draw(g, _kittenRect, _pose, _time);
         DrawServer(g);
         DrawButtons(g);
     }
@@ -478,6 +490,7 @@ public class HeroView : ThemedControl
     {
         base.OnMouseMove(e);
         var point = Theme.Design(e.Location);
+        _brain.Look((point.X - _kittenRect.X - _kittenRect.Width / 2) / 160f, (point.Y - _kittenRect.Y - _kittenRect.Height / 2) / 120f);
         var power = InCircle(_powerRect, point);
         var ping = _pingRect.Contains(point);
         var refresh = _refreshRect.Contains(point);
@@ -497,6 +510,7 @@ public class HeroView : ThemedControl
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
+        _brain.LookAway();
         _hoverPower = _hoverPing = _hoverRefresh = _hoverToggle = false;
         Cursor = Cursors.Default;
         Invalidate();
@@ -509,9 +523,11 @@ public class HeroView : ThemedControl
             return;
 
         var point = Theme.Design(e.Location);
+        _brain.Click(_time);
         if (InCircle(_powerRect, point))
         {
             _rippleStart = _time;
+            _brain.Press(_time);
             PowerClicked?.Invoke(this, EventArgs.Empty);
         }
         else if (_pingRect.Contains(point))

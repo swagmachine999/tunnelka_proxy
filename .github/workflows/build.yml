@@ -37,6 +37,9 @@ jobs:
       - name: Check storage encryption
         run: dotnet run --project tests/DpapiCheck/DpapiCheck.csproj -c Release
 
+      - name: Check privileged service logic
+        run: dotnet run --project tests/ServiceCheck/ServiceCheck.csproj -c Release
+
       - name: Publish
         run: dotnet publish Tunnelka.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:Version=${{ env.APP_VERSION }} -o publish
 

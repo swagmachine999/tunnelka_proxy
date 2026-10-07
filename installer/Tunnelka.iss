@@ -11,10 +11,10 @@ AppName=Tunnelka
 AppVersion={#AppVersion}
 AppPublisher=swagmachine999
 VersionInfoVersion={#AppVersion}
-DefaultDirName={localappdata}\Programs\Tunnelka
+DefaultDirName={autopf}\Tunnelka
 DisableProgramGroupPage=yes
 DisableDirPage=yes
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 OutputDir=..\dist
 OutputBaseFilename=Tunnelka-Setup-{#AppVersion}
 SetupIconFile=..\Assets\tunnelka.ico
@@ -69,7 +69,7 @@ Name: "{autoprograms}\Tunnelka"; Filename: "{app}\Tunnelka.exe"
 Name: "{autodesktop}\Tunnelka"; Filename: "{app}\Tunnelka.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\Tunnelka.exe"; Description: "{cm:LaunchProgram,Tunnelka}"; Flags: nowait postinstall
+Filename: "{app}\Tunnelka.exe"; Description: "{cm:LaunchProgram,Tunnelka}"; Flags: nowait postinstall runasoriginaluser
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /T /IM Tunnelka.exe"; Flags: runhidden; RunOnceId: "StopApp"
@@ -77,3 +77,94 @@ Filename: "{app}\Tunnelka.exe"; Parameters: "--cleanup"; Flags: runhidden waitun
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\core"
+Type: filesandordirs; Name: "{commonappdata}\Tunnelka"
+
+[Code]
+const
+  ServiceName = 'TunnelkaService';
+  OldUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6F1C2B7E-3D4A-4E8B-9C21-7A5D0E3F9B14}_is1';
+
+function RunHidden(const FileName, Params: String): Integer;
+var
+  Code: Integer;
+begin
+  if not Exec(FileName, Params, '', SW_HIDE, ewWaitUntilTerminated, Code) then
+    Code := -1;
+  Result := Code;
+end;
+
+function Sc(const Params: String): Integer;
+begin
+  Result := RunHidden(ExpandConstant('{sys}\sc.exe'), Params);
+end;
+
+function ServiceExists: Boolean;
+begin
+  Result := Sc('query ' + ServiceName) = 0;
+end;
+
+procedure StopService;
+begin
+  if ServiceExists then
+  begin
+    RunHidden(ExpandConstant('{sys}\net.exe'), 'stop ' + ServiceName);
+    RunHidden(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM Tunnelka.exe');
+  end;
+end;
+
+procedure RemoveOldPerUserInstall;
+var
+  Command: String;
+begin
+  if RegQueryStringValue(HKCU, OldUninstallKey, 'UninstallString', Command) then
+  begin
+    Command := RemoveQuotes(Command);
+    if FileExists(Command) then
+      RunHidden(Command, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART');
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  StopService;
+  RemoveOldPerUserInstall;
+  Result := '';
+end;
+
+procedure InstallService;
+var
+  BinPath, Data: String;
+begin
+  BinPath := '"' + ExpandConstant('{app}\Tunnelka.exe') + '" --service';
+  if ServiceExists then
+    Sc('config ' + ServiceName + ' binPath= "' + BinPath + '" start= auto obj= LocalSystem')
+  else
+    Sc('create ' + ServiceName + ' binPath= "' + BinPath + '" start= auto obj= LocalSystem DisplayName= "Tunnelka Service"');
+
+  Sc('description ' + ServiceName + ' "Tunnelka: TUN mode and kill switch without running the app as administrator"');
+  Sc('failure ' + ServiceName + ' reset= 86400 actions= restart/5000/restart/5000/none/0');
+
+  Data := ExpandConstant('{commonappdata}\Tunnelka');
+  ForceDirectories(Data);
+  RegWriteMultiStringValue(HKLM, 'SYSTEM\CurrentControlSet\Services\' + ServiceName, 'Environment',
+    'DOTNET_BUNDLE_EXTRACT_BASE_DIR=' + Data + '\runtime');
+  RunHidden(ExpandConstant('{sys}\icacls.exe'), '"' + Data + '" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F');
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    InstallService;
+    RunHidden(ExpandConstant('{sys}\net.exe'), 'start ' + ServiceName);
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    RunHidden(ExpandConstant('{sys}\net.exe'), 'stop ' + ServiceName);
+    Sc('delete ' + ServiceName);
+  end;
+end;

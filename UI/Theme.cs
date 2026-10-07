@@ -105,9 +105,20 @@ public static class Theme
         return Fonts.Make(strong ? Fonts.SemiBold : Fonts.Regular, pixels, style & ~FontStyle.Bold);
     }
 
-    public static float S { get; private set; } = 0.9f;
+    public const float DesignUnit = 0.9f;
 
-    public static void SetScale(float scale) => S = Math.Max(0.5f, Math.Min(1.5f, scale));
+    public static float Base { get; private set; } = 1f;
+
+    public static float User { get; private set; } = 1f;
+
+    public static float S { get; private set; } = DesignUnit;
+
+    public static void SetScale(float display, float user)
+    {
+        Base = Math.Max(1f, Math.Min(4f, display));
+        User = Math.Max(0.5f, Math.Min(2f, user));
+        S = DesignUnit * Base * User;
+    }
 
     public static int Px(float value) => (int)Math.Round(value * S);
 
@@ -330,11 +341,14 @@ public static class Theme
             return cached;
 
         Image? image = null;
-        var path = Path.Combine(AppContext.BaseDirectory, "Assets", "Flags", code + ".png");
         try
         {
-            if (File.Exists(path))
-                image = Image.FromFile(path);
+            using var stream = EmbeddedAssets.Open("Flags." + code + ".png");
+            if (stream != null)
+            {
+                using var source = Image.FromStream(stream);
+                image = new Bitmap(source);
+            }
         }
         catch (Exception)
         {
