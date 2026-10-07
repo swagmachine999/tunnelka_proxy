@@ -26,10 +26,9 @@ public sealed class XrayRunner : IDisposable
     public event Action<string>? Output;
     public event Action? Exited;
 
-    public static string CoreDir => Path.Combine(AppContext.BaseDirectory, "core");
     public static string ConfigDir => Storage.AppStorage.Folder;
-    public static string XrayPath => Path.Combine(CoreDir, "xray.exe");
-    public static string SingBoxPath => Path.Combine(CoreDir, "sing-box.exe");
+    public static string XrayPath => CoreLocator.Find("xray.exe");
+    public static string SingBoxPath => CoreLocator.Find("sing-box.exe");
 
     public bool IsRunning => _process is { HasExited: false };
 
@@ -52,7 +51,7 @@ public sealed class XrayRunner : IDisposable
         {
             StartInfo = new ProcessStartInfo(_exePath, $"run -c \"{configPath}\"")
             {
-                WorkingDirectory = CoreDir,
+                WorkingDirectory = Path.GetDirectoryName(_exePath) ?? AppContext.BaseDirectory,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
