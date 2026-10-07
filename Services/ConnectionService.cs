@@ -1,5 +1,6 @@
 using System.Net.NetworkInformation;
 using Tunnelka.Models;
+using Tunnelka.Services.Privileged;
 
 namespace Tunnelka.Services;
 
@@ -7,19 +8,33 @@ public sealed class ConnectionService : IDisposable
 {
     private readonly AppLog _log;
     private readonly XrayRunner _xray = new();
-    private readonly XrayRunner _singBox = new(XrayRunner.SingBoxPath, "tun.json");
+    private readonly LocalTunBackend _localTun = new(new XrayRunner(XrayRunner.SingBoxPath, "tun.json"));
+    private readonly ServiceTunBackend _serviceTun;
+    private readonly IServiceChannel _service;
+    private ITunBackend _tun;
     private readonly XrayRunner _relay = new(XrayRunner.SingBoxPath, "relay.json");
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _proxyEnabled;
 
     public ConnectionService(AppLog log)
+        : this(log, ServiceClient.Default)
+    {
+    }
+
+    public ConnectionService(AppLog log, IServiceChannel service)
     {
         _log = log;
+        _service = service;
+        _serviceTun = new ServiceTunBackend(service);
+        _tun = _localTun;
         _xray.Output += _log.Write;
-        _singBox.Output += line => _log.Write("[tun] " + line);
+        foreach (var backend in new ITunBackend[] { _localTun, _serviceTun })
+        {
+            backend.Output += line => _log.Write("[tun] " + line);
+            backend.Exited += () => Exited?.Invoke();
+        }
         _relay.Output += line => _log.Write("[relay] " + line);
         _xray.Exited += () => Exited?.Invoke();
-        _singBox.Exited += () => Exited?.Invoke();
         _relay.Exited += () => Exited?.Invoke();
     }
 
@@ -69,7 +84,8 @@ public sealed class ConnectionService : IDisposable
 
     private ConnectResult StartCore(ProxyServer server, bool tun, RoutingSettings routing)
     {
-        if (tun && !Elevation.IsAdministrator())
+        var backend = tun ? ChooseTun() : null;
+        if (tun && backend == null)
             return ConnectResult.NeedsAdministrator;
 
         StopCores();
@@ -78,7 +94,7 @@ public sealed class ConnectionService : IDisposable
 
         var result = StartXray(server, routing);
         if (result == ConnectResult.Ok && tun)
-            result = StartTun(routing, server.Address);
+            result = StartTun(backend!, routing, server.Address);
 
         if (result != ConnectResult.Ok)
         {
@@ -90,9 +106,19 @@ public sealed class ConnectionService : IDisposable
         return ConnectResult.Ok;
     }
 
+    private ITunBackend? ChooseTun()
+    {
+        if (_service.IsAvailable && File.Exists(ServiceConstants.SingBoxPath))
+            return _serviceTun;
+
+        return Elevation.IsAdministrator() ? _localTun : null;
+    }
+
     private void StopCores()
     {
-        _singBox.Stop();
+        _localTun.Stop();
+        if (_serviceTun.IsRunning)
+            _serviceTun.Stop();
         _xray.Stop();
         _relay.Stop();
     }
@@ -105,7 +131,7 @@ public sealed class ConnectionService : IDisposable
             XrayRunner.KillOrphans(XrayRunner.XrayPath);
             XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
             XrayRunner.DeleteConfigs();
-            if (KillSwitch.WasLeftOn() && Elevation.IsAdministrator())
+            if (KillSwitch.WasLeftOn() && KillSwitch.CanRelease)
                 new KillSwitch(new AppLog()).Release();
         }
         catch (Exception)
@@ -163,9 +189,9 @@ public sealed class ConnectionService : IDisposable
         return false;
     }
 
-    private ConnectResult StartTun(RoutingSettings routing, string serverHost)
+    private ConnectResult StartTun(ITunBackend backend, RoutingSettings routing, string serverHost)
     {
-        if (!File.Exists(XrayRunner.SingBoxPath))
+        if (backend == _localTun && !File.Exists(XrayRunner.SingBoxPath))
             return ConnectResult.SingBoxMissing;
 
         try
@@ -177,10 +203,11 @@ public sealed class ConnectionService : IDisposable
             var physical = other != null ? NetworkAdapters.Physical() : null;
             if (physical != null)
                 _log.Write(L.F("Трафик ядра идёт напрямую через адаптер {0}, мимо другого VPN", physical));
-            _singBox.Start(TunConfigBuilder.Build(XrayConfigBuilder.SocksPort, routing, serverHost, physical));
-            if (_singBox.WaitForExit(800))
+            _tun = backend;
+            backend.Start(new TunParameters(XrayConfigBuilder.SocksPort, serverHost, physical, routing));
+            if (backend.WaitForExit(800))
             {
-                _log.Write(L.F("sing-box сразу завершился, код {0}", _singBox.ExitCode ?? -1));
+                _log.Write(L.F("sing-box сразу завершился, код {0}", backend.ExitCode ?? -1));
                 return ConnectResult.Failed;
             }
 
@@ -200,7 +227,7 @@ public sealed class ConnectionService : IDisposable
         for (var i = 0; i < 20; i++)
         {
             await Task.Delay(500);
-            if (!_singBox.IsRunning)
+            if (!_tun.IsRunning)
                 return;
 
             if (FindAdapter() is { } adapter)
@@ -247,7 +274,8 @@ public sealed class ConnectionService : IDisposable
     {
         Stop();
         _xray.Dispose();
-        _singBox.Dispose();
+        _localTun.Dispose();
+        _serviceTun.Dispose();
         _relay.Dispose();
     }
 }

@@ -267,6 +267,8 @@ public static class L
         ["Kill switch"] = "Kill switch",
         ["Kill switch включён: без VPN интернет заблокирован"] = "Kill switch is on: internet is blocked without VPN",
         ["Kill switch выключен: интернет снова работает без VPN"] = "Kill switch is off: internet works without VPN again",
+        ["Служба Tunnelka не отвечает"] = "Tunnelka service is not responding",
+        ["Kill switch: служба Tunnelka не включила блокировку"] = "Kill switch: Tunnelka service did not turn on the block",
         ["Kill switch не включился, подробности в журнале"] = "Kill switch did not turn on, see the log",
         ["Kill switch не включился: {0}"] = "Kill switch did not turn on: {0}",
         ["Kill switch остался включённым после сбоя, поэтому интернет может не работать. Перезапустить Tunnelka от имени администратора, чтобы снять блокировку?"] = "Kill switch stayed on after a crash, so the internet may not work. Restart Tunnelka as administrator to remove the block?",
