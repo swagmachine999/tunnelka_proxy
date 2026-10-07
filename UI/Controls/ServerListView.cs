@@ -214,7 +214,7 @@ public class ServerListView : FlowLayoutPanel
 
     private void ResizeCards()
     {
-        var width = Width - SystemInformation.VerticalScrollBarWidth - Theme.Px(6);
+        var width = Width - DisplayScale.ScrollBarWidth(this) - Theme.Px(6);
         if (width <= 0)
             return;
 

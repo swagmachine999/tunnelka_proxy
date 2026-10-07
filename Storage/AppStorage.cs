@@ -19,8 +19,10 @@ public static class AppStorage
             return Read(LegacyPath, File.ReadAllBytes);
         if (File.Exists(DataPath))
             return Read(DataPath, path => Dpapi.Unprotect(File.ReadAllBytes(path)));
-        return new AppData();
+        return Fresh();
     }
+
+    private static AppData Fresh() => new() { UiScaleModel = UiScaleMigration.Current };
 
     public static void Save(AppData data)
     {
@@ -57,14 +59,14 @@ public static class AppStorage
     {
         try
         {
-            var data = JsonSerializer.Deserialize<AppData>(read(path)) ?? new AppData();
+            var data = JsonSerializer.Deserialize<AppData>(read(path)) ?? Fresh();
             Migrate(data);
             return data;
         }
         catch (Exception)
         {
             SetAside(path);
-            return new AppData();
+            return Fresh();
         }
     }
 
@@ -96,6 +98,7 @@ public static class AppStorage
         MigrateSubscriptions(data);
         MigrateRouting(data);
         SubscriptionUrlMigration.Apply(data);
+        UiScaleMigration.Apply(data);
     }
 
     private static void MigrateRouting(AppData data)

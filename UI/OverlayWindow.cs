@@ -57,11 +57,12 @@ public sealed class OverlayWindow : Form
     {
         using var bitmap = Render(state, options);
         var area = Screen.PrimaryScreen?.Bounds ?? new Rectangle(0, 0, 1920, 1080);
+        var margin = (int)Math.Round(Margin * Theme.Base);
         var left = options.Corner is OverlayCorner.TopLeft or OverlayCorner.BottomLeft;
         var top = options.Corner is OverlayCorner.TopLeft or OverlayCorner.TopRight;
         var location = new Point(
-            left ? area.Left + Margin : area.Right - Margin - bitmap.Width,
-            top ? area.Top + Margin : area.Bottom - Margin - bitmap.Height);
+            left ? area.Left + margin : area.Right - margin - bitmap.Width,
+            top ? area.Top + margin : area.Bottom - margin - bitmap.Height);
 
         if (!Visible)
             Show();
@@ -70,7 +71,7 @@ public sealed class OverlayWindow : Form
 
     public static Bitmap Render(OverlayState state, OverlayOptions options)
     {
-        var k = options.Scale / 100f;
+        var k = options.Scale / 100f * Theme.Base;
         using var font = Fonts.Make(Fonts.SemiBold, 14 * k);
         using var label = Fonts.Make(Fonts.Regular, 12 * k);
 

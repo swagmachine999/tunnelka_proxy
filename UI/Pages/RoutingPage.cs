@@ -187,7 +187,7 @@ public class RoutingPage : Panel
 
     private void ResizeCards()
     {
-        var width = _list.Width - SystemInformation.VerticalScrollBarWidth - Theme.Px(6);
+        var width = _list.Width - DisplayScale.ScrollBarWidth(this) - Theme.Px(6);
         if (width <= 0)
             return;
 
