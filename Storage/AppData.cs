@@ -11,7 +11,8 @@ public class AppData
     public string LastServerLink { get; set; } = "";
     public bool DarkTheme { get; set; }
     public int SpeedInterval { get; set; } = 3;
-    public int UiScale { get; set; } = 90;
+    public int UiScale { get; set; } = UiScaleMigration.DefaultPercent;
+    public int UiScaleModel { get; set; }
     public bool RealPing { get; set; } = true;
     public string PingUrl { get; set; } = "https://www.gstatic.com/generate_204";
     public RoutingSettings Routing { get; set; } = new();

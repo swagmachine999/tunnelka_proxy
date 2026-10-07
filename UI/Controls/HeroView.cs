@@ -9,7 +9,15 @@ public class HeroView : ThemedControl
     private const float RippleDelay = 0.3f;
     private const float RippleLife = 2.6f;
     private const float RippleReach = 132;
-    private const float KittenDrop = 120;
+    private const float GroupScale = 0.94f;
+    private const float HeaderHeight = 72;
+    private const float RingMargin = 52;
+    private const float BelowRing = RippleReach + 10;
+    private const float KittenHeight = 152;
+    private const float FooterHeight = 12 + 34 + 18 + 44 + 26;
+    private const float BottomMargin = 16;
+
+    public const float RequiredHeight = HeaderHeight + BottomMargin + FooterHeight + (RingMargin + 200 + BelowRing + KittenHeight) * GroupScale;
 
     private readonly System.Windows.Forms.Timer _animation = new() { Interval = 25 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -132,21 +140,18 @@ public class HeroView : ThemedControl
     {
         var w = ClientSize.Width / Theme.S;
         var h = ClientSize.Height / Theme.S;
-        const float header = 72;
-        const float ringMargin = 52;
-        const float fixedHeight = 12 + 34 + 18 + 44 + 26;
-        const float scaledHeight = ringMargin + 200 + RippleReach + 10 + 152;
-        var available = h - header - 16 - fixedHeight;
-        var scale = Math.Max(0.45f, Math.Min(1f, Math.Min(available / scaledHeight, (w - 32) / (200 + ringMargin * 2))));
+        var available = h - HeaderHeight - BottomMargin - FooterHeight;
+        var groupHeight = RingMargin + 200 + BelowRing + KittenHeight;
+        var scale = Math.Min(GroupScale, Math.Min(available / groupHeight, (w - 32) / (200 + RingMargin * 2)));
+        scale = Math.Max(0.45f, scale);
         _scale = scale;
 
-        var extra = Math.Max(0, available - scaledHeight * scale);
-        var drop = Math.Min(extra, KittenDrop * scale);
+        var extra = Math.Max(0, available - groupHeight * scale);
         var diameter = 200 * scale;
         var kittenW = 190 * scale;
-        var kittenH = 152 * scale;
-        var gap = (RippleReach + 10) * scale + drop;
-        var top = header + ringMargin * scale + (extra - drop) / 2;
+        var kittenH = KittenHeight * scale;
+        var gap = BelowRing * scale;
+        var top = HeaderHeight + RingMargin * scale + extra / 2;
         var cx = w / 2;
 
         _powerRect = new RectangleF(cx - diameter / 2, top, diameter, diameter);

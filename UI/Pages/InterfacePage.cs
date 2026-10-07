@@ -1,11 +1,10 @@
+using Tunnelka.Storage;
 using Tunnelka.UI.Controls;
 
 namespace Tunnelka.UI.Pages;
 
 public class InterfacePage : Panel
 {
-    private static readonly int[] Scales = { 60, 70, 80, 90, 100, 110, 120, 130 };
-
     public InterfacePage(bool dark, int uiScale, string language, Action onBack)
     {
         Dock = DockStyle.Fill;
@@ -13,7 +12,7 @@ public class InterfacePage : Panel
         Theme.Bind(this, () => Theme.Surface);
 
         DarkToggle.Checked = dark;
-        ScaleSelector = new OptionStepper(Scales, v => $"{v}%", uiScale);
+        ScaleSelector = new OptionStepper(UiScaleMigration.Steps, v => $"{v}%", uiScale);
         LanguageSelector.Size = new Size(Theme.Px(190), Theme.Px(34));
         LanguageSelector.SelectedIndex = language == "en" ? 1 : 0;
 
