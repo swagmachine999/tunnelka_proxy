@@ -19,11 +19,14 @@ public class RoutingSettings
     public bool? LegacyEnabled { get; set; }
 
     [JsonIgnore]
-    public IEnumerable<RoutingRule> ActiveRules => ListMode == RoutingMode.AllVpn ? Enumerable.Empty<RoutingRule>() : Rules;
+    public RoutingMode EffectiveMode => Rules.Count == 0 ? RoutingMode.AllVpn : ListMode;
 
     [JsonIgnore]
-    public string ListedAction => ListMode == RoutingMode.VpnForListed ? RoutingRule.Proxy : RoutingRule.Direct;
+    public IEnumerable<RoutingRule> ActiveRules => EffectiveMode == RoutingMode.AllVpn ? Enumerable.Empty<RoutingRule>() : Rules;
 
     [JsonIgnore]
-    public string Final => ListMode == RoutingMode.VpnForListed ? RoutingRule.Direct : RoutingRule.Proxy;
+    public string ListedAction => EffectiveMode == RoutingMode.VpnForListed ? RoutingRule.Proxy : RoutingRule.Direct;
+
+    [JsonIgnore]
+    public string Final => EffectiveMode == RoutingMode.VpnForListed ? RoutingRule.Direct : RoutingRule.Proxy;
 }
