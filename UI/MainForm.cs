@@ -3,6 +3,7 @@ using Tunnelka.Parsing;
 using Tunnelka.Services;
 using Tunnelka.Storage;
 using Tunnelka.UI.Controls;
+using Tunnelka.UI.Controls.ServerList;
 using Tunnelka.UI.Pages;
 
 namespace Tunnelka.UI;
@@ -503,6 +504,9 @@ public class MainForm : Form, IMessageFilter
     public bool PreFilterMessage(ref Message m)
     {
         const int WheelMessage = 0x020A;
+        if (m.Msg == WheelMessage && (ModifierKeys & Keys.Control) == 0 && ActiveForm == this && _list.ContainsCursor())
+            return _list.ScrollWheel((short)((long)m.WParam >> 16));
+
         if (m.Msg != WheelMessage || (ModifierKeys & Keys.Control) == 0 || ActiveForm != this)
             return false;
 
