@@ -141,8 +141,15 @@ public class RoutingPage : Panel
 
     private void Rebuild()
     {
+        var empty = _routing.Rules.Count == 0;
+        if (empty)
+            _routing.ListMode = RoutingMode.AllVpn;
+
         foreach (var pair in _modes)
+        {
             pair.Value.Checked = pair.Key == _routing.ListMode;
+            pair.Value.LockedHint = empty && pair.Key != RoutingMode.AllVpn ? L.T("Сначала добавь программу или сайт") : null;
+        }
 
         _list.SuspendLayout();
         foreach (Control control in _list.Controls)
@@ -180,7 +187,7 @@ public class RoutingPage : Panel
 
     private void ResizeCards()
     {
-        var width = _list.Width - SystemInformation.VerticalScrollBarWidth - Theme.Px(6);
+        var width = _list.Width - DisplayScale.ScrollBarWidth(this) - Theme.Px(6);
         if (width <= 0)
             return;
 

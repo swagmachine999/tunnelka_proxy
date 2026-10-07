@@ -7,14 +7,14 @@ internal sealed class MainContext : ApplicationContext
 {
     public MainContext(bool connect, bool minimized)
     {
-        ApplySettings();
+        ApplySettings(DisplayScale.Primary());
         MainForm = Attach(new MainForm(connect, startHidden: minimized));
     }
 
-    private static void ApplySettings()
+    private static void ApplySettings(float display)
     {
         var data = AppStorage.Load();
-        Theme.SetScale(data.UiScale / 100f);
+        Theme.SetScale(display, data.UiScale / 100f);
         Theme.Use(data.DarkTheme);
         L.Use(data.Language);
     }
@@ -31,7 +31,7 @@ internal sealed class MainContext : ApplicationContext
         var state = old.WindowState;
         var reconnect = old.PrepareForReplace();
 
-        ApplySettings();
+        ApplySettings(DisplayScale.Of(old));
         var next = Attach(new MainForm(reconnect, old.CurrentPage, bounds, state));
         MainForm = next;
         next.Show();

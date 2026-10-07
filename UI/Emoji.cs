@@ -51,9 +51,9 @@ public static class Emoji
             if (!_opened)
             {
                 _opened = true;
-                var path = Path.Combine(AppContext.BaseDirectory, "Assets", "emoji.zip");
-                if (File.Exists(path))
-                    _archive = ZipFile.OpenRead(path);
+                var archive = EmbeddedAssets.Open("emoji.zip");
+                if (archive != null)
+                    _archive = new ZipArchive(archive, ZipArchiveMode.Read);
             }
 
             var entry = _archive?.GetEntry(name + ".png");
