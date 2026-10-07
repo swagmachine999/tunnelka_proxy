@@ -549,7 +549,7 @@ public class MainForm : Form, IMessageFilter
 
         if (text.StartsWith("http://") || text.StartsWith("https://"))
         {
-            _ = AddSubscriptionUrl(text);
+            _ = AddSubscriptionUrl(SubscriptionUrl.Normalize(text));
             return;
         }
 
