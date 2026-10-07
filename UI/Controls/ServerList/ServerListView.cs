@@ -7,6 +7,7 @@ namespace Tunnelka.UI.Controls.ServerList;
 public class ServerListView : Control
 {
     private const float Gutter = 12;
+    private const float PanelRadius = 14;
     private const float WheelStep = 96;
     private const float ThumbWidth = 5;
     private const float ThumbMinimum = 36;
@@ -318,6 +319,10 @@ public class ServerListView : Control
         var g = e.Graphics;
         Theme.Begin(g, Theme.Surface);
 
+        var panel = new RectangleF(1, 1, ViewWidth - 2, ViewHeight - 2);
+        Theme.FillRounded(g, Theme.Card, panel, PanelRadius);
+        g.SetClip(new RectangleF(panel.X + 1, panel.Y + 3, panel.Width - 2, panel.Height - 6), System.Drawing.Drawing2D.CombineMode.Replace);
+
         var offset = _scroller.Offset;
         var width = RowWidth;
         var time = (float)_clock.Elapsed.TotalSeconds;
@@ -334,11 +339,13 @@ public class ServerListView : Control
 
             var state = g.Save();
             g.TranslateTransform(0, top);
-            g.SetClip(new RectangleF(0, 0, width, row.Extent));
+            g.SetClip(new RectangleF(0, 0, width, row.Extent), System.Drawing.Drawing2D.CombineMode.Intersect);
             row.Draw(g, width, time);
             g.Restore(state);
         }
 
+        g.ResetClip();
+        Theme.DrawRounded(g, Theme.Border, panel, PanelRadius);
         DrawThumb(g);
     }
 
