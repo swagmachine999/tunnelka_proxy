@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Text.Json.Nodes;
 using Tunnelka.Models;
 using Tunnelka.Services;
 using Tunnelka.Services.Privileged;
@@ -147,6 +148,23 @@ if (OperatingSystem.IsWindows() && System.Security.Principal.WindowsIdentity.Get
     Check(rules.AreAccessRulesProtected, "windows: data folder does not inherit user access");
     Directory.Delete(dir, true);
 }
+
+var routeServer = new ProxyServer { Protocol = "vless", Address = "vpn.example.com", Port = 443, Secret = "11111111-1111-1111-1111-111111111111", Network = "tcp", Security = "reality", PublicKey = "x", ShortId = "ab", Sni = "example.com" };
+var listedRouting = new RoutingSettings { ListMode = RoutingMode.VpnForListed, Rules = { new RoutingRule { Value = "process:chrome.exe" }, new RoutingRule { Value = "domain:ya.ru" } } };
+string Final(RoutingSettings r) { var rules = JsonNode.Parse(XrayConfigBuilder.Build(routeServer, r))!["routing"]!["rules"]!.AsArray(); var last = rules[rules.Count - 1]!; return last["outboundTag"]!.ToString() + "/" + (last["network"]?.ToString() ?? "-"); }
+Check(Final(listedRouting) == "direct/tcp,udp", "proxy mode, VPN for listed: everything else goes direct");
+var forTun = XrayRoutingPolicy.For(true, listedRouting);
+Check(forTun.Rules.Count == 0 && forTun.EffectiveMode == RoutingMode.AllVpn, "TUN: xray gets no split rules");
+Check(!Final(forTun).StartsWith("direct/tcp,udp"), "TUN: xray sends everything it receives to VPN");
+Check(ReferenceEquals(XrayRoutingPolicy.For(false, listedRouting), listedRouting), "proxy mode keeps the user's rules");
+var directRouting = new RoutingSettings { ListMode = RoutingMode.DirectForListed, Rules = { new RoutingRule { Value = "domain:ya.ru" } } };
+Check(XrayRoutingPolicy.For(true, directRouting).Rules.Count == 0, "TUN with direct list: split done only by sing-box");
+var tunJson = TunConfigBuilder.Build(10808, listedRouting, "vpn.example.com", null);
+var tunRoute = JsonNode.Parse(tunJson)!["route"]!;
+Check(tunRoute["final"]!.ToString() == "direct", "sing-box: everything else direct");
+Check(tunJson.Contains("\"outbound\": \"proxy\"") && tunJson.Contains("chrome.exe") && tunJson.Contains("ya.ru"), "sing-box: listed items go to VPN");
+
+
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
 
