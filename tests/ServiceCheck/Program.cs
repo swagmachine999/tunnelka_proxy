@@ -147,6 +147,79 @@ if (OperatingSystem.IsWindows() && System.Security.Principal.WindowsIdentity.Get
     Check(rules.AreAccessRulesProtected, "windows: data folder does not inherit user access");
     Directory.Delete(dir, true);
 }
+
+{
+    var w = new LossWindow();
+    for (var i = 0; i < 9; i++) w.Add(false);
+    Check(w.Percent == 0, "loss: below minimum samples shows 0");
+    w.Add(false);
+    Check(w.Percent == 100, "loss: 10 of 10 lost is 100");
+    w.Clear();
+    for (var i = 0; i < 50; i++) w.Add(i != 0);
+    Check(w.Percent == 2, "loss: 1 of 50 is 2 percent");
+    w.Add(true);
+    Check(w.Count == 50 && w.Percent == 0, "loss: old lost probe leaves the window");
+    for (var i = 0; i < 3; i++) w.Add(false);
+    Check(w.Percent == 6, "loss: 3 of 50 is 6 percent");
+    for (var i = 0; i < 50; i++) w.Add(true);
+    Check(w.Percent == 0, "loss: recovers to 0");
+}
+{
+    var calls = 0;
+    var seen = new List<int>();
+    var probe = new LossProbe(() => ("h", 1), async (_, _, _) => { await Task.Yield(); return Interlocked.Increment(ref calls) % 5 != 0; }, 2);
+    probe.Measured += seen.Add;
+    probe.Start();
+    await Task.Delay(600);
+    probe.Stop();
+    Check(seen.Count > 0 && seen.Contains(20), "loss probe: every fifth lost gives 20 percent");
+    var after = seen.Count;
+    await Task.Delay(100);
+    Check(seen.Count == after && !probe.IsRunning, "loss probe: stops reporting after Stop");
+}
+{
+    var none = 0;
+    var probe = new LossProbe(() => null, (_, _, _) => { none++; return Task.FromResult(true); }, 2);
+    probe.Start();
+    await Task.Delay(100);
+    probe.Stop();
+    Check(none == 0, "loss probe: no target means no probes");
+}
+{
+    var host = "a";
+    var seen = new List<int>();
+    var probe = new LossProbe(() => (host, 1), (h, _, _) => Task.FromResult(h == "a" ? false : true), 2);
+    probe.Measured += seen.Add;
+    probe.Start();
+    await Task.Delay(300);
+    var lossy = seen.Count > 0 && seen[^1] == 100;
+    host = "b";
+    await Task.Delay(300);
+    probe.Stop();
+    Check(lossy && seen[^1] == 0, "loss probe: switching server resets the window");
+}
+{
+    var seen = new List<int>();
+    var probe = new LossProbe(() => ("h", 1), (_, _, _) => throw new InvalidOperationException(), 2);
+    probe.Measured += seen.Add;
+    probe.Start();
+    await Task.Delay(300);
+    probe.Stop();
+    Check(seen.Count > 0 && seen[^1] == 100, "loss probe: probe errors count as lost");
+}
+{
+    using var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+    listener.Start();
+    var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+    var seen = new List<int>();
+    var probe = new LossProbe(() => ("127.0.0.1", port));
+    probe.Measured += seen.Add;
+    probe.Start();
+    await Task.Delay(2500);
+    probe.Stop();
+    Check(seen.Count == 0 || seen[^1] == 0, "loss probe: real tcp to open port is 0");
+}
+
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
 
