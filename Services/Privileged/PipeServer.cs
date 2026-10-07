@@ -69,7 +69,7 @@ public sealed class PipeServer : IDisposable
                 pipe = _factory.Create(false);
                 _ = Task.Run(() => Serve(connected));
             }
-            catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+            catch (Exception ex)
             {
                 pipe.Dispose();
                 if (_cancel.IsCancellationRequested)
@@ -77,7 +77,15 @@ public sealed class PipeServer : IDisposable
 
                 _log($"pipe error: {ex.Message}");
                 Thread.Sleep(500);
-                pipe = _factory.Create(false);
+                try
+                {
+                    pipe = _factory.Create(false);
+                }
+                catch (Exception again)
+                {
+                    _log($"pipe cannot be recreated: {again.Message}");
+                    return;
+                }
             }
         }
 
@@ -106,8 +114,9 @@ public sealed class PipeServer : IDisposable
                     return;
                 pipe.WaitForPipeDrain();
             }
-            catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+            catch (Exception ex)
             {
+                _log($"request failed: {ex.Message}");
             }
         }
     }
