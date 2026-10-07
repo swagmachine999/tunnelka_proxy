@@ -1,148 +1,80 @@
-using System.Diagnostics;
-using System.Text.RegularExpressions;
-using Microsoft.Win32;
+using Tunnelka.Services.Privileged;
 
 namespace Tunnelka.Services;
 
 public sealed class KillSwitch
 {
-    private const string RuleName = "Tunnelka kill switch";
-    private const string MarkerPath = @"Software\Tunnelka";
-    private const string MarkerName = "FirewallPolicy";
-
-    private static readonly string[] Profiles = { "domain", "private", "public" };
-    private static readonly Regex PolicyPattern = new(@"(\w*Inbound\w*),(\w*Outbound)", RegexOptions.Compiled);
-
     private readonly AppLog _log;
+    private readonly IServiceChannel _service;
+    private readonly FirewallKillSwitch _local;
+    private readonly FirewallKillSwitch _machine;
+    private bool _viaService;
 
     public KillSwitch(AppLog log)
+        : this(log, ServiceClient.Default)
     {
-        _log = log;
     }
 
-    public bool IsEngaged { get; private set; }
+    public KillSwitch(AppLog log, IServiceChannel service)
+    {
+        _log = log;
+        _service = service;
+        _local = new FirewallKillSwitch(RegistryKillSwitchMarker.CurrentUser, LocalPrograms, log.Write);
+        _machine = new FirewallKillSwitch(RegistryKillSwitchMarker.LocalMachine, LocalPrograms, log.Write);
+    }
+
+    public bool IsEngaged => _viaService || _local.IsEngaged;
+
+    public static bool CanRelease => Elevation.IsAdministrator() || ServiceClient.Default.IsAvailable;
 
     public bool Engage()
     {
         if (IsEngaged)
             return true;
 
-        try
+        if (_service.IsAvailable)
         {
-            var inbound = ReadInbound();
-            if (inbound == null)
+            var reply = _service.Send(new ServiceRequest { Command = ServiceCommand.KillSwitchOn });
+            if (reply is { Ok: true })
             {
-                _log.Write(L.T("Kill switch: не удалось прочитать настройки брандмауэра Windows"));
-                return false;
+                _viaService = true;
+                _log.Write(L.T("Kill switch включён: без VPN интернет заблокирован"));
+                return true;
             }
 
-            using (var marker = Registry.CurrentUser.CreateSubKey(MarkerPath))
-                marker.SetValue(MarkerName, string.Join(";", inbound));
-
-            DeleteRules();
-            foreach (var program in new[] { XrayRunner.XrayPath, XrayRunner.SingBoxPath, Environment.ProcessPath ?? "" })
-            {
-                if (program.Length > 0)
-                    AllowRule($"program=\"{program}\"");
-            }
-            AllowRule($"localip={TunConfigBuilder.Address}");
-            AllowRule("remoteip=LocalSubnet,127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16");
-
-            for (var i = 0; i < Profiles.Length; i++)
-                Netsh($"advfirewall set {Profiles[i]}profile firewallpolicy {inbound[i]},blockoutbound");
-
-            IsEngaged = true;
-            _log.Write(L.T("Kill switch включён: без VPN интернет заблокирован"));
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _log.Write(L.F("Kill switch не включился: {0}", ex.Message));
-            Release();
+            _log.Write(L.T("Kill switch: служба Tunnelka не включила блокировку"));
             return false;
         }
+
+        return _local.Engage();
     }
 
     public void Release()
     {
-        try
+        if (_service.IsAvailable)
         {
-            string? saved;
-            using (var marker = Registry.CurrentUser.OpenSubKey(MarkerPath))
-                saved = marker?.GetValue(MarkerName) as string;
-
-            if (saved != null)
-            {
-                var inbound = saved.Split(';');
-                for (var i = 0; i < Profiles.Length && i < inbound.Length; i++)
-                    Netsh($"advfirewall set {Profiles[i]}profile firewallpolicy {inbound[i]},allowoutbound");
-
-                using var marker = Registry.CurrentUser.OpenSubKey(MarkerPath, true);
-                marker?.DeleteValue(MarkerName, false);
-            }
-
-            DeleteRules();
-            if (IsEngaged || saved != null)
+            var reply = _service.Send(new ServiceRequest { Command = ServiceCommand.KillSwitchOff });
+            if (reply is { Ok: true } && _viaService)
                 _log.Write(L.T("Kill switch выключен: интернет снова работает без VPN"));
-        }
-        catch (Exception ex)
-        {
-            _log.Write(L.F("Не удалось снять kill switch: {0}", ex.Message));
+            _viaService = false;
         }
 
-        IsEngaged = false;
+        if (_local.WasLeftOn || _local.IsEngaged)
+            _local.Release();
+
+        if (_machine.WasLeftOn && Elevation.IsAdministrator())
+            _machine.Release();
     }
 
     public static bool WasLeftOn()
     {
-        try
-        {
-            using var marker = Registry.CurrentUser.OpenSubKey(MarkerPath);
-            return marker?.GetValue(MarkerName) != null;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
+        if (RegistryKillSwitchMarker.CurrentUser.Read() != null || RegistryKillSwitchMarker.LocalMachine.Read() != null)
+            return true;
+
+        var client = ServiceClient.Default;
+        return client.IsAvailable && client.Send(new ServiceRequest { Command = ServiceCommand.Status })?.KillSwitchOn == true;
     }
 
-    private static string[]? ReadInbound()
-    {
-        var output = Netsh("advfirewall show allprofiles firewallpolicy");
-        var matches = PolicyPattern.Matches(output);
-        return matches.Count >= Profiles.Length
-            ? matches.Cast<Match>().Take(Profiles.Length).Select(m => m.Groups[1].Value.ToLowerInvariant()).ToArray()
-            : null;
-    }
-
-    private static void DeleteRules()
-    {
-        try
-        {
-            Netsh($"advfirewall firewall delete rule name=\"{RuleName}\"");
-        }
-        catch (InvalidOperationException)
-        {
-        }
-    }
-
-    private static void AllowRule(string condition) =>
-        Netsh($"advfirewall firewall add rule name=\"{RuleName}\" dir=out action=allow enable=yes {condition}");
-
-    private static string Netsh(string arguments)
-    {
-        using var process = Process.Start(new ProcessStartInfo("netsh", arguments)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        }) ?? throw new InvalidOperationException("netsh");
-
-        var output = process.StandardOutput.ReadToEnd();
-        process.WaitForExit(10000);
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException(output.Trim());
-        return output;
-    }
+    private static IEnumerable<string> LocalPrograms() =>
+        new[] { XrayRunner.XrayPath, XrayRunner.SingBoxPath, Environment.ProcessPath ?? "" };
 }

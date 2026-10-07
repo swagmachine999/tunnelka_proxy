@@ -4,12 +4,13 @@ using System.Text.RegularExpressions;
 
 namespace Tunnelka.Services;
 
-public sealed class XrayRunner : IDisposable
+public sealed class XrayRunner : ICoreRunner
 {
     private static readonly Regex Colors = new(@"\x1B\[[0-9;]*m", RegexOptions.Compiled);
 
     private readonly string _exePath;
     private readonly string _configName;
+    private readonly string? _configDir;
     private Process? _process;
 
     public XrayRunner()
@@ -17,10 +18,11 @@ public sealed class XrayRunner : IDisposable
     {
     }
 
-    public XrayRunner(string exePath, string configName)
+    public XrayRunner(string exePath, string configName, string? configDir = null)
     {
         _exePath = exePath;
         _configName = configName;
+        _configDir = configDir;
     }
 
     public event Action<string>? Output;
@@ -43,7 +45,7 @@ public sealed class XrayRunner : IDisposable
         if (!File.Exists(_exePath))
             throw new FileNotFoundException(L.F("Не найден {0}", Path.GetFileName(_exePath)), _exePath);
 
-        Directory.CreateDirectory(ConfigDir);
+        Directory.CreateDirectory(_configDir ?? ConfigDir);
         var configPath = ConfigPath;
         File.WriteAllText(configPath, configJson);
 
@@ -72,7 +74,7 @@ public sealed class XrayRunner : IDisposable
         process.BeginErrorReadLine();
     }
 
-    private string ConfigPath => Path.Combine(ConfigDir, _configName);
+    private string ConfigPath => Path.Combine(_configDir ?? ConfigDir, _configName);
 
     public static void DeleteConfigs()
     {
