@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Tunnelka.UI.Kitten;
 using System.Drawing.Drawing2D;
 
 namespace Tunnelka.UI.Controls;
@@ -22,6 +23,8 @@ public class HeroView : ThemedControl
     private readonly System.Windows.Forms.Timer _animation = new() { Interval = 25 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private float _time;
+    private readonly KittenBrain _brain = new();
+    private KittenPose _pose = new();
     private float _hoverAmount;
     private float _rippleStart = -100;
     private float _scale = 1;
@@ -74,6 +77,8 @@ public class HeroView : ThemedControl
     {
         set { _connecting = value; Invalidate(); }
     }
+
+    public void ConnectionFailed() => _brain.Fail(_time);
 
     public bool Tun
     {
@@ -130,7 +135,9 @@ public class HeroView : ThemedControl
         _hoverAmount += ((_hoverPower ? 1f : 0f) - _hoverAmount) * 0.15f;
         _animation.Interval = Rippling ? 15 : 25;
 
-        var area = RectangleF.Union(Inflate(_powerRect, Rippling ? RippleReach * _scale + 12 : 70), _kittenRect);
+        _pose = _brain.Evaluate(_time, _connected, _connecting);
+
+        var area = RectangleF.Union(Inflate(_powerRect, Rippling ? RippleReach * _scale + 12 : 70), Inflate(_kittenRect, 48 * _scale));
         Invalidate(ToDevice(area));
         if (_busy)
             Invalidate(ToDevice(_pingResultRect));
@@ -178,7 +185,7 @@ public class HeroView : ThemedControl
         DrawToggle(g);
         DrawSpeed(g);
         DrawPower(g);
-        KittenPainter.Draw(g, _kittenRect, _connected, _time, _connected && _time % 4.4f < 0.16f);
+        KittenPainter.Draw(g, _kittenRect, _pose, _time);
         DrawServer(g);
         DrawButtons(g);
     }
@@ -483,6 +490,7 @@ public class HeroView : ThemedControl
     {
         base.OnMouseMove(e);
         var point = Theme.Design(e.Location);
+        _brain.Look((point.X - _kittenRect.X - _kittenRect.Width / 2) / 160f, (point.Y - _kittenRect.Y - _kittenRect.Height / 2) / 120f);
         var power = InCircle(_powerRect, point);
         var ping = _pingRect.Contains(point);
         var refresh = _refreshRect.Contains(point);
@@ -502,6 +510,7 @@ public class HeroView : ThemedControl
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
+        _brain.LookAway();
         _hoverPower = _hoverPing = _hoverRefresh = _hoverToggle = false;
         Cursor = Cursors.Default;
         Invalidate();
@@ -514,9 +523,11 @@ public class HeroView : ThemedControl
             return;
 
         var point = Theme.Design(e.Location);
+        _brain.Click(_time);
         if (InCircle(_powerRect, point))
         {
             _rippleStart = _time;
+            _brain.Press(_time);
             PowerClicked?.Invoke(this, EventArgs.Empty);
         }
         else if (_pingRect.Contains(point))

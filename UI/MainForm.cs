@@ -831,6 +831,7 @@ public class MainForm : Form, IMessageFilter
             if (server == null)
             {
                 _hero.SetPing(L.T("Ни один сервер не ответил"), Theme.PingBad);
+                _hero.ConnectionFailed();
                 return;
             }
         }
@@ -841,6 +842,7 @@ public class MainForm : Form, IMessageFilter
         _hero.Connecting = true;
         if (!await Start(server))
         {
+            _hero.ConnectionFailed();
             if (_active != null)
                 Disconnect();
             return;
@@ -1089,6 +1091,7 @@ public class MainForm : Form, IMessageFilter
             return;
 
         _hero.SetPing(L.T("VPN упал — интернет заблокирован. Нажми кнопку, чтобы переподключиться"), Theme.PingBad);
+        _hero.ConnectionFailed();
         _tray.ShowBalloonTip(10000, "Tunnelka", L.T("VPN отключился, kill switch заблокировал интернет. Переподключитесь или выключите kill switch в «Расширенное»."), ToolTipIcon.Warning);
     }
 
