@@ -4,6 +4,7 @@ using Tunnelka.Models;
 using Tunnelka.Services;
 using Tunnelka.Services.Privileged;
 using Tunnelka.UI;
+using Tunnelka.UI.Controls;
 
 var fails = 0;
 void Check(bool ok, string name) { Console.WriteLine((ok ? "OK   " : "FAIL ") + name); if (!ok) fails++; }
@@ -159,6 +160,13 @@ var appLog = new AppLog();
 for (var i = 0; i < 400; i++) appLog.Write("line " + i);
 var recentLines = appLog.Recent();
 Check(recentLines.Count == 300 && recentLines[299].EndsWith("line 399"), "log keeps the last 300 lines");
+
+var range = new SliderRange(50, 200, 5);
+Check(range.Snap(100) == 100 && range.Snap(102) == 100 && range.Snap(103) == 105, "slider snaps to steps");
+Check(range.Snap(10) == 50 && range.Snap(999) == 200, "slider stays inside the range");
+Check(range.FromFraction(0) == 50 && range.FromFraction(1) == 200 && range.FromFraction(0.5f) == 125, "slider ends and middle");
+Check(range.FromFraction(-3) == 50 && range.FromFraction(7) == 200, "slider ignores positions outside the track");
+Check(Math.Abs(range.ToFraction(125) - 0.5f) < 0.001f, "slider position of the middle value");
 
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
