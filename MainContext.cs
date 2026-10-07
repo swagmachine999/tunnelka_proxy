@@ -29,10 +29,12 @@ internal sealed class MainContext : ApplicationContext
     {
         var bounds = old.WindowState == FormWindowState.Normal ? old.Bounds : old.RestoreBounds;
         var state = old.WindowState;
-        var reconnect = old.PrepareForReplace();
+        var session = old.TakeSession();
 
+        var before = Theme.User;
         ApplySettings(DisplayScale.Of(old));
-        var next = Attach(new MainForm(reconnect, old.CurrentPage, bounds, state));
+        bounds = WindowResize.Scale(bounds, Theme.User / before, Screen.FromRectangle(bounds).WorkingArea);
+        var next = Attach(new MainForm(false, old.CurrentPage, bounds, state, handoff: session));
         MainForm = next;
         next.Show();
         old.Close();
