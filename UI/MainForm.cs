@@ -1035,7 +1035,7 @@ public class MainForm : Form, IMessageFilter
 
         if (KillSwitch.WasLeftOn())
         {
-            if (Elevation.IsAdministrator())
+            if (KillSwitch.CanRelease)
                 await ReleaseKillSwitch();
             else
                 OfferKillSwitchRelease();

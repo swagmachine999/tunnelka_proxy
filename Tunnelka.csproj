@@ -9,7 +9,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Tunnelka</AssemblyName>
     <RootNamespace>Tunnelka</RootNamespace>
-    <Version>1.0.6</Version>
+    <Version>1.0.7</Version>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>Assets\tunnelka.ico</ApplicationIcon>
   </PropertyGroup>
