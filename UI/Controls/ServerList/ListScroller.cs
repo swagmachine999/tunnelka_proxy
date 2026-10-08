@@ -3,7 +3,7 @@ namespace Tunnelka.UI.Controls.ServerList;
 public sealed class ListScroller
 {
     private const float Rate = 14f;
-    private const float Settled = 0.05f;
+    public const float Settled = 0.5f;
 
     private float _target;
     private float _max;

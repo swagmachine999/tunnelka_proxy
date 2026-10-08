@@ -92,7 +92,7 @@ public sealed class ConnectionService : IDisposable
         XrayRunner.KillOrphans(XrayRunner.XrayPath);
         XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
 
-        var result = StartXray(server, routing);
+        var result = StartXray(server, XrayRoutingPolicy.For(tun, routing));
         if (result == ConnectResult.Ok && tun)
             result = StartTun(backend!, routing, server.Address);
 
