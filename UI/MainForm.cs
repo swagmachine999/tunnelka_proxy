@@ -119,7 +119,7 @@ public class MainForm : Form, IMessageFilter
         _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
         _overlayPage = new OverlayPage(Data.Overlay, () => ShowPage(IconKind.Settings));
         _aboutPage = new AboutPage(ProxyPort);
-        _overlay = new OverlayController(Data.Overlay, ProxyPort, () => Data.PingUrl);
+        _overlay = new OverlayController(Data.Overlay, ProxyPort, () => Data.PingUrl, LossTarget);
         _updates = new UpdateWatcher(ProxyPort);
 
         BuildLayout();
@@ -1286,7 +1286,7 @@ public class MainForm : Form, IMessageFilter
         _overlayPage.OptionsChanged += (_, _) =>
         {
             Save();
-            _overlay.Redraw();
+            _overlay.ApplyOptions();
         };
         _overlayPage.ShowToggle.CheckedChanged += (_, _) =>
         {
@@ -1295,6 +1295,8 @@ public class MainForm : Form, IMessageFilter
         };
         _overlay.VisibilityChanged += (_, _) => _overlayPage.ShowToggle.Checked = _overlay.IsShown;
     }
+
+    private (string Host, int Port)? LossTarget() => _active is { } s ? (s.Address, s.Port) : null;
 
     private int? ProxyPort() => _connection.IsRunning ? XrayConfigBuilder.HttpPort : null;
 

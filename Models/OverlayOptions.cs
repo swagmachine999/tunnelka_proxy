@@ -10,7 +10,7 @@ public class OverlayOptions
     public int Scale { get; set; } = 100;
     public bool ShowSpeed { get; set; } = true;
     public bool ShowPing { get; set; } = true;
-    public bool ShowLoss { get; set; } = true;
+    public bool ShowLoss { get; set; } = false;
 }
 
 public enum OverlayCorner

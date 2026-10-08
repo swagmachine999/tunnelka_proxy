@@ -245,7 +245,7 @@ public static class L
         ["Проверить"] = "Check",
         ["Проверяю…"] = "Checking…",
         ["Размер"] = "Size",
-        ["Сколько проверок не дошло за последние 30 секунд"] = "Share of failed checks in the last 30 seconds",
+        ["Сколько проверок до сервера не дошло за последние 10 секунд"] = "Share of checks to the server that failed in the last 10 seconds",
         ["Скорость"] = "Speed",
         ["Сочетание клавиш"] = "Key combination",
         ["Страница загрузок на GitHub"] = "Downloads page on GitHub",
