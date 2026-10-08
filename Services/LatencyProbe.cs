@@ -5,12 +5,10 @@ namespace Tunnelka.Services;
 
 public sealed class LatencyProbe : IDisposable
 {
-    private const int Window = 30;
     private const int TimeoutMs = 2000;
 
     private readonly Func<int?> _proxyPort;
     private readonly Func<string> _url;
-    private readonly Queue<bool> _results = new();
     private CancellationTokenSource? _cancel;
     private HttpClient? _client;
     private int? _clientPort;
@@ -21,7 +19,7 @@ public sealed class LatencyProbe : IDisposable
         _url = url;
     }
 
-    public event Action<int?, int>? Measured;
+    public event Action<int?>? Measured;
 
     public bool IsRunning => _cancel != null;
 
@@ -38,7 +36,6 @@ public sealed class LatencyProbe : IDisposable
     {
         _cancel?.Cancel();
         _cancel = null;
-        _results.Clear();
     }
 
     private async Task Loop(CancellationToken token)
@@ -50,12 +47,7 @@ public sealed class LatencyProbe : IDisposable
             if (token.IsCancellationRequested)
                 return;
 
-            _results.Enqueue(ms != null);
-            while (_results.Count > Window)
-                _results.Dequeue();
-
-            var loss = (int)Math.Round(100.0 * _results.Count(ok => !ok) / _results.Count);
-            Measured?.Invoke(ms, loss);
+            Measured?.Invoke(ms);
 
             var rest = 1000 - (int)timer.ElapsedMilliseconds;
             try
