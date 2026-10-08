@@ -1,3 +1,4 @@
+using Tunnelka.UI.Animation;
 using System.Diagnostics;
 using Tunnelka.Models;
 using Tunnelka.Services;
@@ -508,6 +509,7 @@ public class ServerListView : Control
             return;
 
         _lastFrame = (float)_clock.Elapsed.TotalSeconds;
+        _frame.Interval = FrameRate.IntervalFor(DisplayRefresh.Hertz(this));
         if (!_periodRaised)
             _periodRaised = TryPeriod(TimeBeginPeriod);
 
@@ -531,6 +533,7 @@ public class ServerListView : Control
         }
 
         Invalidate();
+        Update();
         if (!moving)
             StopFrames();
     }
