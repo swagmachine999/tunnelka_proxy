@@ -114,7 +114,7 @@ public sealed class ServerRow : ListRow
     public override void Draw(Graphics g, float width, float time)
     {
         var rect = new RectangleF(4, 2, width - 8, Extent - 4);
-        var fill = Theme.Blend(Theme.Blend(Theme.Surface, Theme.CardHover, _hover), Theme.CardSelected, _selection);
+        var fill = Theme.Blend(Theme.Blend(Theme.Card, Theme.CardHover, _hover), Theme.CardSelected, _selection);
         if (_hover > 0.01f || _selection > 0.01f)
         {
             Theme.FillRounded(g, fill, rect, 12);
@@ -129,7 +129,7 @@ public sealed class ServerRow : ListRow
 
         if (_active)
         {
-            using var ring = new SolidBrush(Theme.Blend(Theme.Surface, fill, Math.Max(_hover, _selection)));
+            using var ring = new SolidBrush(Theme.Blend(Theme.Card, fill, Math.Max(_hover, _selection)));
             using var dot = new SolidBrush(Theme.Mint);
             g.FillEllipse(ring, badge.Right - 10, badge.Bottom - 10, 12, 12);
             g.FillEllipse(dot, badge.Right - 8, badge.Bottom - 8, 8, 8);

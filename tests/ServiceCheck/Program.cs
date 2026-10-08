@@ -1,7 +1,11 @@
+using System.Drawing;
 using System.IO.Pipes;
+using System.Text.Json.Nodes;
 using Tunnelka.Models;
 using Tunnelka.Services;
 using Tunnelka.Services.Privileged;
+using Tunnelka.UI;
+using Tunnelka.UI.Controls;
 
 var fails = 0;
 void Check(bool ok, string name) { Console.WriteLine((ok ? "OK   " : "FAIL ") + name); if (!ok) fails++; }
@@ -219,6 +223,41 @@ if (OperatingSystem.IsWindows() && System.Security.Principal.WindowsIdentity.Get
     probe.Stop();
     Check(seen.Count == 0 || seen[^1] == 0, "loss probe: real tcp to open port is 0");
 }
+
+var screen = new Rectangle(0, 0, 1920, 1040);
+var grown = WindowResize.Scale(new Rectangle(100, 100, 1000, 600), 1.5f, screen);
+Check(grown.Width == 1500 && grown.Height == 900, "window grows with the scale");
+Check(grown.Right <= 1920 && grown.Bottom <= 1040 && grown.Left >= 0 && grown.Top >= 0, "window stays inside the work area");
+var capped = WindowResize.Scale(new Rectangle(0, 0, 1500, 900), 2f, screen);
+Check(capped.Width == 1920 && capped.Height == 1040, "window never bigger than the screen");
+var appLog = new AppLog();
+for (var i = 0; i < 400; i++) appLog.Write("line " + i);
+var recentLines = appLog.Recent();
+Check(recentLines.Count == 300 && recentLines[299].EndsWith("line 399"), "log keeps the last 300 lines");
+
+var range = new SliderRange(50, 200, 5);
+Check(range.Snap(100) == 100 && range.Snap(102) == 100 && range.Snap(103) == 105, "slider snaps to steps");
+Check(range.Snap(10) == 50 && range.Snap(999) == 200, "slider stays inside the range");
+Check(range.FromFraction(0) == 50 && range.FromFraction(1) == 200 && range.FromFraction(0.5f) == 125, "slider ends and middle");
+Check(range.FromFraction(-3) == 50 && range.FromFraction(7) == 200, "slider ignores positions outside the track");
+Check(Math.Abs(range.ToFraction(125) - 0.5f) < 0.001f, "slider position of the middle value");
+
+
+var routeServer = new ProxyServer { Protocol = "vless", Address = "vpn.example.com", Port = 443, Secret = "11111111-1111-1111-1111-111111111111", Network = "tcp", Security = "reality", PublicKey = "x", ShortId = "ab", Sni = "example.com" };
+var listedRouting = new RoutingSettings { ListMode = RoutingMode.VpnForListed, Rules = { new RoutingRule { Value = "process:chrome.exe" }, new RoutingRule { Value = "domain:ya.ru" } } };
+string Final(RoutingSettings r) { var rules = JsonNode.Parse(XrayConfigBuilder.Build(routeServer, r))!["routing"]!["rules"]!.AsArray(); var last = rules[rules.Count - 1]!; return last["outboundTag"]!.ToString() + "/" + (last["network"]?.ToString() ?? "-"); }
+Check(Final(listedRouting) == "direct/tcp,udp", "proxy mode, VPN for listed: everything else goes direct");
+var forTun = XrayRoutingPolicy.For(true, listedRouting);
+Check(forTun.Rules.Count == 0 && forTun.EffectiveMode == RoutingMode.AllVpn, "TUN: xray gets no split rules");
+Check(!Final(forTun).StartsWith("direct/tcp,udp"), "TUN: xray sends everything it receives to VPN");
+Check(ReferenceEquals(XrayRoutingPolicy.For(false, listedRouting), listedRouting), "proxy mode keeps the user's rules");
+var directRouting = new RoutingSettings { ListMode = RoutingMode.DirectForListed, Rules = { new RoutingRule { Value = "domain:ya.ru" } } };
+Check(XrayRoutingPolicy.For(true, directRouting).Rules.Count == 0, "TUN with direct list: split done only by sing-box");
+var tunJson = TunConfigBuilder.Build(10808, listedRouting, "vpn.example.com", null);
+var tunRoute = JsonNode.Parse(tunJson)!["route"]!;
+Check(tunRoute["final"]!.ToString() == "direct", "sing-box: everything else direct");
+Check(tunJson.Contains("\"outbound\": \"proxy\"") && tunJson.Contains("chrome.exe") && tunJson.Contains("ya.ru"), "sing-box: listed items go to VPN");
+
 
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Tunnelka.UI.Animation;
 using Tunnelka.UI.Kitten;
 using System.Drawing.Drawing2D;
 
@@ -20,7 +21,11 @@ public class HeroView : ThemedControl
 
     public const float RequiredHeight = HeaderHeight + BottomMargin + FooterHeight + (RingMargin + 200 + BelowRing + KittenHeight) * GroupScale;
 
-    private readonly System.Windows.Forms.Timer _animation = new() { Interval = 25 };
+    private const float HoverSettled = 0.02f;
+
+    private readonly FramePacer _pacer = new();
+    private bool _ringDirty;
+    private readonly System.Windows.Forms.Timer _animation = new() { Interval = FramePacer.ActiveMs };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private float _time;
     private readonly KittenBrain _brain = new();
@@ -133,11 +138,16 @@ public class HeroView : ThemedControl
     {
         _time = (float)_clock.Elapsed.TotalSeconds;
         _hoverAmount += ((_hoverPower ? 1f : 0f) - _hoverAmount) * 0.15f;
-        _animation.Interval = Rippling ? 15 : 25;
+        var active = _connected || _connecting || _hoverPower || _hoverAmount > HoverSettled || _busy;
+        _animation.Interval = _pacer.IntervalMs(Rippling, active);
 
         _pose = _brain.Evaluate(_time, _connected, _connecting);
 
-        var area = RectangleF.Union(Inflate(_powerRect, Rippling ? RippleReach * _scale + 12 : 70), Inflate(_kittenRect, 48 * _scale));
+        var area = Inflate(_kittenRect, 48 * _scale);
+        var full = Rippling || active;
+        if (full || _ringDirty)
+            area = RectangleF.Union(Inflate(_powerRect, Rippling ? RippleReach * _scale + 12 : 70), area);
+        _ringDirty = full;
         Invalidate(ToDevice(area));
         if (_busy)
             Invalidate(ToDevice(_pingResultRect));

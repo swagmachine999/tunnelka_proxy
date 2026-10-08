@@ -10,7 +10,7 @@ namespace Tunnelka.UI;
 
 public class MainForm : Form, IMessageFilter
 {
-    private readonly AppLog _log = new();
+    private readonly AppLog _log;
     private readonly Settings _settings;
     private readonly ConnectionService _connection;
     private readonly SubscriptionService _subscriptions;
@@ -60,6 +60,9 @@ public class MainForm : Form, IMessageFilter
     private readonly OverlayPage _overlayPage;
     private readonly AdvancedPage _advancedPage;
     private readonly KillSwitch _killSwitch;
+    private bool _handedOff;
+    private bool _reloadPending;
+    private bool _resumed;
     private readonly AboutPage _aboutPage;
     private readonly OverlayController _overlay;
     private readonly UpdateWatcher _updates;
@@ -79,11 +82,12 @@ public class MainForm : Form, IMessageFilter
 
     public event EventHandler? ReloadRequested;
 
-    public MainForm(bool reconnect = false, IconKind startPage = IconKind.Servers, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal, bool startHidden = false)
+    public MainForm(bool reconnect = false, IconKind startPage = IconKind.Servers, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal, bool startHidden = false, SessionHandoff? handoff = null)
     {
+        _log = handoff?.Log ?? new AppLog();
         _settings = new Settings(_log);
         Data.AutoStart = Autostart.IsEnabled();
-        _connection = new ConnectionService(_log);
+        _connection = handoff?.Connection ?? new ConnectionService(_log);
         _subscriptions = new SubscriptionService(_settings, _log, ProxyPort);
         _autos = new AutoServers(_settings, _subscriptions);
         _list = new ServerListView(_subscriptions);
@@ -110,7 +114,7 @@ public class MainForm : Form, IMessageFilter
         _routingPage.SetTunMode(Data.Tun);
         _settingsPage = new SettingsPage(Data.SpeedInterval, Data.RealPing, Data.AutoStart, Data.ConnectOnStart);
         _advancedPage = new AdvancedPage(Data.Tun, Data.KillSwitch, Data.RefreshOnStart, Data.PingOnStart, () => ShowPage(IconKind.Settings));
-        _killSwitch = new KillSwitch(_log);
+        _killSwitch = handoff?.KillSwitch ?? new KillSwitch(_log);
         _interfacePage = new InterfacePage(Data.DarkTheme, Data.UiScale, Data.Language, () => ShowPage(IconKind.Settings));
         _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
         _overlayPage = new OverlayPage(Data.Overlay, () => ShowPage(IconKind.Settings));
@@ -165,7 +169,7 @@ public class MainForm : Form, IMessageFilter
         _clock.Tick += (_, _) => UpdateClock();
         _traffic.Updated += OnTraffic;
         _connection.Exited += OnCoreExited;
-        _connection.Warning += text => BeginInvoke(new Action(() => _hero.SetPing(text, Theme.PingMid)));
+        _connection.Warning += OnCoreWarning;
         KeyDown += OnKeyDown;
         Resize += (_, _) => FitMiddle();
         ResizeEnd += (_, _) => CheckDisplayScale();
@@ -185,12 +189,14 @@ public class MainForm : Form, IMessageFilter
                 return;
             }
 
-            Disconnect(true);
+            if (!_handedOff)
+                Disconnect(true);
         };
         Application.AddMessageFilter(this);
         FormClosed += (_, _) =>
         {
             Application.RemoveMessageFilter(this);
+            _log.Written -= Log;
             _autoUpdate.Dispose();
             _clock.Dispose();
             _scaleDelay.Dispose();
@@ -198,13 +204,16 @@ public class MainForm : Form, IMessageFilter
             _traffic.Dispose();
             _overlay.Dispose();
             _updates.Dispose();
-            _connection.Dispose();
+            if (!_handedOff)
+                _connection.Dispose();
         };
 
         _selected = RestoreSelection();
         RebuildList();
         UpdateHero();
         ShowPage(startPage);
+        if (handoff != null)
+            Resume(handoff);
 
         if (bounds != null)
         {
@@ -223,7 +232,7 @@ public class MainForm : Form, IMessageFilter
             _scaleDelay.Stop();
             Data.UiScale = _interfacePage.ScaleSelector.Value;
             Save();
-            ReloadRequested?.Invoke(this, EventArgs.Empty);
+            RequestReload();
         };
 
     }
@@ -247,16 +256,72 @@ public class MainForm : Form, IMessageFilter
             return;
 
         if (Math.Abs(DisplayScale.Of(this) - Theme.Base) > 0.01f)
-            ReloadRequested?.Invoke(this, EventArgs.Empty);
+            RequestReload();
     }
 
-    public bool PrepareForReplace()
+    private void RequestReload()
     {
-        _exiting = true;
-        var wasConnected = _connection.IsRunning;
-        Disconnect(true);
-        return wasConnected;
+        if (_busy)
+        {
+            _reloadPending = true;
+            return;
+        }
+
+        ReloadRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    private void RunPendingReload()
+    {
+        if (!_reloadPending || IsDisposed)
+            return;
+
+        _reloadPending = false;
+        RequestReload();
+    }
+
+    public SessionHandoff TakeSession()
+    {
+        Save();
+        _handedOff = true;
+        _exiting = true;
+        _clock.Stop();
+        _traffic.Stop();
+        _log.Written -= Log;
+        _connection.Exited -= OnCoreExited;
+        _connection.Warning -= OnCoreWarning;
+        return new SessionHandoff(_log, _connection, _killSwitch, _active?.Link ?? "", _connectedAt);
+    }
+
+    private void Resume(SessionHandoff handoff)
+    {
+        _resumed = true;
+        foreach (var line in _log.Recent())
+            _logPage.Append(line);
+
+        var server = handoff.ActiveLink.Length == 0 ? null : Data.Servers.FirstOrDefault(s => s.Link == handoff.ActiveLink);
+        if (server == null || !_connection.IsRunning)
+        {
+            if (_connection.IsRunning)
+                Disconnect(true);
+            return;
+        }
+
+        _active = server;
+        _connectedAt = handoff.ConnectedAt;
+        _trafficTracker.Reset();
+        _hero.SetSpeed(ServerText.Bytes(0) + L.T("/с"), ServerText.Bytes(0) + L.T("/с"));
+        _hero.Connected = true;
+        _overlay.SetConnected(true);
+        _clock.Start();
+        UpdateClock();
+        _statsPage.SetSpeed(0, 0, true);
+        _traffic.Start();
+        UpdateCards();
+        UpdateHero();
+    }
+
+    private void OnCoreWarning(string text) =>
+        BeginInvoke(new Action(() => _hero.SetPing(text, Theme.PingMid)));
 
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -454,8 +519,8 @@ public class MainForm : Form, IMessageFilter
 
     private async Task ScanQr()
     {
-        Hide();
-        await Task.Delay(300);
+        Opacity = 0;
+        await Task.Delay(250);
         string? text;
         try
         {
@@ -463,7 +528,7 @@ public class MainForm : Form, IMessageFilter
         }
         finally
         {
-            Show();
+            Opacity = 1;
             Activate();
         }
 
@@ -819,6 +884,7 @@ public class MainForm : Form, IMessageFilter
             _busy = false;
             if (!IsDisposed)
                 _hero.Connecting = false;
+            RunPendingReload();
         }
     }
 
@@ -1011,6 +1077,7 @@ public class MainForm : Form, IMessageFilter
             _busy = false;
             if (!IsDisposed)
                 _hero.Connecting = false;
+            RunPendingReload();
         }
     }
 
@@ -1033,7 +1100,7 @@ public class MainForm : Form, IMessageFilter
             return;
         _started = true;
 
-        if (KillSwitch.WasLeftOn())
+        if (!_killSwitch.IsEngaged && KillSwitch.WasLeftOn())
         {
             if (KillSwitch.CanRelease)
                 await ReleaseKillSwitch();
@@ -1048,10 +1115,11 @@ public class MainForm : Form, IMessageFilter
             Save();
         }
 
-        if (reconnect || resume || Data.ConnectOnStart)
+        if (_active == null && (reconnect || resume || Data.ConnectOnStart))
             Connect();
         _updates.Start();
-        await RunStartupTasks();
+        if (!_resumed)
+            await RunStartupTasks();
     }
 
     private async Task RunStartupTasks()
@@ -1156,7 +1224,7 @@ public class MainForm : Form, IMessageFilter
         {
             Data.Language = _interfacePage.Language;
             Save();
-            ReloadRequested?.Invoke(this, EventArgs.Empty);
+            RequestReload();
         };
 
         _settingsPage.InterfaceRow.Click += (_, _) => ShowPage(IconKind.Interface);
