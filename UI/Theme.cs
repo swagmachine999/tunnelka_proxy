@@ -152,16 +152,43 @@ public static class Theme
         return scaled;
     }
 
+    private static readonly Graphics MeasureGraphics = CreateMeasureGraphics();
+
+    private static readonly Dictionary<(StringAlignment, StringAlignment, bool, bool), StringFormat> Formats = new();
+
+    private static Graphics CreateMeasureGraphics()
+    {
+        var graphics = Graphics.FromImage(new Bitmap(1, 1));
+        graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
+        return graphics;
+    }
+
+    private static StringFormat TextFormat(StringAlignment horizontal, StringAlignment vertical, bool wrap, bool trim = true)
+    {
+        var key = (horizontal, vertical, wrap, trim);
+        if (Formats.TryGetValue(key, out var cached))
+            return cached;
+
+        var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Alignment = horizontal,
+            LineAlignment = vertical,
+            Trimming = !trim ? StringTrimming.None : wrap ? StringTrimming.Word : StringTrimming.EllipsisCharacter
+        };
+        format.FormatFlags = StringFormatFlags.MeasureTrailingSpaces | (wrap ? 0 : StringFormatFlags.NoWrap);
+        Formats[key] = format;
+        return format;
+    }
+
     public static Size Measure(string text, Font font)
     {
-        var size = TextRenderer.MeasureText(text, ScaledFont(font, S), Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+        var size = MeasureGraphics.MeasureString(text, ScaledFont(font, S), new SizeF(100000f, 100000f), TextFormat(StringAlignment.Near, StringAlignment.Near, false, false));
         return new Size((int)Math.Ceiling(size.Width / S), (int)Math.Ceiling(size.Height / S));
     }
 
     public static float MeasureWrapped(string text, Font font, float width)
     {
-        var size = TextRenderer.MeasureText(text, ScaledFont(font, S), new Size((int)(width * S), int.MaxValue),
-            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak);
+        var size = MeasureGraphics.MeasureString(text, ScaledFont(font, S), new SizeF(width * S, 100000f), TextFormat(StringAlignment.Near, StringAlignment.Near, true, false));
         return size.Height / S;
     }
 
@@ -293,27 +320,14 @@ public static class Theme
     public static void DrawText(Graphics g, string text, Font font, Color color, RectangleF r,
         StringAlignment horizontal = StringAlignment.Near, StringAlignment vertical = StringAlignment.Center, bool wrap = false)
     {
-        var flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
-        flags |= wrap ? TextFormatFlags.WordBreak : TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis;
-        flags |= horizontal switch
-        {
-            StringAlignment.Center => TextFormatFlags.HorizontalCenter,
-            StringAlignment.Far => TextFormatFlags.Right,
-            _ => TextFormatFlags.Left
-        };
-        flags |= vertical switch
-        {
-            StringAlignment.Center => TextFormatFlags.VerticalCenter,
-            StringAlignment.Far => TextFormatFlags.Bottom,
-            _ => TextFormatFlags.Top
-        };
-
         using var matrix = g.Transform;
         var e = matrix.Elements;
         var device = new RectangleF(r.X * e[0] + e[4], r.Y * e[3] + e[5], r.Width * e[0], r.Height * e[3]);
         var state = g.Save();
         g.ResetTransform();
-        TextRenderer.DrawText(g, text, ScaledFont(font, e[0]), Rectangle.Round(device), color, flags);
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        using var brush = new SolidBrush(color);
+        g.DrawString(text, ScaledFont(font, e[0]), brush, device, TextFormat(horizontal, vertical, wrap));
         g.Restore(state);
     }
 
