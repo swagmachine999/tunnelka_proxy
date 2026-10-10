@@ -34,7 +34,30 @@ public sealed class AboutPage : UserControl
 
         panel.Children.Add(Ui.ClickRow(L.T("Все версии"), L.T("Страница загрузок на GitHub"), () => UpdateService.OpenPage(UpdateService.ReleasesPage), out _, out _));
 
-        Content = new ScrollViewer { Content = panel };
+        var layout = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        var scroll = new ScrollViewer { Content = panel };
+        var support = BuildSupport();
+        Grid.SetRow(support, 1);
+        layout.Children.Add(scroll);
+        layout.Children.Add(support);
+        Content = layout;
+    }
+
+    private static Control BuildSupport()
+    {
+        var caption = new TextBlock
+        {
+            Text = L.T("Поддержка приложения"),
+            Classes = { "muted" },
+            FontSize = 12,
+            FontWeight = FontWeight.SemiBold,
+            Margin = new Thickness(4, 8, 0, 8)
+        };
+        var panel = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
+        panel.Children.Add(caption);
+        panel.Children.Add(Ui.ClickRow(L.T("Написать в Telegram"), SupportLinks.TelegramName + L.T(" · быстрый вопрос или совет"), () => UpdateService.OpenPage(SupportLinks.Telegram), out _, out _));
+        panel.Children.Add(Ui.ClickRow(L.T("Сообщить об ошибке"), L.T("Создать обращение на GitHub: укажите версию и опишите, что произошло"), () => UpdateService.OpenPage(SupportLinks.Issues), out _, out _));
+        return panel;
     }
 
     private static Border BuildCard()
