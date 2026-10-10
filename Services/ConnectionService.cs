@@ -97,6 +97,8 @@ public sealed class ConnectionService : IDisposable
         StopCores();
         XrayRunner.KillOrphans(XrayRunner.XrayPath);
         XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
+        if (tun)
+            CloseForeignCores();
 
         var result = StartXray(server, XrayRoutingPolicy.For(tun, routing));
         if (result == ConnectResult.Ok && tun)
@@ -110,6 +112,16 @@ public sealed class ConnectionService : IDisposable
 
         ApplySystemProxy(!tun);
         return ConnectResult.Ok;
+    }
+
+    private void CloseForeignCores()
+    {
+        var stopped = ForeignCores.Stop();
+        if (stopped.Count == 0)
+            return;
+
+        _log.Write(L.F("Закрыты ядра другого VPN: {0}", string.Join(", ", stopped)));
+        Thread.Sleep(1000);
     }
 
     private ITunBackend? ChooseTun()

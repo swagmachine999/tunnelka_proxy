@@ -274,6 +274,7 @@ public static class L
         ["нет связи с сервером подписки"] = "cannot reach the subscription server",
         ["сервер подписки не ответил вовремя"] = "the subscription server timed out",
         ["сервер подписки ответил ошибкой {0}"] = "the subscription server returned error {0}",
+        ["Закрыты ядра другого VPN: {0}"] = "Closed cores of another VPN: {0}",
         ["Kill switch"] = "Kill switch",
         ["Kill switch включён: без VPN интернет заблокирован"] = "Kill switch is on: internet is blocked without VPN",
         ["Kill switch выключен: интернет снова работает без VPN"] = "Kill switch is off: internet works without VPN again",
