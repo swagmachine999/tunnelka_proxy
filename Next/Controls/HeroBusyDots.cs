@@ -34,9 +34,9 @@ internal sealed class HeroBusyDots : Control
 
     public override void Render(DrawingContext context)
     {
-        var left = Bounds.Width / 2 - 16;
-        var cy = Bounds.Height / 2;
         var step = Dot * 1.85;
+        var left = (Bounds.Width - (step * 2 + Dot)) / 2;
+        var cy = Bounds.Height / 2;
         for (var i = 0; i < 3; i++)
         {
             var phase = Math.Max(0, Math.Sin(_time * 6 - i * 0.9));

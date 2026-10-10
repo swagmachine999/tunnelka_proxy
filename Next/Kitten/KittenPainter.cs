@@ -25,6 +25,7 @@ public static class KittenPainter
     private static readonly IBrush WhiteBrush = new ImmutableSolidColorBrush(Colors.White);
 
     private static readonly Pen LinePen = new(LineBrush, 2.4, lineJoin: PenLineJoin.Round);
+    private static readonly Pen FacePen = new(LineBrush, 3.2, lineJoin: PenLineJoin.Round);
     private static readonly Pen EyeLinePen = new(EyeBrush, 2.8, lineCap: PenLineCap.Round);
     private static readonly Pen SmilePen = new(LineBrush, 2, lineCap: PenLineCap.Round);
     private static readonly Pen BristlePen = new(LineBrush, 2.2, lineCap: PenLineCap.Round);
@@ -56,7 +57,7 @@ public static class KittenPainter
             Ellipse(g, FurLightBrush, null, 80, 102 - breath, 40, 40 + breath);
 
             if (pose.Bristle > 0.01f)
-                DrawBristle(g, 100, 118, 38, 32, 195, 345, 7, pose.Bristle, 0.5);
+                DrawBristle(g, 100, 118, 38, 32, 195, 345, 7, pose.Bristle);
 
             foreach (var x in new[] { 74.0, 104.0 })
             {
@@ -71,7 +72,7 @@ public static class KittenPainter
             using (g.PushTransform(Matrix.CreateRotation(pose.HeadTilt * Math.PI / 180.0)))
             using (g.PushTransform(Matrix.CreateTranslation(-100, -108)))
             {
-                DrawHead(g, pose);
+                DrawHead(g, pose, LinePen);
             }
 
             if (pose.Lick > 0.01f)
@@ -84,23 +85,32 @@ public static class KittenPainter
             DrawSleep(g, time, pose.Zzz, accentStrong);
     }
 
+    public static void DrawFace(DrawingContext g, Rect bounds)
+    {
+        var scale = Math.Min(bounds.Width / 124.0, bounds.Height / 112.0);
+        using var place = g.PushTransform(Matrix.CreateTranslation(bounds.X + (bounds.Width - 124 * scale) / 2, bounds.Y + (bounds.Height - 112 * scale) / 2));
+        using var size = g.PushTransform(Matrix.CreateScale(scale, scale));
+        using var shift = g.PushTransform(Matrix.CreateTranslation(-38, -2));
+        DrawHead(g, new KittenPose(), FacePen);
+    }
+
     private static void Ellipse(DrawingContext g, IBrush? brush, IPen? pen, double x, double y, double width, double height) =>
         g.DrawEllipse(brush, pen, new Point(x + width / 2, y + height / 2), width / 2, height / 2);
 
-    private static void DrawHead(DrawingContext g, KittenPose pose)
+    private static void DrawHead(DrawingContext g, KittenPose pose, Pen linePen)
     {
         var outward = pose.EarFlat * 50;
-        DrawEar(g, new Point(77, 45), -(pose.EarLeft + outward), pose.EarFlat,
+        DrawEar(g, new Point(77, 45), -(pose.EarLeft + outward), pose.EarFlat, linePen,
             new[] { new Point(56, 56), new Point(60, 6), new Point(98, 34) },
             new[] { new Point(67, 42), new Point(66, 18), new Point(88, 33) });
-        DrawEar(g, new Point(123, 45), pose.EarRight + outward, pose.EarFlat,
+        DrawEar(g, new Point(123, 45), pose.EarRight + outward, pose.EarFlat, linePen,
             new[] { new Point(144, 56), new Point(140, 6), new Point(102, 34) },
             new[] { new Point(133, 42), new Point(134, 18), new Point(112, 33) });
 
-        Ellipse(g, FurBrush, LinePen, 46, 26, 108, 84);
+        Ellipse(g, FurBrush, linePen, 46, 26, 108, 84);
 
         if (pose.Bristle > 0.01f)
-            DrawBristle(g, 100, 68, 54, 42, 200, 340, 9, pose.Bristle, 1);
+            DrawBristle(g, 100, 68, 54, 42, 200, 340, 9, pose.Bristle);
 
         DrawEyes(g, pose);
 
@@ -130,14 +140,14 @@ public static class KittenPainter
         return geometry;
     }
 
-    private static void DrawEar(DrawingContext g, Point pivot, double angle, double flat, Point[] outer, Point[] inner)
+    private static void DrawEar(DrawingContext g, Point pivot, double angle, double flat, Pen linePen, Point[] outer, Point[] inner)
     {
         using (g.PushTransform(Matrix.CreateTranslation(pivot.X, pivot.Y)))
         using (g.PushTransform(Matrix.CreateRotation(angle * Math.PI / 180.0)))
         using (g.PushTransform(Matrix.CreateScale(1, 1 - 0.18 * flat)))
         using (g.PushTransform(Matrix.CreateTranslation(-pivot.X, -pivot.Y)))
         {
-            g.DrawGeometry(FurBrush, LinePen, Polygon(outer));
+            g.DrawGeometry(FurBrush, linePen, Polygon(outer));
             g.DrawGeometry(EarInnerBrush, null, Polygon(inner));
         }
     }
@@ -212,7 +222,7 @@ public static class KittenPainter
             Ellipse(g, NoseBrush, null, 97, 84, 8, 10 * pose.Tongue);
     }
 
-    private static void DrawBristle(DrawingContext g, double cx, double cy, double rx, double ry, double from, double to, int count, double amount, double width)
+    private static void DrawBristle(DrawingContext g, double cx, double cy, double rx, double ry, double from, double to, int count, double amount)
     {
         for (var i = 0; i < count; i++)
         {

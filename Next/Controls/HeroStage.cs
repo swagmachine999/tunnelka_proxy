@@ -6,15 +6,16 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Styling;
 using Tunnelka.Next.Kitten;
+using static Tunnelka.Next.Controls.HeroStyle;
 
 namespace Tunnelka.Next.Controls;
 
 internal sealed class HeroStage : Control
 {
-    private const int RippleCount = 5;
+    private const int RippleCount = 4;
     private const double RippleDelay = 0.3;
     private const double RippleLife = 2.6;
-    private const double RippleReach = 132;
+    private const double RippleReach = 121;
     private const double HoverSettled = 0.02;
     private const double ShakeLength = 0.55;
     private const double StatusSize = 15.4;
@@ -34,9 +35,6 @@ internal sealed class HeroStage : Control
     private float _shakeStart = -100;
     private double _hoverAmount;
     private bool _hoverPower;
-    private bool _connected;
-    private bool _connecting;
-    private string _elapsed = "00:00:00";
     private string _connectedText = "";
     private string _connectingText = "";
     private string _disconnectedText = "";
@@ -70,25 +68,11 @@ internal sealed class HeroStage : Control
 
     public event Action? PowerClicked;
 
-    public bool Connected
-    {
-        get => _connected;
-        set => _connected = value;
-    }
+    public bool Connected { get; set; }
 
-    public bool Connecting
-    {
-        get => _connecting;
-        set => _connecting = value;
-    }
+    public bool Connecting { get; set; }
 
-    public string Elapsed
-    {
-        get => _elapsed;
-        set => _elapsed = value;
-    }
-
-    public float Time => _time;
+    public string Elapsed { get; set; } = "00:00:00";
 
     private bool Rippling => _time - _rippleStart < RippleDelay * (RippleCount - 1) + RippleLife;
 
@@ -135,9 +119,9 @@ internal sealed class HeroStage : Control
     {
         _time = time;
         _hoverAmount += ((_hoverPower ? 1.0 : 0.0) - _hoverAmount) * 0.15;
-        var active = _connected || _connecting || _hoverPower || _hoverAmount > HoverSettled || busy;
+        var active = Connected || Connecting || _hoverPower || _hoverAmount > HoverSettled || busy;
         var interval = _pacer.IntervalMs(Rippling || Shaking, active);
-        _pose = _brain.Evaluate(time, _connected, _connecting);
+        _pose = _brain.Evaluate(time, Connected, Connecting);
         InvalidateVisual();
         return interval;
     }
@@ -166,18 +150,6 @@ internal sealed class HeroStage : Control
 
     private static Rect Inflate(Rect rect, double by) =>
         new(rect.X - by, rect.Y - by, rect.Width + by * 2, rect.Height + by * 2);
-
-    private static byte Alpha(double value) => (byte)Math.Max(0, Math.Min(255, (int)value));
-
-    private static Color WithAlpha(Color color, double alpha) => Color.FromArgb(Alpha(alpha), color.R, color.G, color.B);
-
-    private static IBrush Solid(Color color, double alpha) => new ImmutableSolidColorBrush(WithAlpha(color, alpha));
-
-    private static Color Lighten(Color color, double amount) => Color.FromArgb(
-        color.A,
-        (byte)(color.R + (255 - color.R) * amount),
-        (byte)(color.G + (255 - color.G) * amount),
-        (byte)(color.B + (255 - color.B) * amount));
 
     private static IBrush Vertical(Color top, Color bottom) => new LinearGradientBrush
     {
@@ -248,7 +220,7 @@ internal sealed class HeroStage : Control
         if (!Rippling)
             return;
 
-        var color = _connected ? _pink : _accent;
+        var color = Connected ? _pink : _accent;
         var elapsed = _time - _rippleStart;
         for (var i = 0; i < RippleCount; i++)
         {
@@ -278,17 +250,17 @@ internal sealed class HeroStage : Control
         var r = geometry.Power;
         using var shake = context.PushTransform(Matrix.CreateTranslation(ShakeOffset(), 0));
 
-        var pulse = _connected ? (Math.Sin(_time * 2.2) + 1) / 2 : 0;
+        var pulse = Connected ? (Math.Sin(_time * 2.2) + 1) / 2 : 0;
         var hoverPulse = _hoverAmount * (Math.Sin(_time * 4.5) + 1) / 2;
-        var ringColor = _connected ? _pink : _accent;
+        var ringColor = Connected ? _pink : _accent;
 
         for (var i = 0; i < 3; i++)
         {
-            var alpha = (_connected ? 80 - i * 24 : 40 - i * 12) + (int)(hoverPulse * 30);
+            var alpha = (Connected ? 80 - i * 24 : 40 - i * 12) + (int)(hoverPulse * 30);
             Oval(context, null, new Pen(Solid(ringColor, Math.Min(255, alpha)), 2), Inflate(r, 13 + i * 14 + pulse * 6 + hoverPulse * 5));
         }
 
-        Oval(context, Glow(ringColor, (_connected ? 80 : 45) + (int)(hoverPulse * 50)), null, Inflate(r, 26 + hoverPulse * 8));
+        Oval(context, Glow(ringColor, (Connected ? 80 : 45) + (int)(hoverPulse * 50)), null, Inflate(r, 26 + hoverPulse * 8));
 
         var body = Inflate(r, hoverPulse * 4);
         Oval(context, Solid(Colors.White, _dark ? 16 : 110), null, Inflate(body, 18));
@@ -307,7 +279,7 @@ internal sealed class HeroStage : Control
             }
         }
 
-        Oval(context, null, _connected ? new Pen(_rimBrush, 1.6) : new Pen(_borderBrush, 1.6), body);
+        Oval(context, null, Connected ? new Pen(_rimBrush, 1.6) : new Pen(_borderBrush, 1.6), body);
 
         if (_hoverAmount > 0.01)
             Oval(context, Solid(_accent, _hoverAmount * 14), null, body);
@@ -315,12 +287,12 @@ internal sealed class HeroStage : Control
         DrawIcon(context, r);
 
         var cx = r.X + r.Width / 2;
-        if (_connecting)
+        if (Connecting)
         {
             DrawSpinner(context, body);
             DrawSpaced(context, _connectingText, cx, r.Y + r.Height * 0.64);
         }
-        else if (_connected)
+        else if (Connected)
         {
             DrawSpaced(context, _connectedText, cx, r.Y + r.Height * 0.6);
             DrawTimer(context, cx, r.Y + r.Height * 0.6 + 25);
@@ -335,7 +307,7 @@ internal sealed class HeroStage : Control
     {
         var cx = r.X + r.Width / 2;
         var size = r.Width * 0.2;
-        var cy = r.Y + r.Height * (_connected ? 0.38 : 0.42);
+        var cy = r.Y + r.Height * (Connected ? 0.38 : 0.42) + size * 0.06;
         var key = (cx, cy, size);
         if (_icon == null || _iconKey != key)
         {
@@ -357,7 +329,7 @@ internal sealed class HeroStage : Control
             _iconKey = key;
         }
 
-        var pen = new Pen(_connected ? _iconOnBrush : _iconOffBrush, Math.Max(3.0, r.Width * 0.024), lineCap: PenLineCap.Round);
+        var pen = new Pen(Connected ? _iconOnBrush : _iconOffBrush, Math.Max(3.0, r.Width * 0.024), lineCap: PenLineCap.Round);
         context.DrawGeometry(null, pen, _icon);
     }
 
@@ -440,11 +412,11 @@ internal sealed class HeroStage : Control
         }
 
         var total = 0.0;
-        foreach (var c in _elapsed)
+        foreach (var c in Elapsed)
             total += c == ':' ? _colonWidth : _digitWidth;
 
         var x = cx - total / 2;
-        foreach (var c in _elapsed)
+        foreach (var c in Elapsed)
         {
             var cell = c == ':' ? _colonWidth : _digitWidth;
             var glyph = Text(c.ToString(), TimerSize, _accentStrongBrush);
