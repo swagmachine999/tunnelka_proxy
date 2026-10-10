@@ -29,10 +29,9 @@ public static class ServerLinks
 
 public sealed class AnnounceView : Control
 {
-    private const double LineHeight = 21;
-    private const double FontSize = 13 * 1.1;
-    private const double SymbolSize = 16;
-    private const double InlineSymbol = FontSize * 1.15;
+    private const double LineHeight = SubscriptionFonts.BodyLine;
+    private const double FontSize = SubscriptionFonts.Body;
+    private const double SymbolSize = FontSize * 1.15;
 
     private static readonly Regex UrlPattern = new(@"https?://\S+", RegexOptions.Compiled);
     private static readonly Regex ColorPattern = new(@"^#([0-9A-Fa-f]{6})", RegexOptions.Compiled);
@@ -305,8 +304,8 @@ public sealed class AnnounceView : Control
                     context.DrawRectangle(fill, null, item.Hit, 6, 6);
                 }
 
-                var top = rect.Y + (LineHeight - InlineSymbol) / 2;
-                SymbolPainter.Draw(context, token.Text, new Rect(rect.X, top, InlineSymbol, InlineSymbol), text);
+                var top = rect.Y + (LineHeight - SymbolSize) / 2;
+                SymbolPainter.Draw(context, token.Text, new Rect(rect.X, top, SymbolSize, SymbolSize), text);
                 continue;
             }
 

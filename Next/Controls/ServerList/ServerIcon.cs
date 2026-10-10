@@ -152,10 +152,10 @@ public sealed class ServerIcon : Control
         switch (Kind)
         {
             case ServerIconKind.Gauge:
-                DrawGauge(context, cx, cy + 2, 10, 5, -6, 2.5, Ui.Brush(this, _hover ? "AccentStrongBrush" : "TextBrush"));
+                DrawGauge(context, cx, cy, 10, 5, -6, 2.5, Ui.Brush(this, _hover ? "AccentStrongBrush" : "TextBrush"));
                 break;
             case ServerIconKind.Ping:
-                DrawGauge(context, cx, cy + 2, 8, 4, -5, 2, Ui.Brush(this, "TextMutedBrush"));
+                DrawGauge(context, cx, cy, 8, 4, -5, 2, Ui.Brush(this, "TextMutedBrush"));
                 break;
             case ServerIconKind.Refresh:
                 DrawRefreshState(context, cx, cy);
@@ -167,16 +167,17 @@ public sealed class ServerIcon : Control
                 DrawSupport(context, cx, cy);
                 break;
             case ServerIconKind.Chevron:
-                DrawChevron(context);
+                DrawChevron(context, cx, cy);
                 break;
             case ServerIconKind.Search:
-                DrawSearch(context, cy);
+                DrawSearch(context, cx, cy);
                 break;
         }
     }
 
     private static void DrawGauge(DrawingContext context, double cx, double cy, double radius, double needleX, double needleY, double dot, IBrush brush)
     {
+        cy += (radius - dot) / 2;
         var pen = ServerRes.IconPen(brush);
         var geometry = new StreamGeometry();
         using (var stream = geometry.Open())
@@ -200,6 +201,7 @@ public sealed class ServerIcon : Control
 
     private void DrawSupport(DrawingContext context, double cx, double cy)
     {
+        cy -= 0.5;
         var geometry = new StreamGeometry();
         using (var stream = geometry.Open())
         {
@@ -215,25 +217,25 @@ public sealed class ServerIcon : Control
         context.DrawLine(pen, new Point(cx - 1, cy + 3), new Point(cx + 9, cy - 8));
     }
 
-    private void DrawChevron(DrawingContext context)
+    private void DrawChevron(DrawingContext context, double cx, double cy)
     {
         var pen = ServerRes.IconPen(Ui.Brush(this, "TextMutedBrush"));
-        const double x = 20;
-        const double y = 17;
         var geometry = new StreamGeometry();
         using (var stream = geometry.Open())
         {
             if (_collapsed)
             {
-                stream.BeginFigure(new Point(x - 2, y - 5), false);
-                stream.LineTo(new Point(x + 3, y));
-                stream.LineTo(new Point(x - 2, y + 5));
+                var x = cx - 0.5;
+                stream.BeginFigure(new Point(x - 2, cy - 5), false);
+                stream.LineTo(new Point(x + 3, cy));
+                stream.LineTo(new Point(x - 2, cy + 5));
             }
             else
             {
-                stream.BeginFigure(new Point(x - 5, y - 2), false);
-                stream.LineTo(new Point(x, y + 3));
-                stream.LineTo(new Point(x + 5, y - 2));
+                var y = cy - 0.5;
+                stream.BeginFigure(new Point(cx - 5, y - 2), false);
+                stream.LineTo(new Point(cx, y + 3));
+                stream.LineTo(new Point(cx + 5, y - 2));
             }
 
             stream.EndFigure(false);
@@ -242,11 +244,13 @@ public sealed class ServerIcon : Control
         context.DrawGeometry(null, pen, geometry);
     }
 
-    private void DrawSearch(DrawingContext context, double cy)
+    private void DrawSearch(DrawingContext context, double cx, double cy)
     {
         var pen = ServerRes.IconPen(Ui.Brush(this, "TextMutedBrush"));
-        context.DrawEllipse(null, pen, new Point(21, cy - 2), 6, 6);
-        context.DrawLine(pen, new Point(25, cy + 2), new Point(29, cy + 6));
+        var lensX = cx - 1;
+        var lensY = cy - 1;
+        context.DrawEllipse(null, pen, new Point(lensX, lensY), 6, 6);
+        context.DrawLine(pen, new Point(lensX + 4, lensY + 4), new Point(lensX + 8, lensY + 8));
     }
 
     private void DrawRefreshState(DrawingContext context, double cx, double cy)
@@ -269,7 +273,7 @@ public sealed class ServerIcon : Control
 
     private static void DrawRefresh(DrawingContext context, double cx, double cy, double rotation, IBrush brush)
     {
-        var matrix = Matrix.CreateRotation(rotation * Math.PI / 180) * Matrix.CreateTranslation(cx, cy);
+        var matrix = Matrix.CreateRotation(rotation * Math.PI / 180) * Matrix.CreateTranslation(cx + 0.7, cy + 1.1);
         using var state = context.PushTransform(matrix);
         var pen = ServerRes.IconPen(brush);
         var start = 40 * Math.PI / 180;
@@ -302,9 +306,9 @@ public sealed class ServerIcon : Control
         if (stroke <= 0)
             return;
 
-        var a = new Point(cx - 4.5, cy + 0.2);
-        var b = new Point(cx - 1.2, cy + 3.5);
-        var c = new Point(cx + 5, cy - 3.5);
+        var a = new Point(cx - 4.75, cy + 0.2);
+        var b = new Point(cx - 1.45, cy + 3.5);
+        var c = new Point(cx + 4.75, cy - 3.5);
         var pen = new Pen(new SolidColorBrush(ServerRes.Alpha(Colors.White, fade)), 2.2, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
         if (stroke < 0.4)
         {

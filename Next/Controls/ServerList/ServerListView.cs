@@ -1,8 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Layout;
-using Avalonia.Media;
 using Avalonia.Threading;
 using Tunnelka.Models;
 using Tunnelka.Services;
@@ -39,13 +37,9 @@ public sealed class ServerListView : UserControl
         _session = session;
         Focusable = true;
 
-        _stack = new StackPanel { Margin = new Thickness(0, 3, 12, 3) };
-        _scroll = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            Content = _stack
-        };
+        _stack = new StackPanel { Margin = new Thickness(0, 3) };
+        _scroll = new ScrollViewer { Content = _stack };
+        ServerScrollStyle.Apply(_scroll);
 
         _frame = new Border
         {
@@ -60,14 +54,8 @@ public sealed class ServerListView : UserControl
         _welcome = new WelcomeCard();
         _welcome.PasteClicked += () => PasteRequested?.Invoke();
         _welcome.ManualClicked += () => ManualRequested?.Invoke();
-        _welcomeScroll = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            Padding = new Thickness(0, 0, 12, 0),
-            Content = _welcome,
-            IsVisible = false
-        };
+        _welcomeScroll = new ScrollViewer { Content = _welcome, IsVisible = false };
+        ServerScrollStyle.Apply(_welcomeScroll);
 
         var grid = new Grid();
         grid.Children.Add(_frame);
