@@ -1,3 +1,4 @@
+using Tunnelka.Storage;
 using Tunnelka.UI.Controls;
 
 namespace Tunnelka.UI.Pages;
@@ -11,7 +12,7 @@ public class InterfacePage : Panel
         Theme.Bind(this, () => Theme.Surface);
 
         DarkToggle.Checked = dark;
-        ScaleSelector = new ScaleSlider(uiScale);
+        ScaleSelector = new OptionStepper(UiScaleMigration.Steps, v => $"{v}%", uiScale, 150);
         LanguageSelector.Size = new Size(Theme.Px(190), Theme.Px(34));
         LanguageSelector.SelectedIndex = language == "en" ? 1 : 0;
 
@@ -23,7 +24,7 @@ public class InterfacePage : Panel
     }
 
     public ToggleSwitch DarkToggle { get; } = new();
-    public ScaleSlider ScaleSelector { get; }
+    public OptionStepper ScaleSelector { get; }
     public Segmented LanguageSelector { get; } = new("Русский", "English");
 
     public string Language => LanguageSelector.SelectedIndex == 1 ? "en" : "ru";

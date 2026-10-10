@@ -31,6 +31,21 @@ public static class NativeTheme
 
     private static int ColorRef(Color color) => color.R | (color.G << 8) | (color.B << 16);
 
+    public static bool ExcludeFromCapture(Form form, bool exclude)
+    {
+        try
+        {
+            return SetWindowDisplayAffinity(form.Handle, exclude ? 0x11u : 0u);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
+
     public static void Scrollbars(Control control, bool dark)
     {
         try

@@ -552,8 +552,11 @@ public class MainForm : Form, IMessageFilter
 
     private async Task ScanQr()
     {
-        Opacity = 0;
-        await Task.Delay(250);
+        var excluded = NativeTheme.ExcludeFromCapture(this, true);
+        if (!excluded)
+            Opacity = 0;
+
+        await Task.Delay(excluded ? 100 : 250);
         string? text;
         try
         {
@@ -561,8 +564,15 @@ public class MainForm : Form, IMessageFilter
         }
         finally
         {
-            Opacity = 1;
-            Activate();
+            if (excluded)
+            {
+                NativeTheme.ExcludeFromCapture(this, false);
+            }
+            else
+            {
+                Opacity = 1;
+                Activate();
+            }
         }
 
         if (text == null)
