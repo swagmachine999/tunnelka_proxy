@@ -22,10 +22,10 @@ Tunnelka ships with the following third-party components. Each keeps its own lic
 - License: Apache License 2.0
 - Source code: https://github.com/micjahn/ZXing.Net
 
-## Inter font
+## Roboto font
 
 - License: SIL Open Font License 1.1 (`Assets/Fonts/OFL.txt`)
-- Source: https://github.com/rsms/inter
+- Source: https://github.com/googlefonts/roboto-classic
 
 ## Twemoji
 

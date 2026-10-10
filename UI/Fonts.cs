@@ -5,9 +5,9 @@ namespace Tunnelka.UI;
 
 public static class Fonts
 {
-    public const string Regular = "Inter";
-    public const string SemiBold = "Inter SemiBold";
-    public const string Bold = "Inter";
+    public const string Regular = "Roboto";
+    public const string SemiBold = "Roboto Medium";
+    public const string Bold = "Roboto";
 
     private static readonly PrivateFontCollection Collection = new();
 
