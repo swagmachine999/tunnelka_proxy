@@ -259,7 +259,7 @@ public sealed class SubscriptionRow : ListRow
 
     private void DrawAnnounce(Graphics g, float top)
     {
-        var space = Theme.Measure(" ", Theme.Caption).Width + 1;
+        var space = AnnounceLayout.SpaceWidth();
 
         for (var i = 0; i < _lines.Count; i++)
         {

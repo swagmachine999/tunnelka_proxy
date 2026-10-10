@@ -70,13 +70,15 @@ public static class AnnounceLayout
         }
     }
 
+    public static float SpaceWidth() => Math.Max(2, Theme.Measure(" ", Theme.Caption).Width - 1);
+
     private static List<List<AnnounceToken>> Wrap(List<AnnounceToken> tokens, float maxWidth)
     {
         var lines = new List<List<AnnounceToken>>();
         if (tokens.Count == 0)
             return lines;
 
-        var space = Theme.Measure(" ", Theme.Caption).Width + 1;
+        var space = SpaceWidth();
         var current = new List<AnnounceToken>();
         var width = 0f;
 
