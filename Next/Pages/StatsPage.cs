@@ -45,7 +45,7 @@ public sealed class StatsPage : UserControl
         session.Traffic += OnTraffic;
         PropertyChanged += (_, e) =>
         {
-            if (e.Property == IsEffectivelyVisibleProperty && IsEffectivelyVisible)
+            if (e.Property == IsVisibleProperty && IsVisible)
                 UpdateData();
         };
 

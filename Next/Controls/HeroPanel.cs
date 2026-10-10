@@ -59,6 +59,7 @@ public sealed class HeroPanel : UserControl
 
     public HeroPanel(Session session)
     {
+        ActualThemeVariantChanged += (_, _) => ApplyColors();
         _session = session;
 
         Content = new HeroLayout(_stage, BuildHeader(), BuildFooter());
@@ -111,13 +112,6 @@ public sealed class HeroPanel : UserControl
     {
         _timer.Stop();
         base.OnDetachedFromVisualTree(e);
-    }
-
-    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
-    {
-        base.OnPropertyChanged(change);
-        if (change.Property == ActualThemeVariantProperty)
-            ApplyColors();
     }
 
     private void OnTick(object? sender, EventArgs e)
