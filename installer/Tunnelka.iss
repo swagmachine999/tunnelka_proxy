@@ -9,7 +9,7 @@
 AppId={{6F1C2B7E-3D4A-4E8B-9C21-7A5D0E3F9B14}
 AppName=Tunnelka
 AppVersion={#AppVersion}
-AppPublisher=swagmachine999
+AppPublisher=Tunnelka
 VersionInfoVersion={#AppVersion}
 DefaultDirName={autopf}\Tunnelka
 DisableProgramGroupPage=yes

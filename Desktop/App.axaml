@@ -1,0 +1,240 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Tunnelka.Desktop.App"
+             RequestedThemeVariant="Light">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <Color x:Key="WindowColor">#F6F1FB</Color>
+          <Color x:Key="SidebarColor">#EEE6F8</Color>
+          <Color x:Key="SidebarHoverColor">#E2D5F4</Color>
+          <Color x:Key="SurfaceColor">#FBF8FE</Color>
+          <Color x:Key="CardColor">#FFFFFF</Color>
+          <Color x:Key="CardHoverColor">#F9F4FE</Color>
+          <Color x:Key="CardSelectedColor">#F2E9FD</Color>
+          <Color x:Key="BorderColor">#E9E0F5</Color>
+          <Color x:Key="AccentColor">#B290F0</Color>
+          <Color x:Key="AccentStrongColor">#8C6AD6</Color>
+          <Color x:Key="PinkColor">#F6A6C4</Color>
+          <Color x:Key="MintColor">#6ECEA4</Color>
+          <Color x:Key="TextColor">#2C2440</Color>
+          <Color x:Key="TextMutedColor">#564C72</Color>
+          <Color x:Key="HeroTopColor">#FDF1F8</Color>
+          <Color x:Key="HeroBottomColor">#EFE7FB</Color>
+          <Color x:Key="PowerOffColor">#FFFFFF</Color>
+          <Color x:Key="TrackOffColor">#DDD4EA</Color>
+          <Color x:Key="PingGoodColor">#3AB085</Color>
+          <Color x:Key="PingMidColor">#D6963C</Color>
+          <Color x:Key="PingBadColor">#D46C92</Color>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <Color x:Key="WindowColor">#181420</Color>
+          <Color x:Key="SidebarColor">#14111B</Color>
+          <Color x:Key="SidebarHoverColor">#2C253A</Color>
+          <Color x:Key="SurfaceColor">#1D1926</Color>
+          <Color x:Key="CardColor">#262131</Color>
+          <Color x:Key="CardHoverColor">#2D273A</Color>
+          <Color x:Key="CardSelectedColor">#372D4C</Color>
+          <Color x:Key="BorderColor">#362F44</Color>
+          <Color x:Key="AccentColor">#B89AF5</Color>
+          <Color x:Key="AccentStrongColor">#D0BAFF</Color>
+          <Color x:Key="PinkColor">#F0A0C2</Color>
+          <Color x:Key="MintColor">#6ED6A8</Color>
+          <Color x:Key="TextColor">#EDE7F7</Color>
+          <Color x:Key="TextMutedColor">#B2AAC8</Color>
+          <Color x:Key="HeroTopColor">#281E32</Color>
+          <Color x:Key="HeroBottomColor">#1B1727</Color>
+          <Color x:Key="PowerOffColor">#2C263A</Color>
+          <Color x:Key="TrackOffColor">#463E58</Color>
+          <Color x:Key="PingGoodColor">#60D4A2</Color>
+          <Color x:Key="PingMidColor">#ECB65C</Color>
+          <Color x:Key="PingBadColor">#F086AE</Color>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
+      <SolidColorBrush x:Key="WindowBrush" Color="{DynamicResource WindowColor}" />
+      <SolidColorBrush x:Key="SidebarBrush" Color="{DynamicResource SidebarColor}" />
+      <SolidColorBrush x:Key="SidebarHoverBrush" Color="{DynamicResource SidebarHoverColor}" />
+      <SolidColorBrush x:Key="SurfaceBrush" Color="{DynamicResource SurfaceColor}" />
+      <SolidColorBrush x:Key="CardBrush" Color="{DynamicResource CardColor}" />
+      <SolidColorBrush x:Key="CardHoverBrush" Color="{DynamicResource CardHoverColor}" />
+      <SolidColorBrush x:Key="CardSelectedBrush" Color="{DynamicResource CardSelectedColor}" />
+      <SolidColorBrush x:Key="BorderBrush2" Color="{DynamicResource BorderColor}" />
+      <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource AccentColor}" />
+      <SolidColorBrush x:Key="AccentStrongBrush" Color="{DynamicResource AccentStrongColor}" />
+      <SolidColorBrush x:Key="TextBrush" Color="{DynamicResource TextColor}" />
+      <SolidColorBrush x:Key="TextMutedBrush" Color="{DynamicResource TextMutedColor}" />
+      <SolidColorBrush x:Key="PowerOffBrush" Color="{DynamicResource PowerOffColor}" />
+      <SolidColorBrush x:Key="TrackOffBrush" Color="{DynamicResource TrackOffColor}" />
+      <SolidColorBrush x:Key="PingGoodBrush" Color="{DynamicResource PingGoodColor}" />
+      <SolidColorBrush x:Key="PingMidBrush" Color="{DynamicResource PingMidColor}" />
+      <SolidColorBrush x:Key="PingBadBrush" Color="{DynamicResource PingBadColor}" />
+      <LinearGradientBrush x:Key="HeroBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="{DynamicResource HeroTopColor}" Offset="0" />
+        <GradientStop Color="{DynamicResource HeroBottomColor}" Offset="1" />
+      </LinearGradientBrush>
+      <LinearGradientBrush x:Key="AccentGradient" StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="{DynamicResource AccentColor}" Offset="0" />
+        <GradientStop Color="{DynamicResource PinkColor}" Offset="1" />
+      </LinearGradientBrush>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource WindowBrush}" />
+    </Style>
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="26" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="TextBlock.rowTitle">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector=":is(Border).card">
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16,12" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush2}" />
+      <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+    </Style>
+
+    <Style Selector="Button.nav">
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="44" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SidebarHoverBrush}" />
+    </Style>
+    <Style Selector="Button.nav.active /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SidebarHoverBrush}" />
+    </Style>
+    <Style Selector="Button.nav Path">
+      <Setter Property="Stroke" Value="{DynamicResource TextBrush}" />
+      <Setter Property="StrokeThickness" Value="2" />
+      <Setter Property="StrokeLineCap" Value="Round" />
+      <Setter Property="StrokeJoin" Value="Round" />
+    </Style>
+    <Style Selector="Button.nav.active Path">
+      <Setter Property="Stroke" Value="{DynamicResource AccentStrongBrush}" />
+    </Style>
+
+    <Style Selector="Button.power">
+      <Setter Property="Width" Value="200" />
+      <Setter Property="Height" Value="200" />
+      <Setter Property="CornerRadius" Value="100" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.power /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource PowerOffBrush}" />
+    </Style>
+    <Style Selector="Button.power:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
+    </Style>
+    <Style Selector="Button.power.on /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentGradient}" />
+    </Style>
+    <Style Selector="Button.power Path">
+      <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="StrokeThickness" Value="5" />
+      <Setter Property="StrokeLineCap" Value="Round" />
+    </Style>
+    <Style Selector="Button.power.on Path">
+      <Setter Property="Stroke" Value="White" />
+    </Style>
+
+    <Style Selector="Button.soft">
+      <Setter Property="CornerRadius" Value="20" />
+      <Setter Property="Padding" Value="22,10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.soft /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentStrongBrush}" />
+    </Style>
+    <Style Selector="Button.accent /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentGradient}" />
+      <Setter Property="TextElement.Foreground" Value="White" />
+    </Style>
+
+    <Style Selector="Button.soft, Button.nav, Button.power">
+      <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.09" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.soft:pressed, Button.nav:pressed, Button.power:pressed">
+      <Setter Property="RenderTransform" Value="scale(0.93)" />
+    </Style>
+    <Style Selector="Button.soft:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
+    </Style>
+    <Style Selector="Button.soft:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CardSelectedBrush}" />
+    </Style>
+    <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentGradient}" />
+      <Setter Property="Opacity" Value="0.92" />
+    </Style>
+    <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentGradient}" />
+      <Setter Property="Opacity" Value="0.8" />
+    </Style>
+    <Style Selector="Button.nav:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CardSelectedBrush}" />
+    </Style>
+
+    <Style Selector="ToggleButton.seg">
+      <Setter Property="CornerRadius" Value="18" />
+      <Setter Property="Padding" Value="20,7" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="ToggleButton.seg:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="TextElement.Foreground" Value="White" />
+    </Style>
+
+    <Style Selector=":is(Border).clickable:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
+    </Style>
+
+    <Style Selector="ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="CornerRadius" Value="12" />
+    </Style>
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CardSelectedBrush}" />
+    </Style>
+    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
+    </Style>
+  </Application.Styles>
+</Application>
