@@ -8,7 +8,7 @@ namespace Tunnelka.Desktop;
 
 public sealed class ServerBusyDots : Control
 {
-    private const double Size = 6;
+    private const double Size = 7.5;
 
     private readonly DispatcherTimer _frame = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly DateTime _start = DateTime.Now;
@@ -16,9 +16,10 @@ public sealed class ServerBusyDots : Control
 
     public ServerBusyDots()
     {
-        Width = 30;
+        Width = 36;
         Height = 24;
         IsHitTestVisible = false;
+        RenderOptions.SetEdgeMode(this, EdgeMode.Antialias);
         _frame.Tick += (_, _) => InvalidateVisual();
         ActualThemeVariantChanged += (_, _) => InvalidateVisual();
     }
