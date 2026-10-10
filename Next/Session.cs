@@ -260,11 +260,7 @@ public sealed class Session : IDisposable
                 if (missing.Count > 0 && Dialogs != null && await Dialogs.AskCoreDownload(missing))
                     return await Start(server);
 
-                var message = result == ConnectResult.XrayMissing
-                    ? L.F("Не найден {0}", XrayRunner.XrayPath)
-                    : L.F("Не найден {0}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.", XrayRunner.SingBoxPath);
-                Hint?.Invoke(message.Split('\n')[0], Tone.Bad);
-                Dialogs?.ShowMessage(message);
+                Hint?.Invoke(L.F("Не найден {0}", result == ConnectResult.XrayMissing ? XrayRunner.XrayPath : XrayRunner.SingBoxPath), Tone.Bad);
                 break;
             case ConnectResult.NeedsAdministrator:
                 RestartAsAdministrator("--connect");
