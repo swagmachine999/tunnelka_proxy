@@ -19,6 +19,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
     <PackageReference Include="ZXing.Net" Version="0.16.9" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.8" />
   </ItemGroup>
 
   <ItemGroup>
@@ -35,6 +36,7 @@
     <Compile Include="..\Localization\*.cs" LinkBase="Shared\Localization" />
     <Compile Include="..\UI\ServerText.cs" LinkBase="Shared\UI" />
     <Compile Include="..\UI\NamePart.cs" LinkBase="Shared\UI" />
+    <Compile Include="..\UI\QrCode.cs" LinkBase="Shared\UI" />
   </ItemGroup>
 
 </Project>
