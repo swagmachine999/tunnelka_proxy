@@ -102,6 +102,8 @@ public static class Theme
 
     private const float TextBoost = 1.1f;
 
+    private const float RegularThickening = 0.35f;
+
     public static Font MakeFont(float pixels, FontStyle style = FontStyle.Regular)
     {
         var strong = (style & FontStyle.Bold) != 0;
@@ -328,7 +330,15 @@ public static class Theme
         g.ResetTransform();
         g.TextRenderingHint = TextRenderingHint.AntiAlias;
         using var brush = new SolidBrush(color);
-        g.DrawString(text, ScaledFont(font, e[0]), brush, device, TextFormat(horizontal, vertical, wrap));
+        var scaled = ScaledFont(font, e[0]);
+        var format = TextFormat(horizontal, vertical, wrap);
+        g.DrawString(text, scaled, brush, device, format);
+        if (font.Name == Fonts.Regular && !font.Bold)
+        {
+            device.X += RegularThickening;
+            g.DrawString(text, scaled, brush, device, format);
+        }
+
         g.Restore(state);
     }
 
