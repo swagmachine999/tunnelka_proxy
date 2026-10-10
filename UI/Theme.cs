@@ -99,10 +99,12 @@ public static class Theme
     public static readonly Font Big = MakeFont(23, FontStyle.Bold);
     public static readonly Font Log = new("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel);
 
+    private const float TextBoost = 1.1f;
+
     public static Font MakeFont(float pixels, FontStyle style = FontStyle.Regular)
     {
         var strong = (style & FontStyle.Bold) != 0;
-        return Fonts.Make(strong ? Fonts.SemiBold : Fonts.Regular, pixels, style & ~FontStyle.Bold);
+        return Fonts.Make(strong ? Fonts.SemiBold : Fonts.Regular, pixels * TextBoost, style & ~FontStyle.Bold);
     }
 
     public const float DesignUnit = 0.9f;
