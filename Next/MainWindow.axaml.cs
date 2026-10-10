@@ -114,6 +114,7 @@ public partial class MainWindow : Window
 
         Opened += async (_, _) =>
         {
+            Trace.Write("opened");
             _scaler.Apply(false);
             if (Program.Minimized)
                 Hide();
@@ -165,6 +166,7 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        Trace.Write($"closing reason={e.CloseReason} exiting={_exiting}");
         if (!_exiting && e.CloseReason == WindowCloseReason.WindowClosing)
         {
             e.Cancel = true;
@@ -180,6 +182,7 @@ public partial class MainWindow : Window
 
     private void Quit()
     {
+        Trace.Write("quit requested\n" + Environment.StackTrace);
         _exiting = true;
         Close();
     }
