@@ -22,14 +22,19 @@ Tunnelka ships with the following third-party components. Each keeps its own lic
 - License: Apache License 2.0
 - Source code: https://github.com/micjahn/ZXing.Net
 
-## Onest font
-
-- License: SIL Open Font License 1.1 (`Assets/Fonts/OFL.txt`)
-- Source: https://github.com/simpletype-foundry/Onest
-
 ## Twemoji
 
+- Version: 17.0.3
+- Graphics (c) Twitter, Inc and other contributors
 - License: CC BY 4.0 (`Assets/Emoji-LICENSE.txt`)
+- Source: https://github.com/jdecked/twemoji
+- Changes: images resized to 64x64 px and palette-reduced, packed into `Assets/emoji.zip`
+
+## Noto Emoji
+
+- License: Apache License 2.0
+- Source: https://github.com/googlefonts/noto-emoji
+- Used for 19 emoji that Twemoji does not contain yet, resized to 64x64 px and packed into `Assets/emoji.zip`
 
 ## circle-flags
 
