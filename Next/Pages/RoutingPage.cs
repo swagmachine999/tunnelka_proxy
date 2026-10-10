@@ -1,9 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using Tunnelka.Models;
 
 namespace Tunnelka.Next;
@@ -12,214 +8,110 @@ public sealed class RoutingPage : UserControl
 {
     private readonly Session _session;
     private readonly RoutingSettings _routing;
-    private readonly Dictionary<RoutingMode, SettingsRadioCard> _modes = new();
-    private readonly StackPanel _list = new();
-    private readonly TextBlock _tunNote;
-    private readonly TextBox _input;
-    private readonly Border _reconnectBar;
+    private readonly InfoStrip _reconnectStrip;
+    private readonly InfoStrip _tunStrip;
+    private readonly RoutingModeGroup _modes = new();
+    private readonly RoutingRuleList _list = new();
 
     public RoutingPage(Session session, bool reconnectHint)
     {
         _session = session;
         _routing = session.Data.Routing;
-        var panel = new StackPanel();
 
-        AddMode(panel, RoutingMode.AllVpn, L.T("Всё через VPN"), L.T("Список не действует, весь трафик идёт через VPN"));
-        AddMode(panel, RoutingMode.DirectForListed, L.T("Без VPN для выбранных"), L.T("Программы и сайты из списка идут напрямую, остальное через VPN"));
-        AddMode(panel, RoutingMode.VpnForListed, L.T("VPN только для выбранных"), L.T("Через VPN идут только программы и сайты из списка"));
+        var reconnect = SettingsParts.Pill(L.T("Переподключить"), true);
+        reconnect.Click += async (_, _) => await _session.Reconnect();
+        _reconnectStrip = new InfoStrip(L.T("Правила изменены. Они заработают после переподключения"), "AccentStrongBrush", reconnect);
+        _tunStrip = new InfoStrip(L.T("Правила для программ надёжно работают в режиме TUN"), "PingMidBrush");
 
-        _reconnectBar = BuildReconnectBar();
-        panel.Children.Add(_reconnectBar);
-        panel.Children.Add(SettingsParts.Caption(L.T("ВЫБРАННЫЕ ПРОГРАММЫ И САЙТЫ")));
+        _modes.ModeSelected += OnModeSelected;
+        _list.RuleRemoved += OnRuleRemoved;
 
-        var program = SettingsParts.Pill(L.T("+ Программа"), false);
-        program.HorizontalAlignment = HorizontalAlignment.Stretch;
-        program.Margin = new Thickness(0, 0, 5, 0);
-        program.Click += async (_, _) =>
-        {
-            if (TopLevel.GetTopLevel(this) is not Window owner)
-                return;
+        var adder = new RoutingAddPanel(() => _session.Data.UiScale);
+        adder.ProcessChosen += OnProcessChosen;
+        adder.SitesEntered += OnSitesEntered;
 
-            var name = await ProcessPicker.Pick(owner, _session.Data.UiScale);
-            if (name != null)
-                Add(RoutingRule.ForProcess(name));
-        };
+        var rules = new SettingsGroup(L.T("Правила"));
+        rules.Add(adder);
+        rules.Add(SettingsParts.Divider());
+        rules.Add(_list);
 
-        var file = SettingsParts.Pill(L.T("+ Файл .exe"), false);
-        file.HorizontalAlignment = HorizontalAlignment.Stretch;
-        file.Margin = new Thickness(5, 0, 0, 0);
-        file.Click += async (_, _) => await PickFile();
-        Grid.SetColumn(file, 1);
-
-        var buttons = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), Margin = new Thickness(0, 0, 0, 8) };
-        buttons.Children.Add(program);
-        buttons.Children.Add(file);
-        panel.Children.Add(buttons);
-
-        _input = new TextBox
-        {
-            Watermark = L.T("Сайт или IP, например sberbank.ru"),
-            CornerRadius = new CornerRadius(12),
-            MinHeight = 38,
-            VerticalContentAlignment = VerticalAlignment.Center
-        };
-        _input.KeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Enter)
-                AddFromInput();
-        };
-        var add = SettingsParts.Pill(L.T("Добавить"), true);
-        add.Margin = new Thickness(10, 0, 0, 0);
-        add.Click += (_, _) => AddFromInput();
-        Grid.SetColumn(add, 1);
-        var inputRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 0, 0, 8) };
-        inputRow.Children.Add(_input);
-        inputRow.Children.Add(add);
-        panel.Children.Add(inputRow);
-
-        _tunNote = new TextBlock
-        {
-            Text = L.T("Правила для программ надёжно работают в режиме TUN"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(2, 4, 0, 8)
-        };
-        SettingsTheme.Paint(_tunNote, TextBlock.ForegroundProperty, "PingMidBrush");
-        panel.Children.Add(_tunNote);
-        panel.Children.Add(_list);
-
-        Content = panel;
-        Rebuild();
-        UpdateNote();
+        Content = new StackPanel { Spacing = 12, Children = { _reconnectStrip, _tunStrip, _modes, rules } };
+        Refresh();
         ShowReconnectHint(reconnectHint);
     }
 
-    public void ShowReconnectHint(bool show) => _reconnectBar.IsVisible = show;
+    public void ShowReconnectHint(bool show) => _reconnectStrip.IsVisible = show;
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        _session.ModeChanged += UpdateNote;
-        UpdateNote();
+        _session.ModeChanged += UpdateTunNote;
+        UpdateTunNote();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        _session.ModeChanged -= UpdateNote;
+        _session.ModeChanged -= UpdateTunNote;
         base.OnDetachedFromVisualTree(e);
     }
 
-    private Border BuildReconnectBar()
+    private void OnModeSelected(RoutingMode mode)
     {
-        var text = new TextBlock
-        {
-            Text = L.T("Правила изменены. Они заработают после переподключения"),
-            FontWeight = FontWeight.SemiBold,
-            TextWrapping = TextWrapping.Wrap,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        SettingsTheme.Paint(text, TextBlock.ForegroundProperty, "AccentStrongBrush");
-
-        var reconnect = SettingsParts.Pill(L.T("Переподключить"), true);
-        reconnect.Margin = new Thickness(12, 0, 0, 0);
-        reconnect.Click += async (_, _) => await _session.Reconnect();
-        Grid.SetColumn(reconnect, 1);
-
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        grid.Children.Add(text);
-        grid.Children.Add(reconnect);
-        return new Border { Margin = new Thickness(0, 4, 0, 8), Child = grid, IsVisible = false };
-    }
-
-    private async Task PickFile()
-    {
-        if (TopLevel.GetTopLevel(this) is not { } top)
-            return;
-
-        var filter = new FilePickerFileType(L.T("Программы (*.exe)|*.exe").Split('|')[0]) { Patterns = new[] { "*.exe" } };
-        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = L.T("Выбери программу"),
-            AllowMultiple = false,
-            FileTypeFilter = new[] { filter }
-        });
-        if (files.Count == 0)
-            return;
-
-        var path = files[0].Path.LocalPath;
-        if (path.Length > 0)
-            Add(RoutingRule.ForProcess(path));
-    }
-
-    private void AddFromInput()
-    {
-        foreach (var value in RoutingValues.Split((_input.Text ?? "").Trim()))
-            Add(new RoutingRule { Value = RoutingValues.Clean(value) }, false);
-
-        _input.Text = "";
+        _routing.ListMode = mode;
         Changed();
     }
 
-    private void Add(RoutingRule rule, bool notify = true)
+    private void OnRuleRemoved(RoutingRule rule)
+    {
+        _routing.Rules.Remove(rule);
+        Changed();
+    }
+
+    private void OnProcessChosen(string nameOrPath)
+    {
+        if (TryAdd(RoutingRule.ForProcess(nameOrPath)))
+            Changed();
+    }
+
+    private void OnSitesEntered(string text)
+    {
+        var added = false;
+        foreach (var value in RoutingValues.Split(text))
+            added |= TryAdd(new RoutingRule { Value = RoutingValues.Clean(value) });
+
+        if (added)
+            Changed();
+    }
+
+    private bool TryAdd(RoutingRule rule)
     {
         if (rule.Target.Length == 0)
-            return;
+            return false;
 
         if (_routing.Rules.Any(r => string.Equals(r.Value, rule.Value, StringComparison.OrdinalIgnoreCase)))
-            return;
+            return false;
 
         _routing.Rules.Insert(0, rule);
-
-        if (notify)
-            Changed();
+        return true;
     }
 
     private void Changed()
     {
-        Rebuild();
-        UpdateNote();
+        Refresh();
         _session.OnRulesChanged();
     }
 
-    private void UpdateNote() =>
-        _tunNote.IsVisible = !_session.Data.Tun && _routing.Rules.Any(r => r.IsProcess);
-
-    private void Rebuild()
+    private void Refresh()
     {
         var empty = _routing.Rules.Count == 0;
         if (empty)
             _routing.ListMode = RoutingMode.AllVpn;
 
-        foreach (var pair in _modes)
-        {
-            pair.Value.Checked = pair.Key == _routing.ListMode;
-            pair.Value.LockedHint = empty && pair.Key != RoutingMode.AllVpn ? L.T("Сначала добавь программу или сайт") : null;
-        }
-
-        _list.Children.Clear();
-        foreach (var rule in _routing.Rules.ToList())
-        {
-            var card = new RuleCard(rule, _routing.ListMode == RoutingMode.AllVpn);
-            card.DeleteClicked += (_, _) =>
-            {
-                _routing.Rules.Remove(rule);
-                Changed();
-            };
-            _list.Children.Add(card);
-        }
-
-        if (_routing.Rules.Count == 0)
-            _list.Children.Add(SettingsParts.Caption(L.T("Список пуст. Добавь программу или сайт")));
+        _modes.Show(_routing.ListMode, !empty);
+        _list.Show(_routing.Rules.ToList(), _routing.ListMode == RoutingMode.AllVpn);
+        UpdateTunNote();
     }
 
-    private void AddMode(StackPanel panel, RoutingMode mode, string title, string subtitle)
-    {
-        var card = new SettingsRadioCard(title, subtitle);
-        card.Selected += (_, _) =>
-        {
-            _routing.ListMode = mode;
-            Changed();
-        };
-        _modes[mode] = card;
-        panel.Children.Add(card);
-    }
+    private void UpdateTunNote() =>
+        _tunStrip.IsVisible = !_session.Data.Tun && _routing.Rules.Any(r => r.IsProcess);
 }

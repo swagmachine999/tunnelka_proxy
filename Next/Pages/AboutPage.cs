@@ -8,14 +8,14 @@ namespace Tunnelka.Next;
 
 public sealed class AboutPage : UserControl
 {
-    private readonly Session _session;
+    private readonly AboutUpdateFlow _updates;
     private Button _check = null!;
     private TextBlock _status = null!;
     private bool _working;
 
     public AboutPage(Session session)
     {
-        _session = session;
+        _updates = new AboutUpdateFlow(session, () => TopLevel.GetTopLevel(this) as Window);
         Build();
     }
 
@@ -39,24 +39,6 @@ public sealed class AboutPage : UserControl
 
     private static Border BuildCard()
     {
-        var mark = new TextBlock
-        {
-            Text = "T",
-            FontSize = 32,
-            FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        var tile = new Border
-        {
-            Width = 64,
-            Height = 64,
-            CornerRadius = new CornerRadius(18),
-            Child = mark
-        };
-        SettingsTheme.Paint(tile, Border.BackgroundProperty, "AccentGradient");
-
         var name = new TextBlock { Text = "Tunnelka", FontSize = 25, FontWeight = FontWeight.Bold };
         var version = new TextBlock
         {
@@ -73,7 +55,7 @@ public sealed class AboutPage : UserControl
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         Grid.SetColumn(texts, 1);
-        grid.Children.Add(tile);
+        grid.Children.Add(new BrandTile(64));
         grid.Children.Add(texts);
 
         var card = Ui.Card(grid);
@@ -94,63 +76,12 @@ public sealed class AboutPage : UserControl
         status.Text = L.T("Проверяю…");
         try
         {
-            var update = await UpdateService.CheckAsync(_session.ProxyPort);
-            if (update == null)
-            {
-                status.Text = L.F("У вас последняя версия {0}", UpdateService.Current.ToString(3));
-                return;
-            }
-
-            status.Text = L.F("Доступна версия {0}", update.Version.ToString(3));
-            ShowUpdate(update);
-        }
-        catch (Exception ex)
-        {
-            status.Text = L.F("Не удалось проверить: {0}", ex.Message);
+            status.Text = await _updates.CheckAsync();
         }
         finally
         {
             _working = false;
             check.IsEnabled = true;
-        }
-    }
-
-    private void ShowUpdate(UpdateInfo update)
-    {
-        var dialog = new PromptDialog(
-            L.T("Доступна новая версия"),
-            L.F("Tunnelka {0}. Скачать и установить сейчас?", update.Version.ToString(3)),
-            L.T("Да"),
-            L.T("Нет"),
-            _session.Data.UiScale);
-        dialog.Declined += () => dialog.Close();
-        dialog.Accepted += async () => await Install(dialog, update);
-        if (TopLevel.GetTopLevel(this) is Window owner)
-            dialog.Show(owner);
-        else
-            dialog.Show();
-    }
-
-    private async Task Install(PromptDialog dialog, UpdateInfo update)
-    {
-        if (update.DownloadUrl.Length == 0)
-        {
-            UpdateService.OpenPage(update.PageUrl);
-            dialog.Close();
-            return;
-        }
-
-        try
-        {
-            dialog.ShowProgress(0);
-            var progress = new Progress<int>(dialog.ShowProgress);
-            var path = await UpdateService.DownloadAsync(update, _session.ProxyPort, progress);
-            UpdateService.RunInstaller(path);
-            _session.RequestExit();
-        }
-        catch (Exception ex)
-        {
-            dialog.ShowError(L.F("Не удалось обновить: {0}", ex.Message));
         }
     }
 }

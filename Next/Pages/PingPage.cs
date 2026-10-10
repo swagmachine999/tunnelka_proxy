@@ -6,7 +6,7 @@ namespace Tunnelka.Next;
 
 public sealed class PingPage : UserControl
 {
-    public const string RealPingDefault = "https://www.gstatic.com/generate_204";
+    private const string RealPingDefault = "https://www.gstatic.com/generate_204";
 
     private readonly Session _session;
     private readonly SettingsSegmented _mode;
@@ -21,6 +21,7 @@ public sealed class PingPage : UserControl
         _mode = new SettingsSegmented(double.NaN, L.T("Реальный (via proxy)"), L.T("Быстрый (TCP)"));
         _mode.Select(data.RealPing ? 0 : 1);
         _mode.Height = 40;
+        _mode.Margin = new Thickness(0, 0, 0, 8);
 
         _url = new TextBox
         {
@@ -37,11 +38,11 @@ public sealed class PingPage : UserControl
 
         panel.Children.Add(SettingsParts.Caption(L.T("Тип пинга")));
         panel.Children.Add(_mode);
-        panel.Children.Add(new Border { Height = 8 });
         panel.Children.Add(SettingsParts.Paragraph(L.T("Быстрый: проверяет только, открыт ли порт сервера. Мгновенно, но может показать пинг у сервера, через который VPN не работает.")));
         panel.Children.Add(SettingsParts.Paragraph(L.T("Реальный: запрос идёт через сам сервер, как при работе VPN. Делается два запроса, берётся лучший. Нерабочий сервер покажет n/a.")));
-        panel.Children.Add(new Border { Height = 10 });
-        panel.Children.Add(SettingsParts.Caption(L.T("Тестовый адрес для реального пинга")));
+        var urlCaption = SettingsParts.Caption(L.T("Тестовый адрес для реального пинга"));
+        urlCaption.Margin = new Thickness(2, 18, 0, 6);
+        panel.Children.Add(urlCaption);
         panel.Children.Add(_url);
         panel.Children.Add(reset);
 
