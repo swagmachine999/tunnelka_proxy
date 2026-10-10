@@ -134,11 +134,18 @@ jobs:
           name: ${{ env.SETUP_NAME }}
           path: ${{ env.SETUP_NAME }}
 
+      - name: Stable file names
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          Copy-Item $env:SETUP_NAME Tunnelka-Setup.exe
+          Copy-Item $env:ZIP_NAME Tunnelka-Portable.zip
+
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.SETUP_NAME }}
-            ${{ env.ZIP_NAME }}
+            Tunnelka-Setup.exe
+            Tunnelka-Portable.zip
           generate_release_notes: true
