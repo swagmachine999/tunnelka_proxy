@@ -34,7 +34,6 @@ internal static class Program
         using var instance = new Mutex(false, "Tunnelka.SingleInstance");
         if (!Acquire(instance, Connect || args.Contains("--elevated") ? 10000 : 0))
         {
-            Trace.Write("mutex busy");
             Console.Error.WriteLine(L.T("Tunnelka уже запущена. Её значок — рядом с часами."));
             return;
         }
@@ -51,7 +50,6 @@ internal static class Program
         };
 
         ConnectionService.CleanUpAfterCrash();
-        Trace.Write("start " + string.Join(' ', args));
         try
         {
             BuildApp().StartWithClassicDesktopLifetime(args);
@@ -64,7 +62,6 @@ internal static class Program
         }
         finally
         {
-            Trace.Write("main end");
             instance.ReleaseMutex();
         }
     }
