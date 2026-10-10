@@ -33,7 +33,10 @@ internal static class Program
 
         using var instance = new Mutex(false, "Tunnelka.SingleInstance");
         if (!Acquire(instance, Connect || args.Contains("--elevated") ? 10000 : 0))
+        {
+            Console.Error.WriteLine(L.T("Tunnelka уже запущена. Её значок — рядом с часами."));
             return;
+        }
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
@@ -47,8 +50,20 @@ internal static class Program
         };
 
         ConnectionService.CleanUpAfterCrash();
-        BuildApp().StartWithClassicDesktopLifetime(args);
-        instance.ReleaseMutex();
+        try
+        {
+            BuildApp().StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write(ex);
+            Console.Error.WriteLine(ex);
+            throw;
+        }
+        finally
+        {
+            instance.ReleaseMutex();
+        }
     }
 
     public static AppBuilder BuildApp() =>
