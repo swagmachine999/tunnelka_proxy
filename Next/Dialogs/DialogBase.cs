@@ -34,14 +34,18 @@ public abstract class DialogBase : Window
         };
     }
 
-    protected Task Present(Window? owner)
+    protected Task Present(Window? owner, bool modal = true)
     {
         var done = new TaskCompletionSource();
         Closed += (_, _) => done.TrySetResult();
-        if (owner is { IsVisible: true })
+        ApplyScale();
+        if (owner is { IsVisible: true, WindowState: not WindowState.Minimized })
         {
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
-            _ = ShowDialog(owner);
+            if (modal)
+                _ = ShowDialog(owner);
+            else
+                Show(owner);
         }
         else
         {
@@ -50,6 +54,21 @@ public abstract class DialogBase : Window
         }
 
         return done.Task;
+    }
+
+    private void ApplyScale()
+    {
+        var factor = DialogScale.Factor;
+        if (Content is not Control inner || Math.Abs(factor - 1) < 0.001)
+            return;
+
+        Width *= factor;
+        Content = null;
+        Content = new LayoutTransformControl
+        {
+            LayoutTransform = new ScaleTransform(factor, factor),
+            Child = inner
+        };
     }
 
     protected static TextBlock Heading(string text) => new()

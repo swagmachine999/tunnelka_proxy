@@ -687,9 +687,6 @@ public sealed class Session : IDisposable
 
     public void Shutdown()
     {
-        if (_exiting && Active == null)
-            return;
-
         if (Active != null)
         {
             Data.ResumeAfterRestart = false;

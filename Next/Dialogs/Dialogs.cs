@@ -12,6 +12,8 @@ public sealed class Dialogs : IDialogs
     {
         _owner = owner;
         _tray = tray;
+        SyncScale();
+        tray.Session.ScaleChanged += SyncScale;
     }
 
     public Task<bool> AskCoreDownload(IReadOnlyList<CorePackage> missing) => CoreDownloadDialog.Ask(_owner, missing);
@@ -21,4 +23,6 @@ public sealed class Dialogs : IDialogs
     public Task<bool> AskYesNo(string text) => MessageDialog.Ask(_owner, text);
 
     public void Balloon(string text) => _tray.Balloon(text);
+
+    private void SyncScale() => DialogScale.Percent = _tray.Session.Data.UiScale;
 }

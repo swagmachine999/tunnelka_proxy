@@ -66,36 +66,33 @@ public sealed class StatsPage : UserControl
 
     private Border BuildSelector()
     {
-        var grid = new Grid();
+        var panel = new SegmentPanel();
         for (var i = 0; i < Periods.Length; i++)
         {
-            grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
             var index = i;
             var button = new ToggleButton
             {
                 Classes = { "seg" },
                 CornerRadius = new CornerRadius(9),
-                Padding = new Thickness(0, 7),
+                Padding = new Thickness(8, 0),
                 FontSize = 14.3,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
                 IsChecked = i == _index
             };
             button.Click += (_, _) => Select(index);
-            Grid.SetColumn(button, i);
-            grid.Children.Add(button);
+            panel.Children.Add(button);
             _segments.Add(button);
         }
 
-        var border = new Border
+        return new Border
         {
             Classes = { "card" },
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(4),
             Margin = new Thickness(0),
-            Child = grid
+            Child = panel
         };
-        return border;
     }
 
     private void Select(int index)

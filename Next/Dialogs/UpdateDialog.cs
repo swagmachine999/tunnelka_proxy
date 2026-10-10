@@ -27,11 +27,8 @@ public sealed class UpdateDialog : DialogBase
 
     public static void Show(Window? owner, UpdateInfo update, Func<int?> proxyPort)
     {
-        var dialog = new UpdateDialog(update, proxyPort)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterScreen
-        };
-        dialog.Show();
+        var dialog = new UpdateDialog(update, proxyPort);
+        _ = dialog.Present(owner, false);
         dialog.Activate();
     }
 
