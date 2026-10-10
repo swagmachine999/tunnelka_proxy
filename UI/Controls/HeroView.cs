@@ -371,16 +371,16 @@ public class HeroView : ThemedControl
         if (_connecting)
         {
             DrawSpinner(g, body);
-            DrawSpaced(g, L.T("ПОДКЛЮЧЕНИЕ"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
+            DrawSpaced(g, L.T("Подключение"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
         }
         else if (_connected)
         {
-            DrawSpaced(g, L.T("ПОДКЛЮЧЕНО"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.6f);
+            DrawSpaced(g, L.T("Подключено"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.6f);
             DrawTimer(g, cx, r.Y + r.Height * 0.6f + 12, Theme.AccentStrong);
         }
         else
         {
-            DrawSpaced(g, L.T("ОТКЛЮЧЕНО"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
+            DrawSpaced(g, L.T("Отключено"), Theme.Status, Theme.TextMuted, cx, r.Y + r.Height * 0.64f);
         }
     }
 
@@ -398,7 +398,7 @@ public class HeroView : ThemedControl
 
     private void DrawSpaced(Graphics g, string text, Font font, Color color, float cx, float cy)
     {
-        const float tracking = 1.6f;
+        const float tracking = 0.3f;
         var key = text + Theme.S;
         if (!_spacedWidths.TryGetValue(key, out var widths))
         {
