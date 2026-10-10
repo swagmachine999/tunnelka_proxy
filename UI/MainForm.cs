@@ -28,42 +28,34 @@ public class MainForm : Form, IMessageFilter
         Visible = true
     };
 
-    private readonly HeroView _hero = new() { Dock = DockStyle.Fill };
-    private readonly TipBubble _tip = new();
+    private HeroView _hero = null!;
+    private TipBubble _tip = null!;
     private const int WmDpiChanged = 0x02E0;
     private const int MinDesignWidth = 920;
     private const float MiddleShare = 0.4f;
     private const int MiddleMin = 440;
     private const int MiddleMax = 600;
 
-    private readonly Panel _middle = new() { Dock = DockStyle.Left, Width = Theme.Px(490), Padding = Theme.Px(20, 20, 12, 10) };
+    private Panel _middle = null!;
     private readonly Dictionary<IconKind, Control> _pages = new();
     private readonly List<IconButton> _navButtons = new();
 
-    private readonly SearchBox _search = new() { Dock = DockStyle.Top };
-    private readonly Label _countLabel = new()
-    {
-        Dock = DockStyle.Top,
-        Height = Theme.Px(34),
-        Font = Theme.Scaled(Theme.CaptionBold),
-        TextAlign = ContentAlignment.MiddleLeft
-    };
+    private SearchBox _search = null!;
+    private Label _countLabel = null!;
 
-    private readonly ServerListView _list;
+    private ServerListView _list = null!;
 
-    private readonly LogPage _logPage;
-    private readonly RoutingPage _routingPage;
-    private readonly SettingsPage _settingsPage;
-    private readonly PingPage _pingPage;
-    private readonly InterfacePage _interfacePage;
-    private readonly StatsPage _statsPage;
-    private readonly OverlayPage _overlayPage;
-    private readonly AdvancedPage _advancedPage;
+    private LogPage _logPage = null!;
+    private RoutingPage _routingPage = null!;
+    private SettingsPage _settingsPage = null!;
+    private PingPage _pingPage = null!;
+    private InterfacePage _interfacePage = null!;
+    private StatsPage _statsPage = null!;
+    private OverlayPage _overlayPage = null!;
+    private AdvancedPage _advancedPage = null!;
     private readonly KillSwitch _killSwitch;
-    private bool _handedOff;
     private bool _reloadPending;
-    private bool _resumed;
-    private readonly AboutPage _aboutPage;
+    private AboutPage _aboutPage = null!;
     private readonly OverlayController _overlay;
     private readonly UpdateWatcher _updates;
 
@@ -80,28 +72,22 @@ public class MainForm : Form, IMessageFilter
 
     private readonly System.Windows.Forms.Timer _scaleDelay = new() { Interval = 350 };
 
-    public event EventHandler? ReloadRequested;
-
-    public MainForm(bool reconnect = false, IconKind startPage = IconKind.Servers, Rectangle? bounds = null, FormWindowState state = FormWindowState.Normal, bool startHidden = false, SessionHandoff? handoff = null)
+    public MainForm(bool reconnect = false, bool startHidden = false)
     {
-        _log = handoff?.Log ?? new AppLog();
+        _log = new AppLog();
         _settings = new Settings(_log);
         Data.AutoStart = Autostart.IsEnabled();
-        _connection = handoff?.Connection ?? new ConnectionService(_log);
+        _connection = new ConnectionService(_log);
         _subscriptions = new SubscriptionService(_settings, _log, ProxyPort);
         _autos = new AutoServers(_settings, _subscriptions);
-        _list = new ServerListView(_subscriptions);
         _pinger = new PingService(_settings);
         _trafficTracker = new TrafficTracker(_settings);
         _history = new TrafficHistory(_settings);
-        _statsPage = new StatsPage(_history, Data.StatsPeriod);
 
         Theme.Use(Data.DarkTheme);
 
         Text = "Tunnelka";
-        var screen = Screen.PrimaryScreen?.WorkingArea.Size ?? new Size(1920, 1080);
-        ClientSize = new Size(Math.Min(Theme.Px(1233), screen.Width - 40), Math.Min(Theme.Px(HeroView.RequiredHeight + 5), screen.Height - 60));
-        MinimumSize = SizeFromClientSize(new Size(Math.Min(Theme.Px(MinDesignWidth), screen.Width - 40), Math.Min(Theme.Px(HeroView.RequiredHeight), screen.Height - 60)));
+        FitWindowSize();
         StartPosition = FormStartPosition.CenterScreen;
         Font = Theme.Scaled(Theme.Body);
         KeyPreview = true;
@@ -109,20 +95,14 @@ public class MainForm : Form, IMessageFilter
         Theme.Bind(this, () => Theme.Window);
 
         _log.Written += Log;
-        _logPage = new LogPage(() => ShowPage(IconKind.Settings));
-        _routingPage = new RoutingPage(Data.Routing, () => ShowPage(IconKind.Settings));
-        _routingPage.SetTunMode(Data.Tun);
-        _settingsPage = new SettingsPage(Data.SpeedInterval, Data.RealPing, Data.AutoStart, Data.ConnectOnStart);
-        _advancedPage = new AdvancedPage(Data.Tun, Data.KillSwitch, Data.RefreshOnStart, Data.PingOnStart, () => ShowPage(IconKind.Settings));
-        _killSwitch = handoff?.KillSwitch ?? new KillSwitch(_log);
-        _interfacePage = new InterfacePage(Data.DarkTheme, Data.UiScale, Data.Language, () => ShowPage(IconKind.Settings));
-        _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
-        _overlayPage = new OverlayPage(Data.Overlay, () => ShowPage(IconKind.Settings));
-        _aboutPage = new AboutPage(ProxyPort);
+        _killSwitch = new KillSwitch(_log);
         _overlay = new OverlayController(Data.Overlay, ProxyPort, () => Data.PingUrl, LossTarget);
+        _overlay.VisibilityChanged += (_, _) => _overlayPage.ShowToggle.Checked = _overlay.IsShown;
         _updates = new UpdateWatcher(ProxyPort);
 
-        BuildLayout();
+        CreateUi();
+        ShowRestoredState();
+        ShowPage(IconKind.Servers);
 
         _tray.MouseClick += (_, e) =>
         {
@@ -133,39 +113,13 @@ public class MainForm : Form, IMessageFilter
             WindowState = FormWindowState.Normal;
             Activate();
         };
-        _tray.ContextMenuStrip.Items.Add(L.T("Выход"), null, (_, _) =>
-        {
-            _exiting = true;
-            Close();
-        });
+        FillTrayMenu();
 
-        _list.ServerSelected += Select;
-        _list.ServerConnectRequested += server =>
-        {
-            Select(server);
-            Connect();
-        };
-        _list.ServerDeleteRequested += Delete;
-        _list.SubscriptionRefreshRequested += async url => await RefreshSubscription(url);
-        _list.SubscriptionPingRequested += async url => await PingSubscription(url);
-        _list.SubscriptionDeleteRequested += DeleteSubscription;
-        _list.PasteRequested += (_, _) => PasteFromClipboard();
-        _list.AddRequested += (_, _) => ShowAddDialog();
         _autoUpdate.Tick += async (_, _) => await RefreshDueSubscriptions();
         _autoUpdate.Start();
         _startHidden = startHidden;
         Shown += async (_, _) => await StartUp(reconnect);
 
-        _hero.Tun = Data.Tun;
-        _hero.PowerClicked += (_, _) => ToggleConnection();
-        _hero.PingClicked += async (_, _) => await PingCurrent();
-        _hero.RefreshClicked += async (_, _) => await RefreshCurrentSubscription();
-        _hero.ModeSelected += SetMode;
-        WireSettings();
-        WireOverlay();
-        _routingPage.RulesChanged += (_, _) => OnRulesChanged();
-        _routingPage.ReconnectRequested += (_, _) => Reconnect();
-        _search.QueryChanged += (_, _) => _list.Filter(_search.Query);
         _clock.Tick += (_, _) => UpdateClock();
         _traffic.Updated += OnTraffic;
         _connection.Exited += OnCoreExited;
@@ -173,7 +127,6 @@ public class MainForm : Form, IMessageFilter
         KeyDown += OnKeyDown;
         Resize += (_, _) => FitMiddle();
         ResizeEnd += (_, _) => CheckDisplayScale();
-        FitMiddle();
         FormClosing += (_, e) =>
         {
             if (e.CloseReason == CloseReason.ApplicationExitCall && _active != null)
@@ -189,8 +142,7 @@ public class MainForm : Form, IMessageFilter
                 return;
             }
 
-            if (!_handedOff)
-                Disconnect(true);
+            Disconnect(true);
         };
         Application.AddMessageFilter(this);
         FormClosed += (_, _) =>
@@ -204,29 +156,9 @@ public class MainForm : Form, IMessageFilter
             _traffic.Dispose();
             _overlay.Dispose();
             _updates.Dispose();
-            if (!_handedOff)
-                _connection.Dispose();
+            _connection.Dispose();
         };
 
-        _selected = RestoreSelection();
-        RebuildList();
-        UpdateHero();
-        ShowPage(startPage);
-        if (handoff != null)
-            Resume(handoff);
-
-        if (bounds != null)
-        {
-            StartPosition = FormStartPosition.Manual;
-            Bounds = bounds.Value;
-            WindowState = state;
-        }
-
-        _interfacePage.ScaleSelector.ValueChanged += (_, _) =>
-        {
-            _scaleDelay.Stop();
-            _scaleDelay.Start();
-        };
         _scaleDelay.Tick += (_, _) =>
         {
             _scaleDelay.Stop();
@@ -234,7 +166,149 @@ public class MainForm : Form, IMessageFilter
             Save();
             RequestReload();
         };
+    }
 
+    private void FillTrayMenu()
+    {
+        _tray.ContextMenuStrip!.Items.Clear();
+        _tray.ContextMenuStrip.Items.Add(L.T("Выход"), null, (_, _) =>
+        {
+            _exiting = true;
+            Close();
+        });
+    }
+
+    private void FitWindowSize()
+    {
+        var screen = Screen.PrimaryScreen?.WorkingArea.Size ?? new Size(1920, 1080);
+        ClientSize = new Size(Math.Min(Theme.Px(1233), screen.Width - 40), Math.Min(Theme.Px(HeroView.RequiredHeight + 5), screen.Height - 60));
+        MinimumSize = SizeFromClientSize(new Size(Math.Min(Theme.Px(MinDesignWidth), screen.Width - 40), Math.Min(Theme.Px(HeroView.RequiredHeight), screen.Height - 60)));
+    }
+
+    private void CreateUi()
+    {
+        _hero = new HeroView { Dock = DockStyle.Fill };
+        _tip = new TipBubble();
+        _middle = new Panel { Dock = DockStyle.Left, Width = Theme.Px(490), Padding = Theme.Px(20, 20, 12, 10) };
+        _search = new SearchBox { Dock = DockStyle.Top };
+        _countLabel = new Label
+        {
+            Dock = DockStyle.Top,
+            Height = Theme.Px(34),
+            Font = Theme.Scaled(Theme.CaptionBold),
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+        _list = new ServerListView(_subscriptions);
+        _statsPage = new StatsPage(_history, Data.StatsPeriod);
+        _logPage = new LogPage(() => ShowPage(IconKind.Settings));
+        _routingPage = new RoutingPage(Data.Routing, () => ShowPage(IconKind.Settings));
+        _routingPage.SetTunMode(Data.Tun);
+        _settingsPage = new SettingsPage(Data.SpeedInterval, Data.RealPing, Data.AutoStart, Data.ConnectOnStart);
+        _advancedPage = new AdvancedPage(Data.Tun, Data.KillSwitch, Data.RefreshOnStart, Data.PingOnStart, () => ShowPage(IconKind.Settings));
+        _interfacePage = new InterfacePage(Data.DarkTheme, Data.UiScale, Data.Language, () => ShowPage(IconKind.Settings));
+        _pingPage = new PingPage(Data.RealPing, Data.PingUrl, () => ShowPage(IconKind.Settings));
+        _overlayPage = new OverlayPage(Data.Overlay, () => ShowPage(IconKind.Settings));
+        _aboutPage = new AboutPage(ProxyPort);
+
+        _navButtons.Clear();
+        _pages.Clear();
+        BuildLayout();
+
+        _list.ServerSelected += Select;
+        _list.ServerConnectRequested += server =>
+        {
+            Select(server);
+            Connect();
+        };
+        _list.ServerDeleteRequested += Delete;
+        _list.SubscriptionRefreshRequested += async url => await RefreshSubscription(url);
+        _list.SubscriptionPingRequested += async url => await PingSubscription(url);
+        _list.SubscriptionDeleteRequested += DeleteSubscription;
+        _list.PasteRequested += (_, _) => PasteFromClipboard();
+        _list.AddRequested += (_, _) => ShowAddDialog();
+
+        _hero.Tun = Data.Tun;
+        _hero.PowerClicked += (_, _) => ToggleConnection();
+        _hero.PingClicked += async (_, _) => await PingCurrent();
+        _hero.RefreshClicked += async (_, _) => await RefreshCurrentSubscription();
+        _hero.ModeSelected += SetMode;
+        WireSettings();
+        WireOverlay();
+        _routingPage.RulesChanged += (_, _) => OnRulesChanged();
+        _routingPage.ReconnectRequested += (_, _) => Reconnect();
+        _search.QueryChanged += (_, _) => _list.Filter(_search.Query);
+        _interfacePage.ScaleSelector.ValueChanged += (_, _) =>
+        {
+            _scaleDelay.Stop();
+            _scaleDelay.Start();
+        };
+        FitMiddle();
+    }
+
+    private void ShowRestoredState()
+    {
+        _selected = RestoreSelection();
+        RebuildList();
+        foreach (var line in _log.Recent())
+            _logPage.Append(line);
+
+        if (_active != null && _connection.IsRunning)
+        {
+            _hero.SetSpeed(ServerText.Bytes(0) + L.T("/с"), ServerText.Bytes(0) + L.T("/с"));
+            _hero.Connected = true;
+            _statsPage.SetSpeed(0, 0, true);
+            UpdateClock();
+            UpdateCards();
+        }
+
+        UpdateHero();
+    }
+
+    private void ReloadUi()
+    {
+        var page = CurrentPage;
+        var query = _search.Query;
+        var wasMaximized = WindowState == FormWindowState.Maximized;
+        var bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+        var previous = Theme.User;
+
+        _scaleDelay.Stop();
+        Theme.SetScale(DisplayScale.Of(this), Data.UiScale / 100f);
+        Theme.Use(Data.DarkTheme);
+        L.Use(Data.Language);
+
+        SuspendLayout();
+        try
+        {
+            foreach (var old in Controls.Cast<Control>().ToList())
+            {
+                Controls.Remove(old);
+                old.Dispose();
+            }
+
+            Font = Theme.Scaled(Theme.Body);
+            FitWindowSize();
+            if (!wasMaximized)
+            {
+                bounds = WindowResize.Scale(bounds, Theme.User / previous, Screen.FromRectangle(bounds).WorkingArea);
+                Bounds = bounds;
+            }
+
+            CreateUi();
+            ShowRestoredState();
+            ShowPage(page);
+            if (query.Length > 0)
+                _search.SetText(query);
+            FillTrayMenu();
+        }
+        finally
+        {
+            ResumeLayout(true);
+        }
+
+        ApplyNativeTheme();
+        _overlay.Redraw();
+        Invalidate(true);
     }
 
     protected override void WndProc(ref Message m)
@@ -267,7 +341,7 @@ public class MainForm : Form, IMessageFilter
             return;
         }
 
-        ReloadRequested?.Invoke(this, EventArgs.Empty);
+        ReloadUi();
     }
 
     private void RunPendingReload()
@@ -277,47 +351,6 @@ public class MainForm : Form, IMessageFilter
 
         _reloadPending = false;
         RequestReload();
-    }
-
-    public SessionHandoff TakeSession()
-    {
-        Save();
-        _handedOff = true;
-        _exiting = true;
-        _clock.Stop();
-        _traffic.Stop();
-        _log.Written -= Log;
-        _connection.Exited -= OnCoreExited;
-        _connection.Warning -= OnCoreWarning;
-        return new SessionHandoff(_log, _connection, _killSwitch, _active?.Link ?? "", _connectedAt);
-    }
-
-    private void Resume(SessionHandoff handoff)
-    {
-        _resumed = true;
-        foreach (var line in _log.Recent())
-            _logPage.Append(line);
-
-        var server = handoff.ActiveLink.Length == 0 ? null : Data.Servers.FirstOrDefault(s => s.Link == handoff.ActiveLink);
-        if (server == null || !_connection.IsRunning)
-        {
-            if (_connection.IsRunning)
-                Disconnect(true);
-            return;
-        }
-
-        _active = server;
-        _connectedAt = handoff.ConnectedAt;
-        _trafficTracker.Reset();
-        _hero.SetSpeed(ServerText.Bytes(0) + L.T("/с"), ServerText.Bytes(0) + L.T("/с"));
-        _hero.Connected = true;
-        _overlay.SetConnected(true);
-        _clock.Start();
-        UpdateClock();
-        _statsPage.SetSpeed(0, 0, true);
-        _traffic.Start();
-        UpdateCards();
-        UpdateHero();
     }
 
     private void OnCoreWarning(string text) =>
@@ -1118,8 +1151,7 @@ public class MainForm : Form, IMessageFilter
         if (_active == null && (reconnect || resume || Data.ConnectOnStart))
             Connect();
         _updates.Start();
-        if (!_resumed)
-            await RunStartupTasks();
+        await RunStartupTasks();
     }
 
     private async Task RunStartupTasks()
@@ -1293,7 +1325,6 @@ public class MainForm : Form, IMessageFilter
             if (_overlayPage.ShowToggle.Checked != _overlay.IsShown)
                 _overlay.Toggle();
         };
-        _overlay.VisibilityChanged += (_, _) => _overlayPage.ShowToggle.Checked = _overlay.IsShown;
     }
 
     private (string Host, int Port)? LossTarget() => _active is { } s ? (s.Address, s.Port) : null;
