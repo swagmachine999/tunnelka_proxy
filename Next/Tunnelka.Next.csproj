@@ -23,6 +23,8 @@
 
   <ItemGroup>
     <AvaloniaResource Include="..\Assets\tunnelka.ico" Link="Assets\tunnelka.ico" />
+    <AvaloniaResource Include="..\Assets\Flags\*.png" Link="Assets\Flags\%(Filename)%(Extension)" />
+    <AvaloniaResource Include="..\Assets\emoji.zip" Link="Assets\emoji.zip" />
   </ItemGroup>
 
   <ItemGroup>
