@@ -106,7 +106,7 @@
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
-    <Style Selector="Border.card">
+    <Style Selector=":is(Border).card">
       <Setter Property="CornerRadius" Value="12" />
       <Setter Property="Padding" Value="16,12" />
       <Setter Property="Margin" Value="0,0,0,8" />
@@ -192,7 +192,7 @@
       <Setter Property="TextElement.Foreground" Value="White" />
     </Style>
 
-    <Style Selector="Border.clickable:pointerover">
+    <Style Selector=":is(Border).clickable:pointerover">
       <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
     </Style>
 
