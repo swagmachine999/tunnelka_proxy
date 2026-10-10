@@ -1,3 +1,4 @@
+using Avalonia.Controls.Shapes;
 using Avalonia.Media.Imaging;
 using Avalonia;
 using Avalonia.Controls;
@@ -6,21 +7,33 @@ using Avalonia.Threading;
 
 namespace Tunnelka.Desktop;
 
-public sealed class ServerBusyDots : Control
+public sealed class ServerBusyDots : Canvas
 {
-    private const double Size = 6;
+    private const double Size = 7.5;
+    private const double Step = Size * 1.85;
 
     private readonly DispatcherTimer _frame = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly DateTime _start = DateTime.Now;
+    private readonly Ellipse[] _dots = new Ellipse[3];
     private bool _running;
 
     public ServerBusyDots()
     {
-        Width = 30;
+        Width = 36;
         Height = 24;
         IsHitTestVisible = false;
-        _frame.Tick += (_, _) => InvalidateVisual();
-        ActualThemeVariantChanged += (_, _) => InvalidateVisual();
+        RenderOptions.SetEdgeMode(this, EdgeMode.Antialias);
+        for (var i = 0; i < _dots.Length; i++)
+        {
+            _dots[i] = new Ellipse { Width = Size, Height = Size };
+            SetLeft(_dots[i], i * Step);
+            Children.Add(_dots[i]);
+        }
+
+        Recolor();
+        Tick();
+        _frame.Tick += (_, _) => Tick();
+        ActualThemeVariantChanged += (_, _) => Recolor();
     }
 
     public bool Running
@@ -44,6 +57,7 @@ public sealed class ServerBusyDots : Control
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        Recolor();
         Update();
     }
 
@@ -53,19 +67,23 @@ public sealed class ServerBusyDots : Control
         _frame.Stop();
     }
 
-    public override void Render(DrawingContext context)
+    private void Recolor()
     {
-        var time = (DateTime.Now - _start).TotalSeconds;
         var accent = Ui.Color(this, "AccentColor");
         var pink = Ui.Color(this, "PinkColor");
-        var step = Size * 1.85;
-        var cy = Bounds.Height / 2;
-        for (var i = 0; i < 3; i++)
+        for (var i = 0; i < _dots.Length; i++)
+            _dots[i].Fill = new SolidColorBrush(i == 1 ? pink : accent);
+    }
+
+    private void Tick()
+    {
+        var time = (DateTime.Now - _start).TotalSeconds;
+        var middle = Height / 2 - Size / 2;
+        for (var i = 0; i < _dots.Length; i++)
         {
             var phase = Math.Max(0, Math.Sin(time * 6 - i * 0.9));
-            var color = Color.FromArgb((byte)(170 + 85 * phase), i == 1 ? pink.R : accent.R, i == 1 ? pink.G : accent.G, i == 1 ? pink.B : accent.B);
-            var center = new Point(i * step + Size / 2, cy - phase * Size * 0.55);
-            context.DrawEllipse(new SolidColorBrush(color), null, center, Size / 2, Size / 2);
+            _dots[i].Opacity = (170 + 85 * phase) / 255;
+            SetTop(_dots[i], middle - phase * Size * 0.55);
         }
     }
 }

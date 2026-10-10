@@ -13,7 +13,6 @@ AppPublisher=Tunnelka
 VersionInfoVersion={#AppVersion}
 DefaultDirName={autopf}\Tunnelka
 DisableProgramGroupPage=yes
-DisableDirPage=yes
 PrivilegesRequired=admin
 OutputDir=..\dist
 OutputBaseFilename=Tunnelka-Setup-{#AppVersion}
@@ -149,6 +148,20 @@ begin
   RegWriteMultiStringValue(HKLM, 'SYSTEM\CurrentControlSet\Services\' + ServiceName, 'Environment',
     'DOTNET_BUNDLE_EXTRACT_BASE_DIR=' + Data + '\runtime');
   RunHidden(ExpandConstant('{sys}\icacls.exe'), '"' + Data + '" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F');
+  RunHidden(ExpandConstant('{sys}\icacls.exe'), '"' + ExpandConstant('{app}') + '" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX');
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Dir: String;
+begin
+  Result := True;
+  if CurPageID = wpSelectDir then
+  begin
+    Dir := RemoveBackslashUnlessRoot(WizardDirValue);
+    if Length(Dir) <= 3 then
+      WizardForm.DirEdit.Text := AddBackslash(Dir) + 'Tunnelka';
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
