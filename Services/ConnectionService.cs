@@ -43,6 +43,12 @@ public sealed class ConnectionService : IDisposable
 
     public bool IsRunning => _xray.IsRunning;
 
+    public string DescribeExit() =>
+        L.F("Xray: {0}; sing-box: {1}", DescribeCore(_xray.IsRunning, _xray.ExitCode), DescribeCore(_serviceTun.IsRunning || _localTun.IsRunning, _serviceTun.ExitCode ?? _localTun.ExitCode));
+
+    private static string DescribeCore(bool running, int? exitCode) =>
+        running ? L.T("работает") : exitCode is { } code ? L.F("завершился, код {0}", code) : L.T("не запущен");
+
     public async Task<ConnectResult> StartAsync(ProxyServer server, bool tun, RoutingSettings routing)
     {
         await _gate.WaitAsync();

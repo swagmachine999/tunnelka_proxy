@@ -658,6 +658,7 @@ public sealed class Session : IDisposable
             return;
 
         Log.Write(L.T("Ядро VPN завершилось. Причина обычно видна в строках выше"));
+        Log.Write(Connection.DescribeExit());
         var blocked = KillSwitch.IsEngaged;
         Disconnect(keepKillSwitch: blocked);
         ShowLogRequested?.Invoke();
