@@ -4,6 +4,11 @@ namespace Tunnelka.Next;
 
 public sealed class GlobalHotkey : IDisposable
 {
+    public const int ShiftFlag = 0x10000;
+    public const int ControlFlag = 0x20000;
+    public const int AltFlag = 0x40000;
+    public const int KeyMask = 0xFFFF;
+
     private const int HotkeyMessage = 0x0312;
     private const int HotkeyId = 1;
     private const uint Alt = 0x1;
@@ -24,16 +29,16 @@ public sealed class GlobalHotkey : IDisposable
     public bool Set(int keys)
     {
         Clear();
-        var key = keys & SettingsHotkeyBox.KeyMask;
+        var key = keys & KeyMask;
         if (key == 0 || _window.Handle == IntPtr.Zero)
             return false;
 
         var modifiers = NoRepeat;
-        if ((keys & SettingsHotkeyBox.ControlFlag) != 0)
+        if ((keys & ControlFlag) != 0)
             modifiers |= Control;
-        if ((keys & SettingsHotkeyBox.AltFlag) != 0)
+        if ((keys & AltFlag) != 0)
             modifiers |= Alt;
-        if ((keys & SettingsHotkeyBox.ShiftFlag) != 0)
+        if ((keys & ShiftFlag) != 0)
             modifiers |= Shift;
 
         _registered = RegisterHotKey(_window.Handle, HotkeyId, modifiers, (uint)key);
