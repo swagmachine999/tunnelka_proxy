@@ -180,7 +180,7 @@ public sealed class SubscriptionRow : ListRow
         DrawChevron(g, Pad + 4, 17, Info.Collapsed);
 
         var titleParts = ServerText.Parts(Info.Title, Info.Title);
-        NamePainter.Draw(g, titleParts, Theme.CardTitle, Theme.Text, new RectangleF(Pad + 16, 5, x - Pad - 20, 24));
+        NamePainter.Draw(g, titleParts, Theme.ProviderTitle, Theme.Text, new RectangleF(Pad + 16, 5, x - Pad - 20, 24));
         DrawSubline(g, new RectangleF(Pad + 16, 28, x - Pad - 20, 16));
 
         if (!HasDetails)

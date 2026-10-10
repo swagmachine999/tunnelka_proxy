@@ -91,6 +91,7 @@ public static class Theme
     public static readonly Font Body = MakeFont(14);
     public static readonly Font BodyBold = MakeFont(14, FontStyle.Bold);
     public static readonly Font CardTitle = MakeFont(15, FontStyle.Bold);
+    public static readonly Font ProviderTitle = Fonts.Make(Fonts.Bold, 15 * TextBoost, FontStyle.Bold);
     public static readonly Font Caption = MakeFont(13);
     public static readonly Font CaptionBold = MakeFont(13, FontStyle.Bold);
     public static readonly Font Status = Fonts.Make(Fonts.SemiBold, 14f);
