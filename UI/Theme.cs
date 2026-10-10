@@ -108,7 +108,7 @@ public static class Theme
         return Fonts.Make(strong ? Fonts.SemiBold : Fonts.Regular, pixels * TextBoost, style & ~FontStyle.Bold);
     }
 
-    public const float DesignUnit = 0.9f;
+    public const float DesignUnit = 1f;
 
     public static float Base { get; private set; } = 1f;
 
