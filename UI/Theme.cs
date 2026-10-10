@@ -20,7 +20,7 @@ public static class Theme
         Pink = Color.FromArgb(246, 166, 196),
         Mint = Color.FromArgb(110, 206, 164),
         Text = Color.FromArgb(44, 36, 64),
-        TextMuted = Color.FromArgb(108, 98, 134),
+        TextMuted = Color.FromArgb(86, 76, 114),
         HeroTop = Color.FromArgb(253, 241, 248),
         HeroBottom = Color.FromArgb(239, 231, 251),
         PowerOff = Color.White,
@@ -45,7 +45,7 @@ public static class Theme
         Pink = Color.FromArgb(240, 160, 194),
         Mint = Color.FromArgb(110, 214, 168),
         Text = Color.FromArgb(237, 231, 247),
-        TextMuted = Color.FromArgb(150, 140, 172),
+        TextMuted = Color.FromArgb(178, 170, 200),
         HeroTop = Color.FromArgb(40, 30, 50),
         HeroBottom = Color.FromArgb(27, 23, 39),
         PowerOff = Color.FromArgb(44, 38, 58),
@@ -91,8 +91,8 @@ public static class Theme
     public static readonly Font Body = MakeFont(14);
     public static readonly Font BodyBold = MakeFont(14, FontStyle.Bold);
     public static readonly Font CardTitle = MakeFont(15, FontStyle.Bold);
-    public static readonly Font Caption = MakeFont(12);
-    public static readonly Font CaptionBold = MakeFont(12, FontStyle.Bold);
+    public static readonly Font Caption = MakeFont(13);
+    public static readonly Font CaptionBold = MakeFont(13, FontStyle.Bold);
     public static readonly Font Status = Fonts.Make(Fonts.SemiBold, 14f);
     public static readonly Font Timer = Fonts.Make(Fonts.SemiBold, 19);
     public static readonly Font ServerName = MakeFont(17, FontStyle.Bold);
@@ -191,7 +191,7 @@ public static class Theme
     {
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        g.TextRenderingHint = IsDark ? TextRenderingHint.AntiAlias : TextRenderingHint.ClearTypeGridFit;
+        g.TextRenderingHint = IsDark ? TextRenderingHint.AntiAliasGridFit : TextRenderingHint.ClearTypeGridFit;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
     }
 
