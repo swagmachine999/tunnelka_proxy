@@ -5,9 +5,9 @@ namespace Tunnelka.UI;
 
 public static class Fonts
 {
-    public const string Regular = "Onest";
-    public const string SemiBold = "Onest SemiBold";
-    public const string Bold = "Onest Bold";
+    public const string Regular = "Segoe UI";
+    public const string SemiBold = "Segoe UI Semibold";
+    public const string Bold = "Segoe UI";
 
     private static readonly PrivateFontCollection Collection = new();
 
@@ -43,7 +43,7 @@ public static class Fonts
         var loaded = Collection.Families.FirstOrDefault(f => f.Name == family);
         return loaded != null
             ? new Font(loaded, pixels, style, GraphicsUnit.Pixel)
-            : new Font("Segoe UI", pixels, family == Regular ? style : style | FontStyle.Bold, GraphicsUnit.Pixel);
+            : new Font(family, pixels, style, GraphicsUnit.Pixel);
     }
 
     [DllImport("gdi32.dll")]
