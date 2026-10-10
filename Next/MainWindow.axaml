@@ -1,13 +1,18 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:shapes="using:Avalonia.Controls.Shapes"
         x:Class="Tunnelka.Next.MainWindow"
         Title="Tunnelka"
         Icon="/Assets/tunnelka.ico"
-        Width="1233" Height="720" MinWidth="920" MinHeight="560"
+        Width="1233" Height="760" MinWidth="920" MinHeight="600"
         WindowStartupLocation="CenterScreen">
   <LayoutTransformControl x:Name="Scaler">
-    <Grid ColumnDefinitions="68,1.2*,1.4*">
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="68" />
+        <ColumnDefinition Width="0.4*" MinWidth="440" MaxWidth="600" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
       <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="10" Margin="12,18,12,0">
@@ -21,8 +26,14 @@
             <Button x:Name="ServersButton" Classes="nav active">
               <Path Data="M3,12 A9,9 0 1 0 21,12 A9,9 0 1 0 3,12 M3,12 L21,12 M12,3 C8,7 8,17 12,21 M12,3 C16,7 16,17 12,21" />
             </Button>
+            <Button x:Name="StatsButton" Classes="nav">
+              <Path Data="M3,20 L3,4 M3,20 L21,20 M7,15 L11,10 L14,13 L20,6" />
+            </Button>
           </StackPanel>
           <StackPanel DockPanel.Dock="Bottom" Spacing="10" Margin="12,0,12,18" VerticalAlignment="Bottom">
+            <Button x:Name="AboutButton" Classes="nav">
+              <Path Data="M3,12 A9,9 0 1 0 21,12 A9,9 0 1 0 3,12 M12,11 L12,17 M12,7.5 L12,7.6" />
+            </Button>
             <Button x:Name="SettingsButton" Classes="nav">
               <Path Data="M12,9 A3,3 0 1 0 12,15 A3,3 0 1 0 12,9 M12,2 L12,5 M12,19 L12,22 M2,12 L5,12 M19,12 L22,12 M5,5 L7,7 M17,17 L19,19 M5,19 L7,17 M17,7 L19,5" />
             </Button>
@@ -32,88 +43,10 @@
       </Border>
 
       <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" Padding="22,20,12,10">
-        <Panel>
-          <DockPanel x:Name="ServersPage">
-            <TextBlock x:Name="ServersTitle" DockPanel.Dock="Top" Classes="title" Margin="0,0,0,14" />
-            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
-              <Button x:Name="PasteButton" Classes="soft" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
-              <Button x:Name="PingAllButton" Grid.Column="1" Classes="soft" Margin="8,0,0,0" />
-            </Grid>
-            <TextBlock x:Name="EmptyText" DockPanel.Dock="Top" Classes="muted" Margin="2,6" />
-            <ListBox x:Name="ServerList" Background="Transparent" />
-          </DockPanel>
-
-          <ScrollViewer x:Name="InterfacePage" IsVisible="False">
-            <StackPanel>
-              <TextBlock x:Name="InterfaceTitle" Classes="title" Margin="0,0,0,14" />
-              <Border Classes="card">
-                <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel>
-                    <TextBlock x:Name="LanguageTitle" Classes="rowTitle" />
-                    <TextBlock Classes="muted" Text="Русский · English" />
-                  </StackPanel>
-                  <ComboBox x:Name="LanguageBox" Grid.Column="1" Width="150" VerticalAlignment="Center">
-                    <ComboBoxItem Content="Русский" />
-                    <ComboBoxItem Content="English" />
-                  </ComboBox>
-                </Grid>
-              </Border>
-              <Border Classes="card">
-                <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel>
-                    <TextBlock x:Name="ScaleTitle" Classes="rowTitle" />
-                    <TextBlock x:Name="ScaleHint" Classes="muted" />
-                  </StackPanel>
-                  <ComboBox x:Name="ScaleBox" Grid.Column="1" Width="110" VerticalAlignment="Center" />
-                </Grid>
-              </Border>
-              <Border Classes="card">
-                <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel>
-                    <TextBlock x:Name="DarkTitle" Classes="rowTitle" />
-                    <TextBlock x:Name="DarkHint" Classes="muted" />
-                  </StackPanel>
-                  <ToggleSwitch x:Name="DarkSwitch" Grid.Column="1" OnContent="" OffContent="" />
-                </Grid>
-              </Border>
-            </StackPanel>
-          </ScrollViewer>
-        </Panel>
+        <Panel x:Name="PagesHost" />
       </Border>
 
-      <Border Grid.Column="2" Background="{DynamicResource HeroBrush}">
-        <Grid RowDefinitions="Auto,*,Auto">
-          <Grid Margin="24,22,24,0" ColumnDefinitions="Auto,*,Auto">
-            <Border Padding="14,7" CornerRadius="20" Background="{DynamicResource CardBrush}">
-              <StackPanel Orientation="Horizontal" Spacing="12">
-                <TextBlock x:Name="DownText" />
-                <TextBlock x:Name="UpText" />
-              </StackPanel>
-            </Border>
-            <Border Grid.Column="2" Padding="4" CornerRadius="22" Background="{DynamicResource CardBrush}">
-              <StackPanel Orientation="Horizontal">
-                <ToggleButton x:Name="ProxyMode" Classes="seg" />
-                <ToggleButton x:Name="TunMode" Classes="seg" Content="TUN" />
-              </StackPanel>
-            </Border>
-          </Grid>
-
-          <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
-            <Button x:Name="PowerButton" Classes="power">
-              <StackPanel>
-                <Path Data="M12,3 L12,12 M6.5,6.5 A8.5,8.5 0 1 0 17.5,6.5" Width="44" Height="48" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,10" />
-                <TextBlock x:Name="StatusText" HorizontalAlignment="Center" FontWeight="SemiBold" />
-                <TextBlock x:Name="TimerText" HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource AccentStrongBrush}" />
-              </StackPanel>
-            </Button>
-          </StackPanel>
-
-          <StackPanel Grid.Row="2" Spacing="6" Margin="0,0,0,26" HorizontalAlignment="Center">
-            <TextBlock x:Name="ServerName" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
-            <TextBlock x:Name="PingText" Classes="muted" HorizontalAlignment="Center" />
-          </StackPanel>
-        </Grid>
-      </Border>
+      <Panel x:Name="HeroHost" Grid.Column="2" />
     </Grid>
   </LayoutTransformControl>
 </Window>

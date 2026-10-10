@@ -12,9 +12,8 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var window = new MainWindow(new Session());
-            desktop.MainWindow = window;
             desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnMainWindowClose;
+            desktop.MainWindow = new MainWindow(new Session());
         }
 
         base.OnFrameworkInitializationCompleted();
