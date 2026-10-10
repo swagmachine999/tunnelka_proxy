@@ -25,8 +25,7 @@
 
   <ItemGroup>
     <None Update="core\**" CopyToOutputDirectory="PreserveNewest" />
-    <None Remove="Assets\Fonts\*.ttf;Assets\Flags\*.png;Assets\emoji.zip" />
-    <EmbeddedResource Include="Assets\Fonts\*.ttf" LogicalName="Assets.Fonts.%(Filename)%(Extension)" />
+    <None Remove="Assets\Flags\*.png;Assets\emoji.zip" />
     <EmbeddedResource Include="Assets\Flags\*.png" LogicalName="Assets.Flags.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Assets\emoji.zip" LogicalName="Assets.emoji.zip" />
     <None Update="Assets\**" CopyToOutputDirectory="PreserveNewest" />
