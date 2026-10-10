@@ -8,7 +8,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Tunnelka</AssemblyName>
     <RootNamespace>Tunnelka</RootNamespace>
-    <Version>1.0.9</Version>
+    <Version>1.1.0</Version>
     <ApplicationManifest>Desktop\app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\tunnelka.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>

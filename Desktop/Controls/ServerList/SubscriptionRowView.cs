@@ -145,7 +145,7 @@ public sealed class SubscriptionRowView : Border
         menu.Items.Add(showItem);
         menu.Items.Add(deleteItem);
         ContextMenu = menu;
-        more.Clicked += () => menu.Open(more);
+        more.Clicked += () => menu.Open(this);
 
         Update();
     }
