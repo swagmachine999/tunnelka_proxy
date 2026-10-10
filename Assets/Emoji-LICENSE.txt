@@ -1,4 +1,23 @@
-Twemoji graphics (c) Twitter, Inc and other contributors, https://github.com/jdecked/twemoji
+Emoji images in emoji.zip
+=========================
+
+1. Twemoji 17.0.3 (4009 images)
+   Graphics (c) Twitter, Inc and other contributors, https://github.com/jdecked/twemoji
+   Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0),
+   full text below. Changes: the 72x72 PNG files were resized to 64x64 and
+   reduced to an indexed palette.
+
+2. Noto Emoji (19 images: U+1F6D9, U+1FA8B, U+1FA8C, U+1FA8D, U+1FACC, U+1FADD,
+   U+1FAEB, U+1FAF9 and U+1FAFA with skin tones), which Twemoji does not contain yet.
+   Copyright 2013 Google LLC, https://github.com/googlefonts/noto-emoji
+   Licensed under the Apache License, Version 2.0,
+   https://www.apache.org/licenses/LICENSE-2.0
+   Changes: the 128x128 PNG files were resized to 64x64 and reduced to an indexed palette.
+
+File names follow the Twemoji convention: lowercase hexadecimal code points
+joined with "-", for example 1f680.png or 1f1e9-1f1ea.png.
+
+-----------------------------------------------------------------------
 
 Attribution 4.0 International
 
