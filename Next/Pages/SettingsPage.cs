@@ -4,17 +4,6 @@ using Tunnelka.UI;
 
 namespace Tunnelka.Next;
 
-public enum SettingsSection
-{
-    Root,
-    Interface,
-    Overlay,
-    Advanced,
-    Routing,
-    Log,
-    Ping
-}
-
 public sealed class SettingsPage : UserControl
 {
     private static readonly int[] Intervals = { 1, 2, 3, 5, 10, 15, 30, 60, 300, 600, 1800, 3600 };

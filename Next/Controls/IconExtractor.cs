@@ -5,39 +5,11 @@ using Avalonia.Platform;
 
 namespace Tunnelka.Next;
 
-internal static class SettingsIcons
+internal static class IconExtractor
 {
     private const uint ShgfiIcon = 0x100;
 
-    private static readonly Dictionary<string, Bitmap?> Cache = new(StringComparer.OrdinalIgnoreCase);
-
-    public static Bitmap? Load(string path)
-    {
-        if (path.Length == 0)
-            return null;
-
-        lock (Cache)
-        {
-            if (Cache.TryGetValue(path, out var cached))
-                return cached;
-        }
-
-        Bitmap? bitmap = null;
-        try
-        {
-            if (File.Exists(path))
-                bitmap = Extract(path);
-        }
-        catch (Exception)
-        {
-        }
-
-        lock (Cache)
-            Cache[path] = bitmap;
-        return bitmap;
-    }
-
-    private static Bitmap? Extract(string path)
+    public static Bitmap? Extract(string path)
     {
         var info = new ShFileInfo();
         if (SHGetFileInfo(path, 0, ref info, (uint)Marshal.SizeOf<ShFileInfo>(), ShgfiIcon) == IntPtr.Zero || info.hIcon == IntPtr.Zero)

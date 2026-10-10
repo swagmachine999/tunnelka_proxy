@@ -35,10 +35,18 @@ internal static class SettingsParts
         {
             Content = text,
             Classes = { "soft" },
-            HorizontalContentAlignment = HorizontalAlignment.Center
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
         };
         if (primary)
             button.Classes.Add("accent");
         return button;
+    }
+
+    public static Border Divider()
+    {
+        var line = new Border { Height = 1 };
+        SettingsTheme.Paint(line, Border.BackgroundProperty, "BorderBrush2");
+        return line;
     }
 }

@@ -9,8 +9,7 @@ namespace Tunnelka.Next;
 
 public sealed class RuleCard : Border
 {
-    private const string ProcessGlyph = "M5,4 L19,4 A2,2 0 0 1 21,6 L21,18 A2,2 0 0 1 19,20 L5,20 A2,2 0 0 1 3,18 L3,6 A2,2 0 0 1 5,4 M3,9 L21,9";
-    private const string SiteGlyph = "M3,12 A9,9 0 1 0 21,12 A9,9 0 1 0 3,12 M3,12 L21,12 M12,3 C8,7 8,17 12,21 M12,3 C16,7 16,17 12,21";
+    private const double SlotSize = 28;
 
     public event EventHandler? DeleteClicked;
 
@@ -18,35 +17,48 @@ public sealed class RuleCard : Border
     {
         Rule = rule;
         Classes.Add("card");
-        Padding = new Thickness(14, 10);
+        Padding = new Thickness(16, 10);
+        Margin = new Thickness(0);
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
+        var icon = BuildIcon(rule, dimmed);
+        var name = BuildName(rule, dimmed);
+        var remove = BuildRemove();
+        Grid.SetColumn(name, 1);
+        Grid.SetColumn(remove, 2);
+        grid.Children.Add(icon);
+        grid.Children.Add(name);
+        grid.Children.Add(remove);
+        Child = grid;
+    }
 
-        Control icon;
-        var bitmap = SettingsIcons.Load(rule.IconPath);
+    public RoutingRule Rule { get; }
+
+    private static Control BuildIcon(RoutingRule rule, bool dimmed)
+    {
+        Control content;
+        var bitmap = ExeIcons.Load(rule.IconPath);
         if (bitmap != null)
         {
-            icon = new Image { Source = bitmap, Width = 24, Height = 24 };
+            content = new Image { Source = bitmap, Width = 24, Height = 24, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         }
         else
         {
-            var glyph = new Avalonia.Controls.Shapes.Path
-            {
-                Data = Geometry.Parse(rule.IsProcess ? ProcessGlyph : SiteGlyph),
-                Width = 22,
-                Height = 22,
-                Stretch = Stretch.Uniform,
-                StrokeThickness = 2,
-                StrokeLineCap = PenLineCap.Round,
-                StrokeJoin = PenLineJoin.Round
-            };
-            SettingsTheme.Paint(glyph, Avalonia.Controls.Shapes.Shape.StrokeProperty, dimmed ? "TextMutedBrush" : "AccentStrongBrush");
-            icon = glyph;
+            content = new GlyphPath(rule.IsProcess ? Glyphs.Process : Glyphs.Site, dimmed ? "TextMutedBrush" : "AccentStrongBrush");
         }
 
-        icon.VerticalAlignment = VerticalAlignment.Center;
-        icon.Margin = new Thickness(0, 0, 12, 0);
+        return new Grid
+        {
+            Width = SlotSize,
+            Height = SlotSize,
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { content }
+        };
+    }
 
+    private static TextBlock BuildName(RoutingRule rule, bool dimmed)
+    {
         var name = new TextBlock
         {
             Text = rule.DisplayName,
@@ -55,40 +67,29 @@ public sealed class RuleCard : Border
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         SettingsTheme.Paint(name, TextBlock.ForegroundProperty, dimmed ? "TextMutedBrush" : "TextBrush");
-        Grid.SetColumn(name, 1);
+        return name;
+    }
 
-        var cross = new Avalonia.Controls.Shapes.Path
-        {
-            Data = Geometry.Parse("M0,0 L10,10 M10,0 L0,10"),
-            Width = 10,
-            Height = 10,
-            StrokeThickness = 2,
-            StrokeLineCap = PenLineCap.Round
-        };
-        SettingsTheme.Paint(cross, Avalonia.Controls.Shapes.Shape.StrokeProperty, "TextMutedBrush");
+    private Control BuildRemove()
+    {
+        var cross = new GlyphPath(Glyphs.Cross, "TextMutedBrush");
         var remove = new Border
         {
-            Width = 24,
-            Height = 24,
+            Width = SlotSize,
+            Height = SlotSize,
+            CornerRadius = new CornerRadius(8),
             Background = Brushes.Transparent,
             Cursor = new Cursor(StandardCursorType.Hand),
             VerticalAlignment = VerticalAlignment.Center,
             Child = cross
         };
-        remove.PointerEntered += (_, _) => SettingsTheme.Paint(cross, Avalonia.Controls.Shapes.Shape.StrokeProperty, "PingBadBrush");
-        remove.PointerExited += (_, _) => SettingsTheme.Paint(cross, Avalonia.Controls.Shapes.Shape.StrokeProperty, "TextMutedBrush");
+        remove.PointerEntered += (_, _) => cross.Tint("PingBadBrush");
+        remove.PointerExited += (_, _) => cross.Tint("TextMutedBrush");
         remove.PointerReleased += (_, e) =>
         {
             if (e.InitialPressMouseButton == MouseButton.Left)
                 DeleteClicked?.Invoke(this, EventArgs.Empty);
         };
-        Grid.SetColumn(remove, 2);
-
-        grid.Children.Add(icon);
-        grid.Children.Add(name);
-        grid.Children.Add(remove);
-        Child = grid;
+        return remove;
     }
-
-    public RoutingRule Rule { get; }
 }
