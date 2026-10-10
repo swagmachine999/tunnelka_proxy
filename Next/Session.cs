@@ -15,14 +15,26 @@ public enum Tone
     Bad
 }
 
+public interface IDialogs
+{
+    Task<bool> AskCoreDownload(IReadOnlyList<CorePackage> missing);
+
+    void ShowMessage(string text);
+
+    Task<bool> AskYesNo(string text);
+
+    void Balloon(string text);
+}
+
 public sealed class Session : IDisposable
 {
     private readonly Settings _settings;
     private readonly PingService _pinger;
     private readonly TrafficTracker _tracker;
-    private readonly TrafficHistory _history;
     private readonly TrafficPoller _poller = new();
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromSeconds(60) };
+    private readonly HashSet<ProxyServer> _pinging = new();
     private DateTime _connectedAt;
     private bool _exiting;
 
@@ -33,15 +45,23 @@ public sealed class Session : IDisposable
         Data.AutoStart = Autostart.IsEnabled();
         Connection = new ConnectionService(Log);
         KillSwitch = new KillSwitch(Log);
+        Subscriptions = new SubscriptionService(_settings, Log, () => Connection.IsRunning ? XrayConfigBuilder.HttpPort : null);
+        Autos = new AutoServers(_settings, Subscriptions);
+        History = new TrafficHistory(_settings);
         _pinger = new PingService(_settings);
         _tracker = new TrafficTracker(_settings);
-        _history = new TrafficHistory(_settings);
-        Selected = Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink) ?? Data.Servers.FirstOrDefault();
+        Selected = Autos.Restore(Data.LastServerLink)
+            ?? Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink)
+            ?? Data.Servers.FirstOrDefault();
 
         _clock.Tick += (_, _) => ClockTick?.Invoke(Elapsed);
         _poller.Updated += OnTraffic;
+        _refreshTimer.Tick += async (_, _) => await RefreshDue();
         Connection.Exited += () => Dispatcher.UIThread.Post(OnCoreExited);
         Connection.Warning += text => Dispatcher.UIThread.Post(() => Hint?.Invoke(text, Tone.Mid));
+        Subscriptions.StatusChanged += _ => Dispatcher.UIThread.Post(() => CardsChanged?.Invoke());
+        Log.Written += text => Dispatcher.UIThread.Post(() => LogWritten?.Invoke($"[{DateTime.Now:HH:mm:ss}] {text}"));
+        _refreshTimer.Start();
     }
 
     public AppLog Log { get; }
@@ -50,13 +70,29 @@ public sealed class Session : IDisposable
 
     public KillSwitch KillSwitch { get; }
 
+    public SubscriptionService Subscriptions { get; }
+
+    public AutoServers Autos { get; }
+
+    public TrafficHistory History { get; }
+
     public AppData Data => _settings.Data;
+
+    public IDialogs? Dialogs { get; set; }
+
+    public OverlayService Overlay { get; } = new();
 
     public ProxyServer? Selected { get; private set; }
 
     public ProxyServer? Active { get; private set; }
 
+    public ProxyServer? HeroServer => Active ?? Selected;
+
     public bool Busy { get; private set; }
+
+    public bool HeroBusy { get; private set; }
+
+    public bool Connecting { get; private set; }
 
     public string Elapsed
     {
@@ -67,25 +103,76 @@ public sealed class Session : IDisposable
         }
     }
 
+    public int? ProxyPort => Connection.IsRunning ? XrayConfigBuilder.HttpPort : null;
+
+    public bool IsPinging(ProxyServer server) => _pinging.Contains(server);
+
     public event Action? StateChanged;
     public event Action? ServersChanged;
+    public event Action? CardsChanged;
     public event Action<string, Tone>? Hint;
     public event Action<string?, string?>? Speed;
     public event Action<string>? ClockTick;
+    public event Action<string>? LogWritten;
+    public event Action<long, long, bool>? Traffic;
+    public event Action<bool>? ReconnectHint;
+    public event Action? ThemeChanged;
+    public event Action? LanguageChanged;
+    public event Action? ScaleChanged;
+    public event Action? ModeChanged;
+    public event Action? ShowLogRequested;
     public event Action? ExitRequested;
 
     public void Save() => _settings.Save();
 
+    public void SetDark(bool dark)
+    {
+        Data.DarkTheme = dark;
+        Save();
+        ThemeChanged?.Invoke();
+    }
+
+    public void SetLanguage(string language)
+    {
+        Data.Language = language;
+        Save();
+        L.Use(language);
+        LanguageChanged?.Invoke();
+    }
+
+    public void SetScale(int percent)
+    {
+        Data.UiScale = UiScaleMigration.Nearest(percent);
+        Save();
+        ScaleChanged?.Invoke();
+    }
+
+    public void StepScale(int direction)
+    {
+        var steps = UiScaleMigration.Steps;
+        var index = Array.IndexOf(steps, UiScaleMigration.Nearest(Data.UiScale));
+        SetScale(steps[Math.Max(0, Math.Min(steps.Length - 1, index + direction))]);
+    }
+
     public void Select(ProxyServer server)
     {
         Selected = server;
+        CardsChanged?.Invoke();
         StateChanged?.Invoke();
     }
+
+    public string SelectedLink() => AutoServers.IsAuto(Selected) ? AutoServers.Link(Selected!) : Selected?.Link ?? "";
 
     public void Toggle()
     {
         if (Busy)
             return;
+
+        if (Active == null && Data.Servers.Count == 0)
+        {
+            AddRequested?.Invoke();
+            return;
+        }
 
         if (Active != null)
             Disconnect();
@@ -93,40 +180,72 @@ public sealed class Session : IDisposable
             _ = Connect();
     }
 
+    public event Action? AddRequested;
+
     public async Task Connect()
     {
-        if (Busy || Selected == null)
+        if (Busy)
             return;
 
-        var server = Selected;
         Busy = true;
         StateChanged?.Invoke();
         try
         {
-            if (!await Start(server))
-            {
-                if (Active != null)
-                    Disconnect();
-                return;
-            }
-
-            Active = server;
-            _connectedAt = DateTime.Now;
-            _tracker.Reset();
-            Speed?.Invoke(ServerText.Bytes(0) + L.T("/с"), ServerText.Bytes(0) + L.T("/с"));
-            Data.LastServerLink = server.Link;
-            Save();
-            _clock.Start();
-            _poller.Start();
-            await EngageKillSwitch();
-            Log.Write(L.F("Подключено к {0}", ServerText.CleanName(server)));
+            await ConnectTo(Selected);
         }
         finally
         {
             Busy = false;
+            Connecting = false;
             StateChanged?.Invoke();
         }
     }
+
+    private async Task ConnectTo(ProxyServer? server)
+    {
+        if (AutoServers.IsAuto(server))
+        {
+            Hint?.Invoke(L.T("Ищу самый быстрый сервер…"), Tone.Muted);
+            server = await FindFastest(server!);
+            if (server == null)
+            {
+                Hint?.Invoke(L.T("Ни один сервер не ответил"), Tone.Bad);
+                Failed?.Invoke();
+                return;
+            }
+        }
+
+        if (server == null)
+            return;
+
+        Connecting = true;
+        StateChanged?.Invoke();
+        if (!await Start(server))
+        {
+            Failed?.Invoke();
+            if (Active != null)
+                Disconnect();
+            return;
+        }
+
+        Active = server;
+        _connectedAt = DateTime.Now;
+        _tracker.Reset();
+        Speed?.Invoke(ServerText.Bytes(0) + L.T("/с"), ServerText.Bytes(0) + L.T("/с"));
+        Data.LastServerLink = SelectedLink();
+        Save();
+        Connecting = false;
+        _clock.Start();
+        _poller.Start();
+        Traffic?.Invoke(0, 0, true);
+        Overlay.SetConnected(true);
+        await EngageKillSwitch();
+        CardsChanged?.Invoke();
+        StateChanged?.Invoke();
+        Log.Write(L.F("Подключено к {0}", ServerText.CleanName(server)));
+    }
+
+    public event Action? Failed;
 
     private async Task<bool> Start(ProxyServer server)
     {
@@ -136,15 +255,22 @@ public sealed class Session : IDisposable
             case ConnectResult.Ok:
                 return true;
             case ConnectResult.XrayMissing:
-                Hint?.Invoke(L.F("Не найден {0}", XrayRunner.XrayPath), Tone.Bad);
-                break;
             case ConnectResult.SingBoxMissing:
-                Hint?.Invoke(L.F("Не найден {0}", XrayRunner.SingBoxPath), Tone.Bad);
+                var missing = CoreLocator.Missing();
+                if (missing.Count > 0 && Dialogs != null && await Dialogs.AskCoreDownload(missing))
+                    return await Start(server);
+
+                var message = result == ConnectResult.XrayMissing
+                    ? L.F("Не найден {0}", XrayRunner.XrayPath)
+                    : L.F("Не найден {0}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe.", XrayRunner.SingBoxPath);
+                Hint?.Invoke(message.Split('\n')[0], Tone.Bad);
+                Dialogs?.ShowMessage(message);
                 break;
             case ConnectResult.NeedsAdministrator:
-                RestartAsAdministrator();
+                RestartAsAdministrator("--connect");
                 break;
             default:
+                ShowLogRequested?.Invoke();
                 Hint?.Invoke(L.T("Не удалось подключиться, подробности в журнале"), Tone.Bad);
                 break;
         }
@@ -152,13 +278,13 @@ public sealed class Session : IDisposable
         return false;
     }
 
-    private void RestartAsAdministrator()
+    private void RestartAsAdministrator(string argument)
     {
         try
         {
-            Data.LastServerLink = Selected?.Link ?? "";
+            Data.LastServerLink = SelectedLink();
             Save();
-            Elevation.RestartElevated("--connect");
+            Elevation.RestartElevated(argument);
             _exiting = true;
             ExitRequested?.Invoke();
         }
@@ -188,10 +314,14 @@ public sealed class Session : IDisposable
         _clock.Stop();
         _poller.Stop();
         Active = null;
+        ReconnectHint?.Invoke(false);
         if (wasRunning)
             Save();
 
         Speed?.Invoke(null, null);
+        Traffic?.Invoke(0, 0, false);
+        Overlay.SetConnected(false);
+        CardsChanged?.Invoke();
         StateChanged?.Invoke();
         if (wasRunning)
             Log.Write(L.T("Отключено"));
@@ -205,6 +335,7 @@ public sealed class Session : IDisposable
         Data.Tun = tun;
         Save();
         Log.Write(tun ? L.T("Режим TUN: через VPN идёт весь трафик") : L.T("Режим прокси: через VPN идут браузер и программы"));
+        ModeChanged?.Invoke();
         StateChanged?.Invoke();
         if (Active != null && !Busy)
         {
@@ -213,10 +344,50 @@ public sealed class Session : IDisposable
         }
     }
 
+    public void OnRulesChanged()
+    {
+        Save();
+        ModeChanged?.Invoke();
+        ReconnectHint?.Invoke(Active != null && Connection.IsRunning);
+    }
+
+    public async Task Reconnect()
+    {
+        ReconnectHint?.Invoke(false);
+        if (Busy || Active == null || !Connection.IsRunning)
+            return;
+
+        Busy = true;
+        Connecting = true;
+        StateChanged?.Invoke();
+        try
+        {
+            _tracker.ResetCounters();
+            if (await Start(Active))
+                Log.Write(L.T("Правила применены"));
+            else
+                Disconnect();
+        }
+        finally
+        {
+            Busy = false;
+            Connecting = false;
+            StateChanged?.Invoke();
+        }
+    }
+
     public async Task StartUp(bool reconnect)
     {
-        if (!KillSwitch.IsEngaged && KillSwitch.WasLeftOn() && KillSwitch.CanRelease)
-            await ReleaseKillSwitch();
+        if (!KillSwitch.IsEngaged && KillSwitch.WasLeftOn())
+        {
+            if (KillSwitch.CanRelease)
+                await ReleaseKillSwitch();
+            else if (Dialogs != null && await Dialogs.AskYesNo(L.T("Kill switch остался включённым после сбоя, поэтому интернет может не работать. Перезапустить Tunnelka от имени администратора, чтобы снять блокировку?")))
+            {
+                RestartAsAdministrator("--elevated");
+                return;
+            }
+        }
 
         var resume = Data.ResumeAfterRestart;
         if (resume)
@@ -227,14 +398,25 @@ public sealed class Session : IDisposable
 
         if (Active == null && (reconnect || resume || Data.ConnectOnStart))
             await Connect();
+
+        UpdateCheck?.Invoke();
+        if (Data.RefreshOnStart && Subscriptions.Profiles.Count > 0)
+            await UpdateSubscriptions();
+        else
+            await RefreshDue();
+
+        if (Data.PingOnStart)
+            await PingAll();
     }
+
+    public event Action? UpdateCheck;
 
     public void AddInput(string text)
     {
         text = text.Trim();
         if (text.StartsWith("http://") || text.StartsWith("https://"))
         {
-            Hint?.Invoke(L.T("Подписки появятся на следующем этапе"), Tone.Mid);
+            _ = AddSubscriptionUrl(SubscriptionUrl.Normalize(text));
             return;
         }
 
@@ -252,13 +434,119 @@ public sealed class Session : IDisposable
         Save();
         ServersChanged?.Invoke();
         StateChanged?.Invoke();
+        ShowServersRequested?.Invoke();
         Log.Write(L.F("Добавлено серверов: {0}", servers.Count));
         if (first)
             Hint?.Invoke(L.T("Готово! Нажми большую кнопку, чтобы подключиться"), Tone.Good);
     }
 
+    public event Action? ShowServersRequested;
+
+    private async Task AddSubscriptionUrl(string url)
+    {
+        var first = Data.Servers.Count == 0;
+        Subscriptions.Add(url);
+        ShowServersRequested?.Invoke();
+        await RefreshSubscription(url);
+        if (first && Data.Servers.Count > 0)
+            Hint?.Invoke(L.T("Готово! Нажми большую кнопку, чтобы подключиться"), Tone.Good);
+    }
+
+    public async Task UpdateSubscriptions()
+    {
+        if (Subscriptions.Profiles.Count == 0)
+        {
+            Hint?.Invoke(L.T("Подписок нет: добавь её через +"), Tone.Muted);
+            return;
+        }
+
+        SetHeroBusy(true);
+        var ok = await Subscriptions.RefreshAll(Active);
+        AfterServersChanged();
+        WarnAboutExpiring();
+        ShowResult(ok);
+    }
+
+    public async Task RefreshCurrentSubscription()
+    {
+        var url = HeroServer?.SubscriptionUrl;
+        if (url != null && Subscriptions.IsKnown(url))
+            await RefreshSubscription(url);
+        else
+            await UpdateSubscriptions();
+    }
+
+    public async Task RefreshSubscription(string url)
+    {
+        if (Subscriptions.StatusOf(url)?.State == RefreshState.Busy)
+            return;
+
+        var shown = HeroServer?.SubscriptionUrl == url;
+        if (shown)
+            SetHeroBusy(true);
+        var ok = await Subscriptions.Refresh(url, Active);
+        AfterServersChanged();
+        WarnAboutExpiring();
+        if (shown)
+            ShowResult(ok);
+    }
+
+    private void ShowResult(bool ok)
+    {
+        SetHeroBusy(false);
+        Hint?.Invoke(ok ? L.T("Подписка обновлена") : L.T("Не удалось обновить подписку"), ok ? Tone.Good : Tone.Bad);
+    }
+
+    private void SetHeroBusy(bool busy)
+    {
+        HeroBusy = busy;
+        StateChanged?.Invoke();
+    }
+
+    public async Task RefreshDue()
+    {
+        if (await Subscriptions.RefreshDue(Active))
+            AfterServersChanged();
+
+        CardsChanged?.Invoke();
+        WarnAboutExpiring();
+    }
+
+    private void WarnAboutExpiring()
+    {
+        var titles = Subscriptions.TakeNewlyExpiring();
+        if (titles.Count == 0)
+            return;
+
+        var text = titles.Count == 1
+            ? L.F("Подписка «{0}» скоро закончится. Продлите её, иначе доступ будет приостановлен.", titles[0])
+            : L.F("Подписки {0} скоро закончатся. Продлите их, иначе доступ будет приостановлен.", string.Join(", ", titles.Select(t => $"«{t}»")));
+        Dialogs?.Balloon(text);
+    }
+
+    public void DeleteSubscription(string url)
+    {
+        if (Active?.SubscriptionUrl == url)
+            Disconnect();
+
+        Subscriptions.Delete(url);
+        AfterServersChanged();
+    }
+
+    private void AfterServersChanged()
+    {
+        if (Selected == null || (AutoServers.IsAuto(Selected) ? Autos.Members(Selected).Count == 0 : !Data.Servers.Contains(Selected)))
+            Selected = Data.Servers.FirstOrDefault();
+
+        ServersChanged?.Invoke();
+        StateChanged?.Invoke();
+    }
+
     public void Delete(ProxyServer server)
     {
+        if (AutoServers.IsAuto(server))
+            return;
+
         if (server == Active)
             Disconnect();
 
@@ -271,14 +559,68 @@ public sealed class Session : IDisposable
         StateChanged?.Invoke();
     }
 
-    public async Task PingAll()
+    public Task PingAll() => PingServers(Data.Servers.ToList());
+
+    public Task PingSubscription(string url) => PingServers(Subscriptions.Servers(url));
+
+    public async Task PingCurrent()
     {
-        var servers = Data.Servers.ToList();
+        var server = Selected ?? Active;
+        if (server == null)
+            return;
+
+        if (AutoServers.IsAuto(server))
+        {
+            await FindFastest(server);
+            CardsChanged?.Invoke();
+            StateChanged?.Invoke();
+            return;
+        }
+
+        await PingServers(new List<ProxyServer> { server });
+        if (server != HeroServer)
+            Hint?.Invoke($"{ServerText.CleanName(server)}: {PingText(server)}", PingTone(server.PingMs));
+    }
+
+    private async Task<ProxyServer?> FindFastest(ProxyServer auto)
+    {
+        var servers = Autos.Members(auto);
+        await PingServers(servers);
+        var best = servers.Where(s => s.PingMs >= 0).OrderBy(s => s.PingMs).FirstOrDefault();
+        auto.PingMs = best?.PingMs ?? -1;
+        return best;
+    }
+
+    private async Task PingServers(List<ProxyServer> servers)
+    {
         if (servers.Count == 0)
             return;
 
-        await _pinger.Ping(servers, _ => Dispatcher.UIThread.Post(() => ServersChanged?.Invoke()));
-        ServersChanged?.Invoke();
+        var hero = HeroServer;
+        var shown = hero != null && (servers.Contains(hero) || (AutoServers.IsAuto(hero) && Autos.Members(hero).Any(servers.Contains)));
+        if (shown)
+            SetHeroBusy(true);
+        foreach (var server in servers)
+            _pinging.Add(server);
+        CardsChanged?.Invoke();
+        try
+        {
+            await _pinger.Ping(servers, server =>
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _pinging.Remove(server);
+                    CardsChanged?.Invoke();
+                }));
+        }
+        finally
+        {
+            foreach (var server in servers)
+                _pinging.Remove(server);
+        }
+
+        CardsChanged?.Invoke();
+        if (shown)
+            SetHeroBusy(false);
         StateChanged?.Invoke();
     }
 
@@ -298,12 +640,20 @@ public sealed class Session : IDisposable
         _ => Tone.Bad
     };
 
+    public (string Host, int Port)? LossTarget() => Active is { } s ? (s.Address, s.Port) : null;
+
+    public void RestartSpeedAveraging() => _tracker.RestartAveraging();
+
     private void OnTraffic(TrafficCounters counters)
     {
         var delta = _tracker.Process(counters);
-        _history.Add(delta);
-        if (_tracker.TryGetAverage(out var down, out var up))
-            Speed?.Invoke(ServerText.Bytes(down) + L.T("/с"), ServerText.Bytes(up) + L.T("/с"));
+        History.Add(delta);
+        var down = delta.ProxyDown + delta.DirectDown;
+        var up = delta.ProxyUp + delta.DirectUp;
+        Traffic?.Invoke(down, up, true);
+        Overlay.SetSpeed(down, up);
+        if (_tracker.TryGetAverage(out var averageDown, out var averageUp))
+            Speed?.Invoke(ServerText.Bytes(averageDown) + L.T("/с"), ServerText.Bytes(averageUp) + L.T("/с"));
     }
 
     private void OnCoreExited()
@@ -314,11 +664,16 @@ public sealed class Session : IDisposable
         Log.Write(L.T("Ядро VPN завершилось. Причина обычно видна в строках выше"));
         var blocked = KillSwitch.IsEngaged;
         Disconnect(keepKillSwitch: blocked);
-        if (blocked)
-            Hint?.Invoke(L.T("VPN упал — интернет заблокирован. Нажми кнопку, чтобы переподключиться"), Tone.Bad);
+        ShowLogRequested?.Invoke();
+        if (!blocked)
+            return;
+
+        Hint?.Invoke(L.T("VPN упал — интернет заблокирован. Нажми кнопку, чтобы переподключиться"), Tone.Bad);
+        Failed?.Invoke();
+        Dialogs?.Balloon(L.T("VPN отключился, kill switch заблокировал интернет. Переподключитесь или выключите kill switch в «Расширенное»."));
     }
 
-    private async Task EngageKillSwitch()
+    public async Task EngageKillSwitch()
     {
         if (!Data.KillSwitch || !Data.Tun)
             return;
@@ -327,25 +682,36 @@ public sealed class Session : IDisposable
             Hint?.Invoke(L.T("Kill switch не включился, подробности в журнале"), Tone.Mid);
     }
 
-    private Task ReleaseKillSwitch() =>
+    public Task ReleaseKillSwitch() =>
         KillSwitch.IsEngaged || KillSwitch.WasLeftOn() ? Task.Run(KillSwitch.Release) : Task.CompletedTask;
 
     public void Shutdown()
     {
-        _exiting = true;
+        if (_exiting && Active == null)
+            return;
+
         if (Active != null)
         {
             Data.ResumeAfterRestart = false;
             Save();
         }
 
+        _exiting = true;
         Disconnect(wait: true);
+    }
+
+    public void RequestExit()
+    {
+        _exiting = true;
+        ExitRequested?.Invoke();
     }
 
     public void Dispose()
     {
         _clock.Stop();
+        _refreshTimer.Stop();
         _poller.Dispose();
+        Overlay.Dispose();
         Connection.Dispose();
     }
 }

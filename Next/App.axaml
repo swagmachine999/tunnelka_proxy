@@ -192,6 +192,10 @@
       <Setter Property="TextElement.Foreground" Value="White" />
     </Style>
 
+    <Style Selector="Border.clickable:pointerover">
+      <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
+    </Style>
+
     <Style Selector="ListBoxItem">
       <Setter Property="Padding" Value="0" />
       <Setter Property="Margin" Value="0,0,0,6" />
