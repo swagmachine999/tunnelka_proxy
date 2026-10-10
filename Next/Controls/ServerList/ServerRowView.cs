@@ -23,8 +23,6 @@ public sealed class ServerRowView : Border
     private readonly NameView _name;
     private readonly TextBlock _ping;
     private readonly ServerBusyDots _busyDots;
-    private readonly MenuItem _connectItem;
-    private readonly MenuItem _deleteItem;
     private IDisposable? _ringBinding;
     private IDisposable? _pingBinding;
     private string _pingKey = "";
@@ -131,14 +129,14 @@ public sealed class ServerRowView : Border
         layers.Children.Add(content);
         Child = layers;
 
-        _connectItem = new MenuItem { Header = L.T("Подключиться") };
-        _connectItem.Click += (_, _) => ConnectRequested?.Invoke(this);
-        _deleteItem = new MenuItem { Header = L.T("Удалить") };
-        _deleteItem.Click += (_, _) => DeleteRequested?.Invoke(this);
+        var connectItem = new MenuItem { Header = L.T("Подключиться") };
+        connectItem.Click += (_, _) => ConnectRequested?.Invoke(this);
+        var deleteItem = new MenuItem { Header = L.T("Удалить") };
+        deleteItem.Click += (_, _) => DeleteRequested?.Invoke(this);
         var menu = new ContextMenu();
-        menu.Items.Add(_connectItem);
+        menu.Items.Add(connectItem);
         if (!_auto)
-            menu.Items.Add(_deleteItem);
+            menu.Items.Add(deleteItem);
         ContextMenu = menu;
 
         ApplyRing();
@@ -168,12 +166,6 @@ public sealed class ServerRowView : Border
         Transitions = Fade()
     };
 
-    public void Localize()
-    {
-        _connectItem.Header = L.T("Подключиться");
-        _deleteItem.Header = L.T("Удалить");
-    }
-
     public void SetState(bool selected, bool active, bool busy)
     {
         _selected = selected;
@@ -189,7 +181,7 @@ public sealed class ServerRowView : Border
         RefreshPing();
     }
 
-    public void RefreshPing()
+    private void RefreshPing()
     {
         _ping.IsVisible = !_busy;
         var text = Server.PingMs switch

@@ -41,9 +41,6 @@ public sealed class SubscriptionRowView : Border
     private readonly StackPanel _subline;
     private readonly StackPanel _details;
     private readonly NameView _title;
-    private readonly MenuItem _showItem;
-    private readonly MenuItem _deleteItem;
-    private readonly ContextMenu _menu;
     private string _detailsKey = "\u0001";
     private int _serverCount;
 
@@ -61,10 +58,10 @@ public sealed class SubscriptionRowView : Border
 
         _title = new NameView
         {
-            FontSize = 15 * 1.1,
+            FontSize = SubscriptionFonts.Title,
             FontWeight = FontWeight.Bold,
             FontFamily = new FontFamily("Segoe UI"),
-            Height = 24,
+            Height = 22,
             VerticalAlignment = VerticalAlignment.Top
         };
         ServerRes.Bind(_title, NameView.ForegroundProperty, "TextBrush");
@@ -74,11 +71,11 @@ public sealed class SubscriptionRowView : Border
         {
             Orientation = Orientation.Horizontal,
             Spacing = 3,
-            Height = 16,
+            Height = 15,
             ClipToBounds = true
         };
 
-        var texts = new StackPanel { Margin = new Thickness(0, 5, 0, 0), ClipToBounds = true };
+        var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true };
         texts.Children.Add(_title);
         texts.Children.Add(_subline);
 
@@ -140,15 +137,15 @@ public sealed class SubscriptionRowView : Border
         root.Children.Add(_details);
         Child = root;
 
-        _showItem = new MenuItem { Header = L.T("Показать ключ") };
-        _showItem.Click += (_, _) => ShowKeyRequested?.Invoke(this);
-        _deleteItem = new MenuItem { Header = L.T("Удалить ключ") };
-        _deleteItem.Click += (_, _) => DeleteRequested?.Invoke(this);
-        _menu = new ContextMenu();
-        _menu.Items.Add(_showItem);
-        _menu.Items.Add(_deleteItem);
-        ContextMenu = _menu;
-        more.Clicked += () => _menu.Open(more);
+        var showItem = new MenuItem { Header = L.T("Показать ключ") };
+        showItem.Click += (_, _) => ShowKeyRequested?.Invoke(this);
+        var deleteItem = new MenuItem { Header = L.T("Удалить ключ") };
+        deleteItem.Click += (_, _) => DeleteRequested?.Invoke(this);
+        var menu = new ContextMenu();
+        menu.Items.Add(showItem);
+        menu.Items.Add(deleteItem);
+        ContextMenu = menu;
+        more.Clicked += () => menu.Open(more);
 
         Update();
     }
@@ -160,14 +157,6 @@ public sealed class SubscriptionRowView : Border
     public event Action<SubscriptionRowView>? ShowKeyRequested;
 
     public event Action<SubscriptionRowView>? DeleteRequested;
-
-    public void Localize()
-    {
-        _showItem.Header = L.T("Показать ключ");
-        _deleteItem.Header = L.T("Удалить ключ");
-        _detailsKey = "\u0001";
-        Update();
-    }
 
     public void Update()
     {
@@ -206,7 +195,7 @@ public sealed class SubscriptionRowView : Border
         var block = new TextBlock
         {
             Text = text,
-            FontSize = 13 * 1.1,
+            FontSize = SubscriptionFonts.Body,
             FontFamily = new FontFamily("Segoe UI"),
             FontWeight = bold ? FontWeight.SemiBold : FontWeight.Normal,
             VerticalAlignment = VerticalAlignment.Center
@@ -268,7 +257,7 @@ public sealed class SubscriptionRowView : Border
             var message = new TextBlock
             {
                 Text = L.F("Не удалось обновить: {0}", status!.Message),
-                FontSize = 13 * 1.1,
+                FontSize = SubscriptionFonts.Body,
                 FontFamily = new FontFamily("Segoe UI"),
                 FontWeight = FontWeight.SemiBold,
                 VerticalAlignment = VerticalAlignment.Top,
@@ -310,7 +299,7 @@ public sealed class SubscriptionRowView : Border
         {
             Text = text,
             TextWrapping = TextWrapping.Wrap,
-            FontSize = 13 * 1.1,
+            FontSize = SubscriptionFonts.Body,
             FontFamily = new FontFamily("Segoe UI"),
             FontWeight = FontWeight.SemiBold
         };
@@ -324,7 +313,7 @@ public sealed class SubscriptionRowView : Border
             var link = new TextBlock
             {
                 Text = L.T("Продлить подписку →"),
-                FontSize = 13 * 1.1,
+                FontSize = SubscriptionFonts.Body,
                 FontFamily = new FontFamily("Segoe UI"),
                 FontWeight = FontWeight.SemiBold,
                 TextDecorations = TextDecorations.Underline,
