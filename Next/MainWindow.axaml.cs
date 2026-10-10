@@ -13,9 +13,6 @@ namespace Tunnelka.Next;
 
 public partial class MainWindow : Window
 {
-    private const double BaseWidth = 1233;
-    private const double BaseHeight = 760;
-
     private enum Page
     {
         Servers,
@@ -34,6 +31,7 @@ public partial class MainWindow : Window
     private readonly SettingsHost _settings;
     private readonly TrayService _tray;
     private readonly UpdateWatcher _updates;
+    private readonly WindowScaler _scaler;
     private bool _exiting;
 
     public MainWindow() : this(new Session())
@@ -51,7 +49,13 @@ public partial class MainWindow : Window
         _about = new AboutPage(session);
         _settings = new SettingsHost(session);
         _tray = new TrayService(this, session);
+        _scaler = new WindowScaler(this, Part<LayoutTransformControl>("Scaler"), session);
 
+        Part<Button>("AddButton").Content = NavIcon(NavIcons.Add);
+        Part<Button>("ServersButton").Content = NavIcon(NavIcons.Servers);
+        Part<Button>("StatsButton").Content = NavIcon(NavIcons.Stats);
+        Part<Button>("AboutButton").Content = NavIcon(NavIcons.About);
+        Part<Button>("SettingsButton").Content = NavIcon(NavIcons.Settings);
         Part<Panel>("HeroHost").Children.Add(_hero);
         var host = Part<Panel>("PagesHost");
         _pages[Page.Servers] = _servers;
@@ -88,7 +92,7 @@ public partial class MainWindow : Window
         _updates = new UpdateWatcher(() => session.ProxyPort, update => UpdateDialog.Show(this, update, () => session.ProxyPort));
 
         session.ThemeChanged += ApplyTheme;
-        session.ScaleChanged += () => ApplyScale(false);
+        session.ScaleChanged += () => _scaler.Apply(false);
         session.LanguageChanged += Localize;
         session.AddRequested += async () => await AskKey();
         session.ShowServersRequested += () => ShowPage(Page.Servers);
@@ -104,12 +108,13 @@ public partial class MainWindow : Window
         KeyDown += OnKeyDown;
 
         ApplyTheme();
-        ApplyScale(true);
+        _scaler.Apply(true);
         Localize();
         ShowPage(Page.Servers);
 
         Opened += async (_, _) =>
         {
+            _scaler.Apply(false);
             if (Program.Minimized)
                 Hide();
             await _session.StartUp(Program.Connect);
@@ -130,6 +135,9 @@ public partial class MainWindow : Window
             pair.Value.Classes.Set("active", pair.Key == page);
     }
 
+    private static Avalonia.Controls.Shapes.Path NavIcon(string data) =>
+        new() { Data = Avalonia.Media.Geometry.Parse(data), Width = 24, Height = 24, Stretch = Avalonia.Media.Stretch.None };
+
     private async Task AskKey()
     {
         var text = await AddKeyDialog.Ask(this);
@@ -139,19 +147,6 @@ public partial class MainWindow : Window
 
     private void ApplyTheme() =>
         Application.Current!.RequestedThemeVariant = _session.Data.DarkTheme ? ThemeVariant.Dark : ThemeVariant.Light;
-
-    private void ApplyScale(bool first)
-    {
-        var factor = _session.Data.UiScale / 100.0;
-        Part<LayoutTransformControl>("Scaler").LayoutTransform = new ScaleTransform(factor, factor);
-        MinWidth = 920 * factor;
-        MinHeight = 600 * factor;
-        if (first)
-        {
-            Width = BaseWidth * factor;
-            Height = BaseHeight * factor;
-        }
-    }
 
     private void Localize()
     {
@@ -170,7 +165,7 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (!_exiting)
+        if (!_exiting && e.CloseReason == WindowCloseReason.WindowClosing)
         {
             e.Cancel = true;
             Hide();
@@ -178,7 +173,9 @@ public partial class MainWindow : Window
         }
 
         _session.Shutdown();
+        _updates.Dispose();
         _tray.Dispose();
+        _session.Dispose();
     }
 
     private void Quit()

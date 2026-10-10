@@ -43,7 +43,7 @@ public static class Ui
 
     public static Border ClickRow(string title, string hint, Action onClick, out TextBlock titleBlock, out TextBlock hintBlock)
     {
-        var arrow = new TextBlock { Text = "›", FontSize = 22, Classes = { "muted" } };
+        var arrow = new GlyphPath(Glyphs.ChevronRight, "TextMutedBrush");
         var card = Row(title, hint, arrow, out titleBlock, out hintBlock);
         card.Classes.Add("clickable");
         card.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
@@ -57,7 +57,7 @@ public static class Ui
 
     public static Control BackHeader(string title, Action onBack, out TextBlock titleBlock)
     {
-        var back = new Button { Content = "‹", Classes = { "soft" }, Padding = new Thickness(12, 2), FontSize = 20 };
+        var back = new Button { Content = new GlyphPath(Glyphs.ChevronLeft, "AccentStrongBrush"), Classes = { "soft" }, Padding = new Thickness(14, 10) };
         back.Click += (_, _) => onBack();
         titleBlock = new TextBlock { Text = title, Classes = { "title" }, VerticalAlignment = VerticalAlignment.Center };
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(0, 0, 0, 14) };

@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Tunnelka.Next.Controls"
         x:Class="Tunnelka.Next.MainWindow"
         Title="Tunnelka"
         Icon="/Assets/tunnelka.ico"
@@ -16,33 +17,21 @@
       <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
         <DockPanel>
           <StackPanel DockPanel.Dock="Top" Spacing="10" Margin="12,18,12,0">
-            <Border Width="44" Height="44" CornerRadius="12" Background="{DynamicResource AccentGradient}">
-              <TextBlock Text="T" FontSize="22" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
-            <Button x:Name="AddButton" Classes="nav" Margin="0,22,0,0">
-              <Path Data="M12,5 L12,19 M5,12 L19,12" />
-            </Button>
+            <controls:LogoMark Width="44" Height="44" />
+            <Button x:Name="AddButton" Classes="nav" Margin="0,22,0,0"></Button>
             <Border Height="2" Margin="8,4" Background="{DynamicResource BorderBrush2}" />
-            <Button x:Name="ServersButton" Classes="nav active">
-              <Path Data="M3,12 A9,9 0 1 0 21,12 A9,9 0 1 0 3,12 M3,12 L21,12 M12,3 C8,7 8,17 12,21 M12,3 C16,7 16,17 12,21" />
-            </Button>
-            <Button x:Name="StatsButton" Classes="nav">
-              <Path Data="M3,20 L3,4 M3,20 L21,20 M7,15 L11,10 L14,13 L20,6" />
-            </Button>
+            <Button x:Name="ServersButton" Classes="nav active"></Button>
+            <Button x:Name="StatsButton" Classes="nav"></Button>
           </StackPanel>
           <StackPanel DockPanel.Dock="Bottom" Spacing="10" Margin="12,0,12,18" VerticalAlignment="Bottom">
-            <Button x:Name="AboutButton" Classes="nav">
-              <Path Data="M3,12 A9,9 0 1 0 21,12 A9,9 0 1 0 3,12 M12,11 L12,17 M12,7.5 L12,7.6" />
-            </Button>
-            <Button x:Name="SettingsButton" Classes="nav">
-              <Path Data="M12,9 A3,3 0 1 0 12,15 A3,3 0 1 0 12,9 M12,2 L12,5 M12,19 L12,22 M2,12 L5,12 M19,12 L22,12 M5,5 L7,7 M17,17 L19,19 M5,19 L7,17 M17,7 L19,5" />
-            </Button>
+            <Button x:Name="AboutButton" Classes="nav"></Button>
+            <Button x:Name="SettingsButton" Classes="nav"></Button>
           </StackPanel>
           <Panel />
         </DockPanel>
       </Border>
 
-      <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" Padding="22,20,12,10">
+      <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" Padding="20,20,20,16">
         <Panel x:Name="PagesHost" />
       </Border>
 

@@ -98,6 +98,8 @@ public static class L
 
         ["Прокси"] = "Proxy",
         ["Подключено"] = "Connected",
+        ["Правила"] = "Rules",
+        ["Режим списка"] = "List mode",
         ["Выбери сервер"] = "Choose a server",
         ["Обновить подписку"] = "Update subscription",
         ["Проверка пинга"] = "Check ping",
