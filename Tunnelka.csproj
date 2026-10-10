@@ -3,33 +3,34 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Tunnelka</AssemblyName>
     <RootNamespace>Tunnelka</RootNamespace>
-    <Version>1.0.8</Version>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Version>1.0.9</Version>
+    <ApplicationManifest>Desktop\app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\tunnelka.ico</ApplicationIcon>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
     <PackageReference Include="ZXing.Net" Version="0.16.9" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.8" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="tests\**;Next\**" />
-    <None Remove="tests\**;Next\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="core\**" CopyToOutputDirectory="PreserveNewest" />
-    <None Remove="Assets\Flags\*.png;Assets\emoji.zip" />
-    <EmbeddedResource Include="Assets\Flags\*.png" LogicalName="Assets.Flags.%(Filename)%(Extension)" />
-    <EmbeddedResource Include="Assets\emoji.zip" LogicalName="Assets.emoji.zip" />
-    <None Update="Assets\**" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
     <None Include="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="core\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\*-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <AvaloniaResource Include="Assets\tunnelka.ico" />
+    <AvaloniaResource Include="Assets\Flags\*.png" />
+    <AvaloniaResource Include="Assets\emoji.zip" />
   </ItemGroup>
 
 </Project>
