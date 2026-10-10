@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>Tunnelka.Next</AssemblyName>
+    <RootNamespace>Tunnelka.Next</RootNamespace>
+    <Version>1.0.8</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\Assets\tunnelka.ico</ApplicationIcon>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+    <PackageReference Include="ZXing.Net" Version="0.16.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="..\Assets\tunnelka.ico" Link="Assets\tunnelka.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Services\**\*.cs" Exclude="..\Services\TrafficMonitor.cs" LinkBase="Shared\Services" />
+    <Compile Include="..\Models\*.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Parsing\*.cs" LinkBase="Shared\Parsing" />
+    <Compile Include="..\Storage\*.cs" LinkBase="Shared\Storage" />
+    <Compile Include="..\Localization\*.cs" LinkBase="Shared\Localization" />
+    <Compile Include="..\UI\ServerText.cs" LinkBase="Shared\UI" />
+    <Compile Include="..\UI\NamePart.cs" LinkBase="Shared\UI" />
+  </ItemGroup>
+
+</Project>
