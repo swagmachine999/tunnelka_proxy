@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -295,7 +296,7 @@ public partial class MainWindow : Window
     }
 
     private IBrush Brush(string key) =>
-        TryFindResource(key, ActualThemeVariant, out var value) && value is IBrush brush ? brush : Brushes.Gray;
+        this.TryFindResource(key, ActualThemeVariant, out var value) && value is IBrush found ? found : Brushes.Gray;
 
     private void SetScale(int percent)
     {
