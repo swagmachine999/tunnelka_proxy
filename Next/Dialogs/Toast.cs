@@ -1,7 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 
@@ -24,7 +22,7 @@ public sealed class Toast : Window
         Topmost = true;
         CanResize = false;
         SizeToContent = SizeToContent.Height;
-        Width = ToastWidth;
+        Width = ToastWidth * DialogScale.Factor;
         Title = "Tunnelka";
         WindowStartupLocation = WindowStartupLocation.Manual;
         this.Paint(BackgroundProperty, "CardBrush");
@@ -44,7 +42,11 @@ public sealed class Toast : Window
 
         var frame = new Border { BorderThickness = new Thickness(1), Child = grid };
         frame.Paint(Border.BorderBrushProperty, "BorderBrush2");
-        Content = frame;
+        Content = new LayoutTransformControl
+        {
+            LayoutTransform = new ScaleTransform(DialogScale.Factor, DialogScale.Factor),
+            Child = frame
+        };
 
         PointerPressed += (_, _) => Close();
         Opened += (_, _) =>
@@ -87,7 +89,7 @@ public sealed class Toast : Window
         var area = screen?.WorkingArea ?? new PixelRect(0, 0, 1920, 1040);
         var scale = screen?.Scaling ?? 1.0;
         var margin = (int)Math.Round(EdgeGap * scale);
-        var width = (int)Math.Ceiling(ToastWidth * scale);
+        var width = (int)Math.Ceiling(Width * scale);
         var height = (int)Math.Ceiling(Math.Max(Bounds.Height, 60) * scale);
         Position = new PixelPoint(area.Right - margin - width, area.Bottom - margin - height);
     }
