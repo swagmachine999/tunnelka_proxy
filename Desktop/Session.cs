@@ -555,9 +555,31 @@ public sealed class Session : IDisposable
         StateChanged?.Invoke();
     }
 
-    public Task PingAll() => PingServers(Data.Servers.ToList());
+    private readonly Dictionary<string, RefreshStatus> _pingStatuses = new();
 
-    public Task PingSubscription(string url) => PingServers(Subscriptions.Servers(url));
+    public RefreshStatus? PingStatusOf(string key) => _pingStatuses.TryGetValue(key, out var status) ? status : null;
+
+    public Task PingAll() => PingTracked("", Data.Servers.ToList());
+
+    public Task PingSubscription(string url) => PingTracked(url, Subscriptions.Servers(url));
+
+    private async Task PingTracked(string key, List<ProxyServer> servers)
+    {
+        if (servers.Count == 0 || _pingStatuses.TryGetValue(key, out var current) && current.State == RefreshState.Busy)
+            return;
+
+        _pingStatuses[key] = new RefreshStatus(RefreshState.Busy, "", DateTime.Now);
+        CardsChanged?.Invoke();
+        try
+        {
+            await PingServers(servers);
+        }
+        finally
+        {
+            _pingStatuses[key] = new RefreshStatus(RefreshState.Done, "", DateTime.Now);
+            CardsChanged?.Invoke();
+        }
+    }
 
     public async Task PingCurrent()
     {

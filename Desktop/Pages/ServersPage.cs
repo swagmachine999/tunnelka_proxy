@@ -118,7 +118,11 @@ public sealed class ServersPage : UserControl
 
     private void OnServersChanged() => _list.Rebuild();
 
-    private void OnCardsChanged() => _list.UpdateCards();
+    private void OnCardsChanged()
+    {
+        _pingAll.Status = _session.PingStatusOf("");
+        _list.UpdateCards();
+    }
 
     private static Button ActionButton(string text)
     {
