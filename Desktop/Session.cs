@@ -2,6 +2,7 @@ using Avalonia.Threading;
 using Tunnelka.Models;
 using Tunnelka.Parsing;
 using Tunnelka.Services;
+using Tunnelka.Services.Privileged;
 using Tunnelka.Storage;
 using Tunnelka.UI;
 
@@ -703,6 +704,50 @@ public sealed class Session : IDisposable
 
     public Task ReleaseKillSwitch() =>
         KillSwitch.IsEngaged || KillSwitch.WasLeftOn() ? Task.Run(KillSwitch.Release) : Task.CompletedTask;
+
+    private bool _repairing;
+
+    public async Task Repair()
+    {
+        if (_repairing || Busy)
+            return;
+
+        _repairing = true;
+        Busy = true;
+        StateChanged?.Invoke();
+        try
+        {
+            Disconnect();
+            await Connection.StopAsync();
+            await Task.Run(() =>
+            {
+                ConnectionService.CleanUpAfterCrash();
+                if (ServiceClient.Default.IsAvailable)
+                    ServiceClient.Default.Send(new ServiceRequest { Command = ServiceCommand.TunStop });
+                ServiceClient.Default.Forget();
+            });
+            Log.Write(L.T("Починка: ядра остановлены, системный прокси и блокировка сняты"));
+
+            if (!KillSwitch.IsEngaged && KillSwitch.WasLeftOn() && !KillSwitch.CanRelease)
+            {
+                if (Dialogs != null && await Dialogs.AskYesNo(L.T("Kill switch остался включённым, поэтому интернет может не работать. Перезапустить Tunnelka от имени администратора, чтобы снять блокировку?")))
+                {
+                    RestartAsAdministrator("--elevated");
+                    return;
+                }
+            }
+            else
+            {
+                Hint?.Invoke(L.T("Готово. Подключитесь заново"), Tone.Good);
+            }
+        }
+        finally
+        {
+            Busy = false;
+            _repairing = false;
+            StateChanged?.Invoke();
+        }
+    }
 
     public void Shutdown()
     {
