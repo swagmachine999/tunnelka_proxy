@@ -12,6 +12,9 @@ public sealed class LatencyProbe : IDisposable
     private CancellationTokenSource? _cancel;
     private HttpClient? _client;
     private int? _clientPort;
+    private string? _clientKey;
+
+    private static string? KeyOf(int? port) => port == null ? null : LocalAccess.CacheKey(port.Value);
 
     public LatencyProbe(Func<int?> proxyPort, Func<string> url)
     {
@@ -80,16 +83,17 @@ public sealed class LatencyProbe : IDisposable
     private HttpClient Client()
     {
         var port = _proxyPort();
-        if (_client != null && port == _clientPort)
+        if (_client != null && port == _clientPort && _clientKey == KeyOf(port))
             return _client;
 
         _client?.Dispose();
         var handler = new HttpClientHandler { UseProxy = port != null };
         if (port != null)
-            handler.Proxy = new WebProxy($"http://127.0.0.1:{port}");
+            handler.Proxy = LocalAccess.HttpProxy(port.Value);
 
         _client = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(TimeoutMs) };
         _clientPort = port;
+        _clientKey = KeyOf(port);
         return _client;
     }
 

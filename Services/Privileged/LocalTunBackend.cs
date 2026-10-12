@@ -19,7 +19,7 @@ public sealed class LocalTunBackend : ITunBackend
     public int? ExitCode => _runner.ExitCode;
 
     public void Start(TunParameters parameters) =>
-        _runner.Start(TunConfigBuilder.Build(parameters.SocksPort, parameters.Routing, parameters.ServerHost, parameters.PhysicalInterface));
+        _runner.Start(TunConfigBuilder.Build(parameters.SocksPort, parameters.Routing, parameters.ServerHost, parameters.PhysicalInterface, parameters.SocksUser, parameters.SocksPassword));
 
     public bool WaitForExit(int milliseconds) => _runner.WaitForExit(milliseconds);
 

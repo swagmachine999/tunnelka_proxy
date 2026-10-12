@@ -87,7 +87,7 @@ public static class UpdateService
         var handler = new HttpClientHandler();
         if (proxyPort != null)
         {
-            handler.Proxy = new WebProxy($"http://127.0.0.1:{proxyPort}");
+            handler.Proxy = LocalAccess.HttpProxy(proxyPort.Value);
             handler.UseProxy = true;
         }
 

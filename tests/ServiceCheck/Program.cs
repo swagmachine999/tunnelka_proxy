@@ -9,7 +9,7 @@ void Check(bool ok, string name) { Console.WriteLine((ok ? "OK   " : "FAIL ") + 
 
 ServiceRequest Start(Action<ServiceRequest>? tweak = null)
 {
-    var r = new ServiceRequest { Command = ServiceCommand.TunStart, SocksPort = 10808, ServerHost = "example.com", Mode = "DirectForListed", Rules = { "process:chrome.exe", "domain:ya.ru" } };
+    var r = new ServiceRequest { Command = ServiceCommand.TunStart, SocksPort = 10808, SocksUser = "abcd1234", SocksPassword = "secretpass99", ServerHost = "example.com", Mode = "DirectForListed", Rules = { "process:chrome.exe", "domain:ya.ru" } };
     tweak?.Invoke(r);
     return r;
 }
@@ -19,6 +19,9 @@ bool Valid(ServiceRequest r) => TunRequestValidator.TryValidate(r, out _, out _)
 Check(Valid(Start()), "validator accepts good request");
 Check(!Valid(Start(r => r.SocksPort = 80)), "validator rejects low port");
 Check(!Valid(Start(r => r.SocksPort = 70000)), "validator rejects high port");
+Check(!Valid(Start(r => r.SocksPassword = "")), "validator rejects empty socks password");
+Check(!Valid(Start(r => r.SocksUser = "a\"b")), "validator rejects quote in socks user");
+Check(!Valid(Start(r => r.SocksPassword = new string('a', 100))), "validator rejects long socks password");
 Check(!Valid(Start(r => r.ServerHost = "a b")), "validator rejects space in host");
 Check(!Valid(Start(r => r.ServerHost = "a\"b")), "validator rejects quote in host");
 Check(!Valid(Start(r => r.ServerHost = new string('a', 300))), "validator rejects long host");
@@ -35,7 +38,9 @@ TunRequestValidator.TryValidate(Start(), out var p, out _);
 var cfg = TunConfigBuilder.Build(p!.SocksPort, p.Routing, p.ServerHost, p.PhysicalInterface);
 Check(cfg.Contains("chrome.exe") && cfg.Contains("ya.ru") && cfg.Contains("\"final\": \"proxy\""), "service builds config from parameters");
 Check(!Valid(new ServiceRequest { Command = ServiceCommand.TunStart }), "validator rejects empty request");
-
+var securedCfg = TunConfigBuilder.Build(p.SocksPort, p.Routing, p.ServerHost, p.PhysicalInterface, p.SocksUser, p.SocksPassword);
+Check(securedCfg.Contains("abcd1234") && securedCfg.Contains("secretpass99"), "tun config carries socks credentials");
+Check(!cfg.Contains("\"username\""), "tun config without credentials has none");
 var buffer = new LineBuffer(3);
 for (var i = 1; i <= 5; i++) buffer.Add("l" + i);
 var (c1, l1) = buffer.ReadFrom(0);
@@ -53,7 +58,7 @@ var left = false;
 var dispatcher = new ServiceDispatcher(tun, ks, () => left, "C:\\x\\Tunnelka.exe", log.Add);
 
 var ping = dispatcher.Handle(new ServiceRequest { Command = ServiceCommand.Ping }, 1);
-Check(ping.Ok && ping.ServiceExe == "C:\\x\\Tunnelka.exe" && ping.Protocol == 1, "ping");
+Check(ping.Ok && ping.ServiceExe == "C:\\x\\Tunnelka.exe" && ping.Protocol == ServiceConstants.ProtocolVersion, "ping");
 Check(!dispatcher.Handle(new ServiceRequest { Command = "format-c" }, 1).Ok, "unknown command rejected");
 var bad = dispatcher.Handle(Start(r => r.SocksPort = 5), 1);
 Check(!bad.Ok && !runner.Started, "bad request does not start core");
@@ -99,7 +104,7 @@ var lines = new List<string>();
 back.Output += lines.Add;
 var exited = new ManualResetEventSlim();
 back.Exited += exited.Set;
-back.Start(new TunParameters(10808, "example.com", null, new RoutingSettings()));
+back.Start(new TunParameters(10808, "example.com", null, new RoutingSettings(), "abcd1234", "secretpass99"));
 Check(back.IsRunning, "backend running");
 runner.Emit("from-core");
 Thread.Sleep(1300);
@@ -230,6 +235,11 @@ Check(recentLines.Count == 300 && recentLines[299].EndsWith("line 399"), "log ke
 var routeServer = new ProxyServer { Protocol = "vless", Address = "vpn.example.com", Port = 443, Secret = "11111111-1111-1111-1111-111111111111", Network = "tcp", Security = "reality", PublicKey = "x", ShortId = "ab", Sni = "example.com" };
 var listedRouting = new RoutingSettings { ListMode = RoutingMode.VpnForListed, Rules = { new RoutingRule { Value = "process:chrome.exe" }, new RoutingRule { Value = "domain:ya.ru" } } };
 string Final(RoutingSettings r) { var rules = JsonNode.Parse(XrayConfigBuilder.Build(routeServer, r))!["routing"]!["rules"]!.AsArray(); var last = rules[rules.Count - 1]!; return last["outboundTag"]!.ToString() + "/" + (last["network"]?.ToString() ?? "-"); }
+LocalAccess.Renew(true);
+var guarded = JsonNode.Parse(XrayConfigBuilder.Build(routeServer, new RoutingSettings(), true))!["inbounds"]!.AsArray();
+Check(guarded[0]!["settings"]!["auth"]!.ToString() == "password" && guarded[1]!["settings"]!["accounts"] != null, "xray inbounds are protected in tun mode");
+var openProxy = JsonNode.Parse(XrayConfigBuilder.Build(routeServer, new RoutingSettings(), false))!["inbounds"]!.AsArray();
+Check(openProxy[0]!["settings"]!["auth"]!.ToString() == "password" && openProxy[1]!["settings"]!["accounts"] == null, "http inbound stays open in proxy mode");
 Check(Final(listedRouting) == "direct/tcp,udp", "proxy mode, VPN for listed: everything else goes direct");
 var forTun = XrayRoutingPolicy.For(true, listedRouting);
 Check(forTun.Rules.Count == 0 && forTun.EffectiveMode == RoutingMode.AllVpn, "TUN: xray gets no split rules");
