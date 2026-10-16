@@ -41,6 +41,16 @@ Check(!Valid(new ServiceRequest { Command = ServiceCommand.TunStart }), "validat
 var securedCfg = TunConfigBuilder.Build(p.SocksPort, p.Routing, p.ServerHost, p.PhysicalInterface, p.SocksUser, p.SocksPassword);
 Check(securedCfg.Contains("abcd1234") && securedCfg.Contains("secretpass99"), "tun config carries socks credentials");
 Check(!cfg.Contains("\"username\""), "tun config without credentials has none");
+ProxyServer Srv(string name, string address, string sub, string secret = "id") => new() { Protocol = "vless", Name = name, Address = address, Port = 443, Secret = secret, SubscriptionUrl = sub };
+var oldSelected = Srv("Германия", "1.1.1.1", "https://a");
+var refreshed = new List<ProxyServer> { Srv("Другой", "9.9.9.9", "https://b"), Srv("Франция", "2.2.2.2", "https://a"), Srv("Германия 2", "1.1.1.1", "https://a"), Srv("Германия", "3.3.3.3", "https://a") };
+Check(oldSelected.IsSameAs(Srv("переименован", "1.1.1.1", "https://a")), "same endpoint is same server even if renamed");
+Check(!oldSelected.IsSameAs(Srv("Германия", "1.1.1.1", "https://a", "other")), "different key is a different server");
+Check(ServerMatcher.Successor(oldSelected, refreshed) == refreshed[2], "successor prefers the same endpoint");
+Check(ServerMatcher.Successor(Srv("Германия", "7.7.7.7", "https://a"), refreshed) == refreshed[3], "successor falls back to the same name");
+Check(ServerMatcher.Successor(Srv("Нет", "7.7.7.7", "https://a"), refreshed) == refreshed[1], "successor falls back to first of same subscription");
+Check(ServerMatcher.Successor(Srv("Нет", "7.7.7.7", "https://zzz"), refreshed) == null, "successor is null when subscription is gone");
+Check(ServerMatcher.Successor(new ProxyServer { Name = "manual" }, refreshed) == null, "manual server has no successor");
 var buffer = new LineBuffer(3);
 for (var i = 1; i <= 5; i++) buffer.Add("l" + i);
 var (c1, l1) = buffer.ReadFrom(0);

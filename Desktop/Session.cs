@@ -157,9 +157,15 @@ public sealed class Session : IDisposable
 
     public void Select(ProxyServer server)
     {
+        var switching = Active != null && !Busy && !ReferenceEquals(server, Active);
         Selected = server;
         CardsChanged?.Invoke();
         StateChanged?.Invoke();
+        if (!switching)
+            return;
+
+        Disconnect();
+        _ = Connect();
     }
 
     public string SelectedLink() => AutoServers.IsAuto(Selected) ? AutoServers.Link(Selected!) : Selected?.Link ?? "";
@@ -533,19 +539,10 @@ public sealed class Session : IDisposable
     private void AfterServersChanged()
     {
         if (Selected == null || (AutoServers.IsAuto(Selected) ? Autos.Members(Selected).Count == 0 : !Data.Servers.Contains(Selected)))
-            Selected = Successor(Selected) ?? Data.Servers.FirstOrDefault();
+            Selected = (AutoServers.IsAuto(Selected) ? null : ServerMatcher.Successor(Selected, Data.Servers)) ?? Data.Servers.FirstOrDefault();
 
         ServersChanged?.Invoke();
         StateChanged?.Invoke();
-    }
-
-    private ProxyServer? Successor(ProxyServer? old)
-    {
-        if (old == null || AutoServers.IsAuto(old) || old.SubscriptionUrl == null)
-            return null;
-
-        var pool = Data.Servers.Where(s => s.SubscriptionUrl == old.SubscriptionUrl).ToList();
-        return pool.FirstOrDefault(s => s.IsSameAs(old)) ?? pool.FirstOrDefault(s => s.Name == old.Name) ?? pool.FirstOrDefault();
     }
 
     public void Delete(ProxyServer server)
