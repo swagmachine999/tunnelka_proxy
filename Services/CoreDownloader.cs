@@ -91,7 +91,7 @@ public sealed class CoreDownloader
         var handler = new HttpClientHandler();
         if (_proxyPort != null)
         {
-            handler.Proxy = new WebProxy($"http://127.0.0.1:{_proxyPort}");
+            handler.Proxy = LocalAccess.HttpProxy(_proxyPort.Value);
             handler.UseProxy = true;
         }
 

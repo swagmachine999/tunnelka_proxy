@@ -44,6 +44,10 @@ public sealed class AdvancedPage : UserControl
         });
         panel.Children.Add(Ui.Row(L.T("Пинг при запуске"), L.T("Проверять все серверы при открытии приложения"), ping, out _, out _));
 
+        var repair = SettingsParts.Pill(L.T("Починить"), false);
+        repair.Click += (_, _) => _ = session.Repair();
+        panel.Children.Add(Ui.Row(L.T("Починить"), L.T("Остановить ядра, снять прокси и блокировку, если что-то зависло"), repair, out _, out _));
+
         Content = panel;
     }
 

@@ -62,9 +62,20 @@ public sealed class SubscriptionService
             if (result.Servers.Count == 0)
                 throw new InvalidDataException(L.T("В ответе нет серверов"));
 
+            var fresh = result.Servers.ToList();
+            if (keep != null && keep.SubscriptionUrl == url)
+            {
+                var same = fresh.FindIndex(s => s.IsSameAs(keep));
+                if (same >= 0)
+                {
+                    keep.Name = fresh[same].Name;
+                    fresh[same] = keep;
+                }
+            }
+
             var servers = _settings.Data.Servers;
-            servers.RemoveAll(s => s.SubscriptionUrl == url && s != keep);
-            servers.AddRange(result.Servers);
+            servers.RemoveAll(s => s.SubscriptionUrl == url && (s != keep || fresh.Contains(keep)));
+            servers.AddRange(fresh);
             result.Info.Collapsed = _settings.Data.Profiles[index].Collapsed;
             _settings.Data.Profiles[index] = result.Info;
             _settings.Save();

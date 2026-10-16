@@ -38,6 +38,7 @@ public sealed class SubscriptionRowView : Border
     private readonly Session _session;
     private readonly ServerIcon _chevron;
     private readonly ServerIcon _refresh;
+    private readonly ServerIcon _ping;
     private readonly StackPanel _subline;
     private readonly StackPanel _details;
     private readonly NameView _title;
@@ -98,9 +99,9 @@ public sealed class SubscriptionRowView : Border
         _refresh.Clicked += () => _ = _session.RefreshSubscription(Info.Url);
         icons.Children.Add(_refresh);
 
-        var ping = new ServerIcon(ServerIconKind.Ping, 28, 28);
-        ping.Clicked += () => _ = _session.PingSubscription(Info.Url);
-        icons.Children.Add(ping);
+        _ping = new ServerIcon(ServerIconKind.Ping, 28, 28);
+        _ping.Clicked += () => _ = _session.PingSubscription(Info.Url);
+        icons.Children.Add(_ping);
 
         var more = new ServerIcon(ServerIconKind.Menu, 28, 28);
         icons.Children.Add(more);
@@ -163,6 +164,7 @@ public sealed class SubscriptionRowView : Border
         _serverCount = _session.Subscriptions.Servers(Info.Url).Count;
         var status = _session.Subscriptions.StatusOf(Info.Url);
         _refresh.Status = status;
+        _ping.Status = _session.PingStatusOf(Info.Url);
         _chevron.Collapsed = Info.Collapsed;
         _title.SetParts(ServerText.Parts(Info.Title, Info.Title), null);
         BuildSubline();

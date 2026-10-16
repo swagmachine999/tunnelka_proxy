@@ -17,8 +17,9 @@ public static class XrayConfigBuilder
 
     public static void ChoosePorts()
     {
-        for (var start = PreferredSocksPort; start < PreferredSocksPort + 200; start += 10)
+        for (var attempt = 0; attempt < 60; attempt++)
         {
+            var start = Random.Shared.Next(20000, 48000);
             if (IsFree(start) && IsFree(start + 1) && IsFree(start + 2) && IsFree(start + 5))
             {
                 SocksPort = start;
@@ -45,7 +46,7 @@ public static class XrayConfigBuilder
         }
     }
 
-    public static string Build(ProxyServer server, RoutingSettings routing)
+    public static string Build(ProxyServer server, RoutingSettings routing, bool protectHttp = false)
     {
         var routingRules = new JsonArray
         {
@@ -78,12 +79,12 @@ public static class XrayConfigBuilder
             },
             ["inbounds"] = new JsonArray
             {
-                Inbound("socks-in", "socks", SocksPort, new JsonObject { ["udp"] = true }),
-                Inbound("http-in", "http", HttpPort, new JsonObject())
+                Inbound("socks-in", "socks", SocksPort, SocksSettings()),
+                Inbound("http-in", "http", HttpPort, protectHttp ? HttpSettings() : new JsonObject())
             },
             ["outbounds"] = new JsonArray
             {
-                Outbound(server, "proxy", RelayPort),
+                Outbound(server, "proxy", RelayPort, true),
                 new JsonObject { ["tag"] = "direct", ["protocol"] = "freedom" },
                 new JsonObject { ["tag"] = "block", ["protocol"] = "blackhole" }
             },
@@ -109,6 +110,29 @@ public static class XrayConfigBuilder
         return node;
     }
 
+    private static JsonArray Accounts() =>
+        new(new JsonObject { ["user"] = LocalAccess.User, ["pass"] = LocalAccess.Password });
+
+    private static JsonObject SocksSettings()
+    {
+        var settings = new JsonObject { ["udp"] = true };
+        if (LocalAccess.Enabled)
+        {
+            settings["auth"] = "password";
+            settings["accounts"] = Accounts();
+        }
+
+        return settings;
+    }
+
+    private static JsonObject HttpSettings()
+    {
+        var settings = new JsonObject();
+        if (LocalAccess.Enabled)
+            settings["accounts"] = Accounts();
+        return settings;
+    }
+
     private static JsonObject Inbound(string tag, string protocol, int port, JsonObject settings) => new()
     {
         ["tag"] = tag,
@@ -123,18 +147,21 @@ public static class XrayConfigBuilder
         }
     };
 
-    public static JsonObject Outbound(ProxyServer server, string tag, int relayPort)
+    public static JsonObject Outbound(ProxyServer server, string tag, int relayPort, bool secureRelay = false)
     {
         if (SingBoxRelay.Needs(server))
+        {
+            var relay = new JsonObject { ["address"] = "127.0.0.1", ["port"] = relayPort };
+            if (secureRelay && LocalAccess.Enabled)
+                relay["users"] = Accounts();
+
             return new JsonObject
             {
                 ["tag"] = tag,
                 ["protocol"] = "socks",
-                ["settings"] = new JsonObject
-                {
-                    ["servers"] = new JsonArray(new JsonObject { ["address"] = "127.0.0.1", ["port"] = relayPort })
-                }
+                ["settings"] = new JsonObject { ["servers"] = new JsonArray(relay) }
             };
+        }
 
         var outbound = new JsonObject
         {

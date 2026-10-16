@@ -14,6 +14,8 @@ public sealed class ServiceRequest
 {
     public string Command { get; set; } = "";
     public int SocksPort { get; set; }
+    public string SocksUser { get; set; } = "";
+    public string SocksPassword { get; set; } = "";
     public string ServerHost { get; set; } = "";
     public string? PhysicalInterface { get; set; }
     public string Mode { get; set; } = "AllVpn";

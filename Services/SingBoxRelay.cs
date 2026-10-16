@@ -8,7 +8,7 @@ public static class SingBoxRelay
 {
     public static bool Needs(ProxyServer server) => server.Protocol is "hysteria2" or "tuic";
 
-    public static string Build(IReadOnlyList<(ProxyServer Server, int Port)> relays)
+    public static string Build(IReadOnlyList<(ProxyServer Server, int Port)> relays, bool secure = false)
     {
         var inbounds = new JsonArray();
         var outbounds = new JsonArray();
@@ -16,13 +16,16 @@ public static class SingBoxRelay
 
         for (var i = 0; i < relays.Count; i++)
         {
-            inbounds.Add(new JsonObject
+            var inbound = new JsonObject
             {
                 ["type"] = "socks",
                 ["tag"] = $"in-{i}",
                 ["listen"] = "127.0.0.1",
                 ["listen_port"] = relays[i].Port
-            });
+            };
+            if (secure && LocalAccess.Enabled)
+                inbound["users"] = new JsonArray(new JsonObject { ["username"] = LocalAccess.User, ["password"] = LocalAccess.Password });
+            inbounds.Add(inbound);
             outbounds.Add(Outbound(relays[i].Server, $"out-{i}"));
             rules.Add(new JsonObject { ["inbound"] = $"in-{i}", ["outbound"] = $"out-{i}" });
         }
