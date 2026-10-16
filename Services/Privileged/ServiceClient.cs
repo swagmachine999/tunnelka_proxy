@@ -73,6 +73,23 @@ public sealed class ServiceClient : IServiceChannel
         }
     }
 
+    public string WhyUnavailable()
+    {
+        var reply = Send(new ServiceRequest { Command = ServiceCommand.Ping });
+        if (reply is not { Ok: true })
+            return L.T("служба не отвечает: она не установлена или не запущена");
+
+        if (reply.Protocol != ServiceConstants.ProtocolVersion)
+            return L.T("служба от другой версии приложения, запустите установщик ещё раз");
+
+        var own = _ownPath();
+        if (own == null || reply.ServiceExe == null
+            || !string.Equals(Path.GetFullPath(own), Path.GetFullPath(reply.ServiceExe), StringComparison.OrdinalIgnoreCase))
+            return L.F("служба запущена из другой папки ({0}), а приложение из {1}", reply.ServiceExe ?? "?", own ?? "?");
+
+        return "";
+    }
+
     private bool Probe()
     {
         var reply = Send(new ServiceRequest { Command = ServiceCommand.Ping });

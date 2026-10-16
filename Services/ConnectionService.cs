@@ -130,7 +130,17 @@ public sealed class ConnectionService : IDisposable
         if (_service.IsAvailable && File.Exists(ServiceConstants.SingBoxPath))
             return _serviceTun;
 
+        _log.Write(L.F("Служба Tunnelka не используется: {0}", WhyServiceUnused()));
+
         return Elevation.IsAdministrator() ? _localTun : null;
+    }
+
+    private string WhyServiceUnused()
+    {
+        if (_service.IsAvailable)
+            return L.F("нет {0}", ServiceConstants.SingBoxPath);
+
+        return _service is ServiceClient client ? client.WhyUnavailable() : L.T("служба недоступна");
     }
 
     private void StopCores()
