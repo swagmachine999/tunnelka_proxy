@@ -33,7 +33,7 @@ public sealed class TunSupervisor : ITunSupervisor, IDisposable
             StopLocked();
             var generation = ++_generation;
 
-            _runner.Start(TunConfigBuilder.Build(parameters.SocksPort, parameters.Routing, parameters.ServerHost, parameters.PhysicalInterface));
+            _runner.Start(TunConfigBuilder.Build(parameters.SocksPort, parameters.Routing, parameters.ServerHost, parameters.PhysicalInterface, parameters.SocksUser, parameters.SocksPassword));
             if (_runner.WaitForExit(StartupCheckMs))
             {
                 var code = _runner.ExitCode ?? -1;

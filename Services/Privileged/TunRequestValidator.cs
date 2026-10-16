@@ -2,7 +2,7 @@ using Tunnelka.Models;
 
 namespace Tunnelka.Services.Privileged;
 
-public sealed record TunParameters(int SocksPort, string ServerHost, string? PhysicalInterface, RoutingSettings Routing);
+public sealed record TunParameters(int SocksPort, string ServerHost, string? PhysicalInterface, RoutingSettings Routing, string SocksUser = "", string SocksPassword = "");
 
 public static class TunRequestValidator
 {
@@ -17,6 +17,9 @@ public static class TunRequestValidator
 
         if (request.SocksPort is < 1024 or > 65535)
             return Reject("socks port out of range", out error);
+
+        if (!IsToken(request.SocksUser) || !IsToken(request.SocksPassword))
+            return Reject("invalid socks credentials", out error);
 
         if (!IsHost(request.ServerHost))
             return Reject("invalid server host", out error);
@@ -40,10 +43,13 @@ public static class TunRequestValidator
         }
 
         parameters = new TunParameters(request.SocksPort, request.ServerHost, request.PhysicalInterface,
-            new RoutingSettings { ListMode = mode, Rules = rules });
+            new RoutingSettings { ListMode = mode, Rules = rules }, request.SocksUser, request.SocksPassword);
         error = "";
         return true;
     }
+
+    private static bool IsToken(string value) =>
+        value.Length is >= 8 and <= 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'z' or >= 'A' and <= 'Z');
 
     private static bool Reject(string reason, out string error)
     {

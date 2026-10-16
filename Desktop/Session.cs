@@ -2,6 +2,7 @@ using Avalonia.Threading;
 using Tunnelka.Models;
 using Tunnelka.Parsing;
 using Tunnelka.Services;
+using Tunnelka.Services.Privileged;
 using Tunnelka.Storage;
 using Tunnelka.UI;
 
@@ -156,9 +157,15 @@ public sealed class Session : IDisposable
 
     public void Select(ProxyServer server)
     {
+        var switching = Active != null && !Busy && !ReferenceEquals(server, Active);
         Selected = server;
         CardsChanged?.Invoke();
         StateChanged?.Invoke();
+        if (!switching)
+            return;
+
+        Disconnect();
+        _ = Connect();
     }
 
     public string SelectedLink() => AutoServers.IsAuto(Selected) ? AutoServers.Link(Selected!) : Selected?.Link ?? "";
@@ -532,7 +539,7 @@ public sealed class Session : IDisposable
     private void AfterServersChanged()
     {
         if (Selected == null || (AutoServers.IsAuto(Selected) ? Autos.Members(Selected).Count == 0 : !Data.Servers.Contains(Selected)))
-            Selected = Data.Servers.FirstOrDefault();
+            Selected = (AutoServers.IsAuto(Selected) ? null : ServerMatcher.Successor(Selected, Data.Servers)) ?? Data.Servers.FirstOrDefault();
 
         ServersChanged?.Invoke();
         StateChanged?.Invoke();
@@ -555,9 +562,31 @@ public sealed class Session : IDisposable
         StateChanged?.Invoke();
     }
 
-    public Task PingAll() => PingServers(Data.Servers.ToList());
+    private readonly Dictionary<string, RefreshStatus> _pingStatuses = new();
 
-    public Task PingSubscription(string url) => PingServers(Subscriptions.Servers(url));
+    public RefreshStatus? PingStatusOf(string key) => _pingStatuses.TryGetValue(key, out var status) ? status : null;
+
+    public Task PingAll() => PingTracked("", Data.Servers.ToList());
+
+    public Task PingSubscription(string url) => PingTracked(url, Subscriptions.Servers(url));
+
+    private async Task PingTracked(string key, List<ProxyServer> servers)
+    {
+        if (servers.Count == 0 || _pingStatuses.TryGetValue(key, out var current) && current.State == RefreshState.Busy)
+            return;
+
+        _pingStatuses[key] = new RefreshStatus(RefreshState.Busy, "", DateTime.Now);
+        CardsChanged?.Invoke();
+        try
+        {
+            await PingServers(servers);
+        }
+        finally
+        {
+            _pingStatuses[key] = new RefreshStatus(RefreshState.Done, "", DateTime.Now);
+            CardsChanged?.Invoke();
+        }
+    }
 
     public async Task PingCurrent()
     {
@@ -658,6 +687,7 @@ public sealed class Session : IDisposable
             return;
 
         Log.Write(L.T("Ядро VPN завершилось. Причина обычно видна в строках выше"));
+        Log.Write(Connection.DescribeExit());
         var blocked = KillSwitch.IsEngaged;
         Disconnect(keepKillSwitch: blocked);
         ShowLogRequested?.Invoke();
@@ -680,6 +710,50 @@ public sealed class Session : IDisposable
 
     public Task ReleaseKillSwitch() =>
         KillSwitch.IsEngaged || KillSwitch.WasLeftOn() ? Task.Run(KillSwitch.Release) : Task.CompletedTask;
+
+    private bool _repairing;
+
+    public async Task Repair()
+    {
+        if (_repairing || Busy)
+            return;
+
+        _repairing = true;
+        Busy = true;
+        StateChanged?.Invoke();
+        try
+        {
+            Disconnect();
+            await Connection.StopAsync();
+            await Task.Run(() =>
+            {
+                ConnectionService.CleanUpAfterCrash();
+                if (ServiceClient.Default.IsAvailable)
+                    ServiceClient.Default.Send(new ServiceRequest { Command = ServiceCommand.TunStop });
+                ServiceClient.Default.Forget();
+            });
+            Log.Write(L.T("Починка: ядра остановлены, системный прокси и блокировка сняты"));
+
+            if (!KillSwitch.IsEngaged && KillSwitch.WasLeftOn() && !KillSwitch.CanRelease)
+            {
+                if (Dialogs != null && await Dialogs.AskYesNo(L.T("Kill switch остался включённым, поэтому интернет может не работать. Перезапустить Tunnelka от имени администратора, чтобы снять блокировку?")))
+                {
+                    RestartAsAdministrator("--elevated");
+                    return;
+                }
+            }
+            else
+            {
+                Hint?.Invoke(L.T("Готово. Подключитесь заново"), Tone.Good);
+            }
+        }
+        finally
+        {
+            Busy = false;
+            _repairing = false;
+            StateChanged?.Invoke();
+        }
+    }
 
     public void Shutdown()
     {

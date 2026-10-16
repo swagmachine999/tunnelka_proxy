@@ -11,7 +11,7 @@ public static class TunConfigBuilder
 
     private static readonly string[] DirectProcesses = { "xray.exe", "sing-box.exe", "Tunnelka.exe" };
 
-    public static string Build(int socksPort, RoutingSettings routing, string serverHost, string? physicalInterface)
+    public static string Build(int socksPort, RoutingSettings routing, string serverHost, string? physicalInterface, string? socksUser = null, string? socksPassword = null)
     {
         var routeRules = new JsonArray
         {
@@ -78,6 +78,13 @@ public static class TunConfigBuilder
                 ["final"] = routing.Final == RoutingRule.Direct ? "direct" : "proxy"
             }
         };
+
+        if (!string.IsNullOrEmpty(socksUser) && !string.IsNullOrEmpty(socksPassword))
+        {
+            var proxy = config["outbounds"]!.AsArray()[0]!.AsObject();
+            proxy["username"] = socksUser;
+            proxy["password"] = socksPassword;
+        }
 
         var route = config["route"]!.AsObject();
         if (physicalInterface != null)
