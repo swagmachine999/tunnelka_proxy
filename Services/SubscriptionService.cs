@@ -65,7 +65,7 @@ public sealed class SubscriptionService
             var fresh = result.Servers.ToList();
             if (keep != null && keep.SubscriptionUrl == url)
             {
-                var same = fresh.FindIndex(s => IsSameServer(s, keep));
+                var same = fresh.FindIndex(s => s.IsSameAs(keep));
                 if (same >= 0)
                 {
                     keep.Name = fresh[same].Name;
@@ -91,12 +91,6 @@ public sealed class SubscriptionService
             return false;
         }
     }
-
-    private static bool IsSameServer(ProxyServer a, ProxyServer b) =>
-        a.Protocol == b.Protocol && a.Address == b.Address && a.Port == b.Port
-        && a.Secret == b.Secret && a.Password == b.Password
-        && a.Network == b.Network && a.Security == b.Security && a.Sni == b.Sni
-        && a.Path == b.Path && a.ServiceName == b.ServiceName;
 
     private async Task<SubscriptionResult> Load(string url)
     {
