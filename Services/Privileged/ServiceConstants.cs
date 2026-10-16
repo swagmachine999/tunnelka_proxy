@@ -6,7 +6,7 @@ public static class ServiceConstants
     public const string DisplayName = "Tunnelka Service";
     public const string PipeName = "TunnelkaService";
     public const string RunArgument = "--service";
-    public const int ProtocolVersion = 1;
+    public const int ProtocolVersion = 2;
 
     public static string DataDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Tunnelka");
 

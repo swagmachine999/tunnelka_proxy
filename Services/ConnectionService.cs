@@ -43,6 +43,12 @@ public sealed class ConnectionService : IDisposable
 
     public bool IsRunning => _xray.IsRunning;
 
+    public string DescribeExit() =>
+        L.F("Xray: {0}; sing-box: {1}", DescribeCore(_xray.IsRunning, _xray.ExitCode), DescribeCore(_serviceTun.IsRunning || _localTun.IsRunning, _serviceTun.ExitCode ?? _localTun.ExitCode));
+
+    private static string DescribeCore(bool running, int? exitCode) =>
+        running ? L.T("работает") : exitCode is { } code ? L.F("завершился, код {0}", code) : L.T("не запущен");
+
     public async Task<ConnectResult> StartAsync(ProxyServer server, bool tun, RoutingSettings routing)
     {
         await _gate.WaitAsync();
@@ -91,8 +97,11 @@ public sealed class ConnectionService : IDisposable
         StopCores();
         XrayRunner.KillOrphans(XrayRunner.XrayPath);
         XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
+        if (tun)
+            CloseForeignCores();
 
-        var result = StartXray(server, XrayRoutingPolicy.For(tun, routing));
+        LocalAccess.Renew(tun);
+        var result = StartXray(server, XrayRoutingPolicy.For(tun, routing), tun);
         if (result == ConnectResult.Ok && tun)
             result = StartTun(backend!, routing, server.Address);
 
@@ -106,12 +115,32 @@ public sealed class ConnectionService : IDisposable
         return ConnectResult.Ok;
     }
 
+    private void CloseForeignCores()
+    {
+        var stopped = ForeignCores.Stop();
+        if (stopped.Count == 0)
+            return;
+
+        _log.Write(L.F("Закрыты ядра другого VPN: {0}", string.Join(", ", stopped)));
+        Thread.Sleep(1000);
+    }
+
     private ITunBackend? ChooseTun()
     {
         if (_service.IsAvailable && File.Exists(ServiceConstants.SingBoxPath))
             return _serviceTun;
 
+        _log.Write(L.F("Служба Tunnelka не используется: {0}", WhyServiceUnused()));
+
         return Elevation.IsAdministrator() ? _localTun : null;
+    }
+
+    private string WhyServiceUnused()
+    {
+        if (_service.IsAvailable)
+            return L.F("нет {0}", ServiceConstants.SingBoxPath);
+
+        return _service is ServiceClient client ? client.WhyUnavailable() : L.T("служба недоступна");
     }
 
     private void StopCores()
@@ -145,7 +174,7 @@ public sealed class ConnectionService : IDisposable
         ApplySystemProxy(false);
     }
 
-    private ConnectResult StartXray(ProxyServer server, RoutingSettings routing)
+    private ConnectResult StartXray(ProxyServer server, RoutingSettings routing, bool tun)
     {
         if (!File.Exists(XrayRunner.XrayPath))
             return ConnectResult.XrayMissing;
@@ -153,16 +182,13 @@ public sealed class ConnectionService : IDisposable
         try
         {
             XrayConfigBuilder.ChoosePorts();
-            if (XrayConfigBuilder.SocksPort != XrayConfigBuilder.PreferredSocksPort)
-                _log.Write(L.F("Порт {0} занят другой программой (например, Happ или v2rayN), беру {1}", XrayConfigBuilder.PreferredSocksPort, XrayConfigBuilder.SocksPort));
-
             if (SingBoxRelay.Needs(server) && !File.Exists(XrayRunner.SingBoxPath))
                 return ConnectResult.SingBoxMissing;
 
             if (SingBoxRelay.Needs(server) && !StartRelay(server))
                 return ConnectResult.Failed;
 
-            _xray.Start(XrayConfigBuilder.Build(server, routing));
+            _xray.Start(XrayConfigBuilder.Build(server, routing, tun));
             _log.Write(L.F("Порты: SOCKS5 127.0.0.1:{0}, HTTP 127.0.0.1:{1}", XrayConfigBuilder.SocksPort, XrayConfigBuilder.HttpPort));
             return ConnectResult.Ok;
         }
@@ -181,7 +207,7 @@ public sealed class ConnectionService : IDisposable
             return false;
         }
 
-        _relay.Start(SingBoxRelay.Build(new[] { (server, XrayConfigBuilder.RelayPort) }));
+        _relay.Start(SingBoxRelay.Build(new[] { (server, XrayConfigBuilder.RelayPort) }, true));
         if (_relay.WaitForPort(XrayConfigBuilder.RelayPort, 5000))
             return true;
 
@@ -204,7 +230,7 @@ public sealed class ConnectionService : IDisposable
             if (physical != null)
                 _log.Write(L.F("Трафик ядра идёт напрямую через адаптер {0}, мимо другого VPN", physical));
             _tun = backend;
-            backend.Start(new TunParameters(XrayConfigBuilder.SocksPort, serverHost, physical, routing));
+            backend.Start(new TunParameters(XrayConfigBuilder.SocksPort, serverHost, physical, routing, LocalAccess.User, LocalAccess.Password));
             if (backend.WaitForExit(800))
             {
                 _log.Write(L.F("sing-box сразу завершился, код {0}", backend.ExitCode ?? -1));

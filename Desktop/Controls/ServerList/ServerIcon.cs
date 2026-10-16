@@ -24,6 +24,7 @@ public sealed class ServerIcon : Control
 
     private readonly DispatcherTimer _frame = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private bool _hover;
+    private bool _pressed;
     private bool _collapsed;
     private RefreshStatus? _status;
 
@@ -70,8 +71,10 @@ public sealed class ServerIcon : Control
 
     private double SinceStatus => _status == null ? double.MaxValue : (DateTime.Now - _status.At).TotalSeconds;
 
+    private bool Animated => Kind is ServerIconKind.Refresh or ServerIconKind.Gauge or ServerIconKind.Ping;
+
     private bool NeedsFrames =>
-        Kind == ServerIconKind.Refresh &&
+        Animated &&
         (_status?.State == RefreshState.Busy || (_status?.State == RefreshState.Done && SinceStatus < DoneSeconds + 0.3));
 
     private void UpdateTimer()
@@ -124,7 +127,20 @@ public sealed class ServerIcon : Control
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             e.Handled = true;
+            _pressed = true;
+            e.Pointer.Capture(this);
+            InvalidateVisual();
             Clicked?.Invoke();
+        }
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        if (_pressed)
+        {
+            _pressed = false;
+            InvalidateVisual();
         }
     }
 
@@ -133,6 +149,11 @@ public sealed class ServerIcon : Control
         base.OnPointerReleased(e);
         if (Kind != ServerIconKind.Chevron && Kind != ServerIconKind.Search)
             e.Handled = true;
+        if (_pressed)
+        {
+            _pressed = false;
+            InvalidateVisual();
+        }
     }
 
     public override void Render(DrawingContext context)
@@ -141,10 +162,12 @@ public sealed class ServerIcon : Control
         context.FillRectangle(Brushes.Transparent, bounds);
         var cx = bounds.Width / 2;
         var cy = bounds.Height / 2;
+        var squeeze = _pressed ? 0.86 : 1;
+        using var scaled = context.PushTransform(Matrix.CreateTranslation(-cx, -cy) * Matrix.CreateScale(squeeze, squeeze) * Matrix.CreateTranslation(cx, cy));
 
         if (_hover && Kind != ServerIconKind.Chevron && Kind != ServerIconKind.Search)
         {
-            var key = Kind == ServerIconKind.Gauge ? "SidebarHoverBrush" : "CardHoverBrush";
+            var key = _pressed ? "CardSelectedBrush" : Kind == ServerIconKind.Gauge ? "SidebarHoverBrush" : "CardHoverBrush";
             var radius = Kind == ServerIconKind.Gauge ? 12 : 9;
             context.DrawRectangle(Ui.Brush(this, key), null, bounds, radius, radius);
         }
@@ -152,10 +175,10 @@ public sealed class ServerIcon : Control
         switch (Kind)
         {
             case ServerIconKind.Gauge:
-                DrawGauge(context, cx, cy, 10, 5, -6, 2.5, Ui.Brush(this, _hover ? "AccentStrongBrush" : "TextBrush"));
+                DrawGaugeState(context, cx, cy, 10, 5, -6, 2.5, _hover ? "AccentStrongBrush" : "TextBrush");
                 break;
             case ServerIconKind.Ping:
-                DrawGauge(context, cx, cy, 8, 4, -5, 2, Ui.Brush(this, "TextMutedBrush"));
+                DrawGaugeState(context, cx, cy, 8, 4, -5, 2, "TextMutedBrush");
                 break;
             case ServerIconKind.Refresh:
                 DrawRefreshState(context, cx, cy);
@@ -173,6 +196,24 @@ public sealed class ServerIcon : Control
                 DrawSearch(context, cx, cy);
                 break;
         }
+    }
+
+    private void DrawGaugeState(DrawingContext context, double cx, double cy, double radius, double needleX, double needleY, double dot, string brushKey)
+    {
+        switch (_status?.State)
+        {
+            case RefreshState.Busy:
+                var swing = Math.Sin(DateTime.Now.TimeOfDay.TotalSeconds * Math.PI * 2.4);
+                var angle = (-90 + 62 * swing) * Math.PI / 180;
+                var length = Math.Sqrt(needleX * needleX + needleY * needleY);
+                DrawGauge(context, cx, cy, radius, Math.Cos(angle) * length, Math.Sin(angle) * length, dot, Ui.Brush(this, "AccentBrush"));
+                return;
+            case RefreshState.Done when SinceStatus < DoneSeconds:
+                DrawCheck(context, cx, cy, SinceStatus);
+                return;
+        }
+
+        DrawGauge(context, cx, cy, radius, needleX, needleY, dot, Ui.Brush(this, brushKey));
     }
 
     private static void DrawGauge(DrawingContext context, double cx, double cy, double radius, double needleX, double needleY, double dot, IBrush brush)

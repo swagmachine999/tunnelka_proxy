@@ -35,4 +35,10 @@ public class ProxyServer
 
     [JsonIgnore]
     public int? PingMs { get; set; }
+
+    public bool IsSameAs(ProxyServer other) =>
+        Protocol == other.Protocol && Address == other.Address && Port == other.Port
+        && Secret == other.Secret && Password == other.Password
+        && Network == other.Network && Security == other.Security && Sni == other.Sni
+        && Path == other.Path && ServiceName == other.ServiceName;
 }

@@ -11,8 +11,8 @@
           <Color x:Key="SidebarHoverColor">#E2D5F4</Color>
           <Color x:Key="SurfaceColor">#FBF8FE</Color>
           <Color x:Key="CardColor">#FFFFFF</Color>
-          <Color x:Key="CardHoverColor">#F9F4FE</Color>
-          <Color x:Key="CardSelectedColor">#F2E9FD</Color>
+          <Color x:Key="CardHoverColor">#F3EAFD</Color>
+          <Color x:Key="CardSelectedColor">#E8D9FB</Color>
           <Color x:Key="BorderColor">#E9E0F5</Color>
           <Color x:Key="AccentColor">#B290F0</Color>
           <Color x:Key="AccentStrongColor">#8C6AD6</Color>
@@ -34,8 +34,8 @@
           <Color x:Key="SidebarHoverColor">#2C253A</Color>
           <Color x:Key="SurfaceColor">#1D1926</Color>
           <Color x:Key="CardColor">#262131</Color>
-          <Color x:Key="CardHoverColor">#2D273A</Color>
-          <Color x:Key="CardSelectedColor">#372D4C</Color>
+          <Color x:Key="CardHoverColor">#342D44</Color>
+          <Color x:Key="CardSelectedColor">#43375E</Color>
           <Color x:Key="BorderColor">#362F44</Color>
           <Color x:Key="AccentColor">#B89AF5</Color>
           <Color x:Key="AccentStrongColor">#D0BAFF</Color>

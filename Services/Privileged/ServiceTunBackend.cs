@@ -36,6 +36,8 @@ public sealed class ServiceTunBackend : ITunBackend
         {
             Command = ServiceCommand.TunStart,
             SocksPort = parameters.SocksPort,
+            SocksUser = parameters.SocksUser,
+            SocksPassword = parameters.SocksPassword,
             ServerHost = parameters.ServerHost,
             PhysicalInterface = parameters.PhysicalInterface,
             Mode = parameters.Routing.EffectiveMode.ToString(),

@@ -1,13 +1,14 @@
 using System.Net;
 using System.Text;
 using Tunnelka.Models;
+using Tunnelka.Services;
 
 namespace Tunnelka.Parsing;
 
 public static class SubscriptionLoader
 {
     private static readonly HttpClient Http = CreateClient(new HttpClientHandler { UseProxy = false });
-    private static readonly Dictionary<int, HttpClient> Proxied = new();
+    private static readonly Dictionary<string, HttpClient> Proxied = new();
 
     public static async Task<SubscriptionResult> LoadAsync(string url, int? proxyPort = null)
     {
@@ -139,10 +140,11 @@ public static class SubscriptionLoader
         if (proxyPort == null)
             return Http;
 
-        if (!Proxied.TryGetValue(proxyPort.Value, out var client))
+        var key = LocalAccess.CacheKey(proxyPort.Value);
+        if (!Proxied.TryGetValue(key, out var client))
         {
-            client = CreateClient(new HttpClientHandler { Proxy = new WebProxy($"http://127.0.0.1:{proxyPort}"), UseProxy = true });
-            Proxied[proxyPort.Value] = client;
+            client = CreateClient(new HttpClientHandler { Proxy = LocalAccess.HttpProxy(proxyPort.Value), UseProxy = true });
+            Proxied[key] = client;
         }
         return client;
     }
