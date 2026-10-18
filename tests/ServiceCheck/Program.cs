@@ -285,7 +285,12 @@ var tunJson = TunConfigBuilder.Build(10808, listedRouting, "vpn.example.com", nu
 var tunRoute = JsonNode.Parse(tunJson)!["route"]!;
 Check(tunRoute["final"]!.ToString() == "direct", "sing-box: everything else direct");
 Check(tunJson.Contains("\"outbound\": \"proxy\"") && tunJson.Contains("chrome.exe") && tunJson.Contains("ya.ru"), "sing-box: listed items go to VPN");
-
+var tunDns = JsonNode.Parse(tunJson)!["dns"]!;
+Check(tunDns["final"]!.ToString() == "local", "dns: VPN for listed - unlisted apps resolve locally");
+var dnsRules = tunDns["rules"]!.AsArray();
+Check(dnsRules.Any(r => r!["server"]!.ToString() == "remote" && r["process_name"] != null), "dns: listed app resolves through VPN");
+var directDns = JsonNode.Parse(TunConfigBuilder.Build(10808, directRouting, "vpn.example.com", null))!["dns"]!;
+Check(directDns["final"]!.ToString() == "remote" && directDns["rules"]!.AsArray().Any(r => r!["server"]!.ToString() == "local" && r["domain_suffix"] != null), "dns: direct list resolves locally, rest through VPN");
 
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
