@@ -36,6 +36,7 @@ public sealed class Session : IDisposable
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromSeconds(60) };
     private readonly HashSet<ProxyServer> _pinging = new();
+    private readonly ServerWatchdog _watchdog = new(ServerWatchdog.TcpProbe, TimeSpan.FromSeconds(15), 3);
     private DateTime _connectedAt;
     private bool _exiting;
 
@@ -58,6 +59,7 @@ public sealed class Session : IDisposable
         _clock.Tick += (_, _) => ClockTick?.Invoke(Elapsed);
         _poller.Updated += OnTraffic;
         _refreshTimer.Tick += async (_, _) => await RefreshDue();
+        _watchdog.Lost += server => Dispatcher.UIThread.Post(() => _ = Failover(server));
         Connection.Exited += () => Dispatcher.UIThread.Post(OnCoreExited);
         Connection.Warning += text => Dispatcher.UIThread.Post(() => Hint?.Invoke(text, Tone.Mid));
         Subscriptions.StatusChanged += _ => Dispatcher.UIThread.Post(() => CardsChanged?.Invoke());
@@ -161,11 +163,8 @@ public sealed class Session : IDisposable
         Selected = server;
         CardsChanged?.Invoke();
         StateChanged?.Invoke();
-        if (!switching)
-            return;
-
-        Disconnect();
-        _ = Connect();
+        if (switching)
+            _ = SwitchLive();
     }
 
     public string SelectedLink() => AutoServers.IsAuto(Selected) ? AutoServers.Link(Selected!) : Selected?.Link ?? "";
@@ -189,7 +188,21 @@ public sealed class Session : IDisposable
 
     public event Action? AddRequested;
 
-    public async Task Connect()
+    public Task Connect() => ConnectInternal(false);
+
+    private async Task SwitchLive()
+    {
+        if (Data.Tun && Connection.CanSwitchLive)
+        {
+            await ConnectInternal(true);
+            return;
+        }
+
+        Disconnect();
+        await Connect();
+    }
+
+    private async Task ConnectInternal(bool live)
     {
         if (Busy)
             return;
@@ -198,7 +211,7 @@ public sealed class Session : IDisposable
         StateChanged?.Invoke();
         try
         {
-            await ConnectTo(Selected);
+            await ConnectTo(Selected, live);
         }
         finally
         {
@@ -208,7 +221,7 @@ public sealed class Session : IDisposable
         }
     }
 
-    private async Task ConnectTo(ProxyServer? server)
+    private async Task ConnectTo(ProxyServer? server, bool live = false)
     {
         if (AutoServers.IsAuto(server))
         {
@@ -227,7 +240,7 @@ public sealed class Session : IDisposable
 
         Connecting = true;
         StateChanged?.Invoke();
-        if (!await Start(server))
+        if (!await (live ? StartLive(server) : Start(server)))
         {
             Failed?.Invoke();
             if (Active != null)
@@ -244,6 +257,8 @@ public sealed class Session : IDisposable
         Connecting = false;
         _clock.Start();
         _poller.Start();
+        if (ServerWatchdog.CanWatch(server))
+            _watchdog.Start(server);
         Traffic?.Invoke(0, 0, true);
         Overlay.SetConnected(true);
         await EngageKillSwitch();
@@ -253,6 +268,14 @@ public sealed class Session : IDisposable
     }
 
     public event Action? Failed;
+
+    private async Task<bool> StartLive(ProxyServer server)
+    {
+        if (await Connection.SwitchAsync(server, Data.Routing) == ConnectResult.Ok)
+            return true;
+
+        return await Start(server);
+    }
 
     private async Task<bool> Start(ProxyServer server)
     {
@@ -301,6 +324,7 @@ public sealed class Session : IDisposable
     public void Disconnect(bool wait = false, bool keepKillSwitch = false)
     {
         var wasRunning = Active != null || Connection.IsRunning;
+        _watchdog.Stop();
         if (wait)
             Connection.Stop();
         else
@@ -328,6 +352,36 @@ public sealed class Session : IDisposable
         StateChanged?.Invoke();
         if (wasRunning)
             Log.Write(L.T("Отключено"));
+    }
+
+    private async Task Failover(ProxyServer lost)
+    {
+        if (Active != lost || Busy)
+            return;
+
+        var name = ServerText.CleanName(lost);
+        Log.Write(L.F("Сервер {0} не отвечает, ищу другой", name));
+        Hint?.Invoke(L.F("Сервер {0} не отвечает, ищу другой…", name), Tone.Mid);
+
+        var candidates = Data.Servers
+            .Where(s => s != lost && s.SubscriptionUrl == lost.SubscriptionUrl && ServerWatchdog.CanWatch(s))
+            .ToList();
+        await PingServers(candidates);
+        if (Active != lost || Busy)
+            return;
+
+        var best = candidates.Where(s => s.PingMs is >= 0).OrderBy(s => s.PingMs).FirstOrDefault();
+        if (best == null)
+        {
+            Log.Write(L.T("Ни один сервер не ответил, проверьте интернет"));
+            Hint?.Invoke(L.T("Серверы не отвечают, проверьте интернет"), Tone.Bad);
+            Dialogs?.Balloon(L.F("Сервер {0} не отвечает, других рабочих серверов нет", name));
+            return;
+        }
+
+        Selected = best;
+        Dialogs?.Balloon(L.F("Сервер {0} не отвечал, переключился на {1}", name, ServerText.CleanName(best)));
+        await SwitchLive();
     }
 
     public void SetMode(bool tun)
@@ -778,6 +832,7 @@ public sealed class Session : IDisposable
         _clock.Stop();
         _refreshTimer.Stop();
         _poller.Dispose();
+        _watchdog.Dispose();
         Overlay.Dispose();
         Connection.Dispose();
     }
