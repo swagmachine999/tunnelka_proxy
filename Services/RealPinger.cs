@@ -12,9 +12,10 @@ public static class RealPinger
     private const int Parallel = 16;
     private const int TimeoutMs = 5000;
 
-    public static async Task<Dictionary<ProxyServer, int>> PingAsync(IReadOnlyList<ProxyServer> servers, string url)
+
+    public static async Task<Dictionary<ProxyServer, int>> PingAsync(IReadOnlyList<ProxyServer> servers, string url, Action<ProxyServer, int>? progress = null)
     {
-        var results = await TryBatch(servers, url);
+        var results = await TryBatch(servers, url, progress);
         if (results != null)
             return results;
 
@@ -28,7 +29,7 @@ public static class RealPinger
             await gate.WaitAsync();
             try
             {
-                var single = await TryBatch(new[] { server }, url);
+                var single = await TryBatch(new[] { server }, url, progress);
                 if (single != null)
                     results[server] = single[server];
             }
@@ -41,7 +42,7 @@ public static class RealPinger
         return results;
     }
 
-    private static async Task<Dictionary<ProxyServer, int>?> TryBatch(IReadOnlyList<ProxyServer> servers, string url)
+    private static async Task<Dictionary<ProxyServer, int>?> TryBatch(IReadOnlyList<ProxyServer> servers, string url, Action<ProxyServer, int>? progress = null)
     {
         var results = servers.ToDictionary(s => s, _ => -1);
         if (servers.Count == 0 || !File.Exists(XrayRunner.XrayPath))
@@ -78,10 +79,12 @@ public static class RealPinger
             using var gate = new SemaphoreSlim(Parallel);
             var tasks = servers.Select(async (server, i) =>
             {
+                await Task.Delay(PingOrder.Delay(i));
                 await gate.WaitAsync();
                 try
                 {
                     results[server] = await Measure(ports[i], url);
+                    progress?.Invoke(server, results[server]);
                 }
                 finally
                 {
