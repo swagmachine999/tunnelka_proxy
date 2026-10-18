@@ -41,8 +41,8 @@ public static class TunConfigBuilder
                     new JsonObject { ["type"] = "tcp", ["tag"] = "remote", ["server"] = "1.1.1.1", ["detour"] = "proxy" },
                     new JsonObject { ["type"] = "udp", ["tag"] = "local", ["server"] = "77.88.8.8" }
                 },
-                ["rules"] = DnsRules(serverHost),
-                ["final"] = "remote",
+                ["rules"] = DnsRules(serverHost, routing),
+                ["final"] = routing.Final == RoutingRule.Direct ? "local" : "remote",
                 ["strategy"] = "ipv4_only"
             },
             ["inbounds"] = new JsonArray
@@ -95,7 +95,7 @@ public static class TunConfigBuilder
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
-    private static JsonArray DnsRules(string serverHost)
+    private static JsonArray DnsRules(string serverHost, RoutingSettings routing)
     {
         var rules = new JsonArray
         {
@@ -108,6 +108,15 @@ public static class TunConfigBuilder
 
         if (!System.Net.IPAddress.TryParse(serverHost, out _) && serverHost.Length > 0)
             rules.Add(new JsonObject { ["domain"] = new JsonArray(JsonValue.Create(serverHost)), ["server"] = "local" });
+
+        // DNS следует маршрутизации: напрямую идущие программы не должны зависеть от VPN-сервера
+        var listedServer = routing.ListedAction == RoutingRule.Proxy ? "remote" : "local";
+        foreach (var rule in routing.ActiveRules)
+        {
+            var (field, value) = Match(rule);
+            if (field is "process_name" or "domain" or "domain_suffix" or "domain_keyword" or "domain_regex")
+                rules.Add(new JsonObject { [field] = new JsonArray(JsonValue.Create(value)), ["server"] = listedServer });
+        }
 
         return rules;
     }

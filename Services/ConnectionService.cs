@@ -43,6 +43,8 @@ public sealed class ConnectionService : IDisposable
 
     public bool IsRunning => _xray.IsRunning;
 
+    public bool CanSwitchLive => _xray.IsRunning && _tun.IsRunning && LocalAccess.Enabled;
+
     public string DescribeExit() =>
         L.F("Xray: {0}; sing-box: {1}", DescribeCore(_xray.IsRunning, _xray.ExitCode), DescribeCore(_serviceTun.IsRunning || _localTun.IsRunning, _serviceTun.ExitCode ?? _localTun.ExitCode));
 
@@ -55,6 +57,19 @@ public sealed class ConnectionService : IDisposable
         try
         {
             return await Task.Run(() => StartCore(server, tun, routing));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<ConnectResult> SwitchAsync(ProxyServer server, RoutingSettings routing)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            return await Task.Run(() => SwitchCore(server, routing));
         }
         finally
         {
@@ -125,6 +140,28 @@ public sealed class ConnectionService : IDisposable
         Thread.Sleep(1000);
     }
 
+    private ConnectResult SwitchCore(ProxyServer server, RoutingSettings routing)
+    {
+        if (!CanSwitchLive)
+            return ConnectResult.Failed;
+
+        _xray.Stop();
+        _relay.Stop();
+        var result = StartXray(server, XrayRoutingPolicy.For(true, routing), true, true);
+        if (result == ConnectResult.Ok && !_xray.WaitForPort(XrayConfigBuilder.SocksPort, 3000))
+            result = ConnectResult.Failed;
+
+        if (result != ConnectResult.Ok)
+        {
+            _xray.Stop();
+            _relay.Stop();
+            return result;
+        }
+
+        _log.Write(L.T("Сервер сменён без перезапуска TUN"));
+        return ConnectResult.Ok;
+    }
+
     private ITunBackend? ChooseTun()
     {
         if (_service.IsAvailable && File.Exists(ServiceConstants.SingBoxPath))
@@ -174,14 +211,15 @@ public sealed class ConnectionService : IDisposable
         ApplySystemProxy(false);
     }
 
-    private ConnectResult StartXray(ProxyServer server, RoutingSettings routing, bool tun)
+    private ConnectResult StartXray(ProxyServer server, RoutingSettings routing, bool tun, bool keepPorts = false)
     {
         if (!File.Exists(XrayRunner.XrayPath))
             return ConnectResult.XrayMissing;
 
         try
         {
-            XrayConfigBuilder.ChoosePorts();
+            if (!keepPorts)
+                XrayConfigBuilder.ChoosePorts();
             if (SingBoxRelay.Needs(server) && !File.Exists(XrayRunner.SingBoxPath))
                 return ConnectResult.SingBoxMissing;
 

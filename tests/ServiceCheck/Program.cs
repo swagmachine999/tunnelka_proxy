@@ -51,6 +51,30 @@ Check(ServerMatcher.Successor(Srv("Германия", "7.7.7.7", "https://a"), r
 Check(ServerMatcher.Successor(Srv("Нет", "7.7.7.7", "https://a"), refreshed) == refreshed[1], "successor falls back to first of same subscription");
 Check(ServerMatcher.Successor(Srv("Нет", "7.7.7.7", "https://zzz"), refreshed) == null, "successor is null when subscription is gone");
 Check(ServerMatcher.Successor(new ProxyServer { Name = "manual" }, refreshed) == null, "manual server has no successor");
+var lostSignal = new TaskCompletionSource<ProxyServer>();
+var dead = new ServerWatchdog((h, p, t) => Task.FromResult(false), TimeSpan.FromMilliseconds(20), 3);
+dead.Lost += s => lostSignal.TrySetResult(s);
+var watched = Srv("W", "1.2.3.4", "https://a");
+dead.Start(watched);
+Check(await Task.WhenAny(lostSignal.Task, Task.Delay(3000)) == lostSignal.Task && lostSignal.Task.Result == watched, "watchdog reports a server that keeps failing");
+dead.Dispose();
+var probes = 0;
+var flakyLost = false;
+var flaky = new ServerWatchdog((h, p, t) => Task.FromResult(++probes % 3 == 0), TimeSpan.FromMilliseconds(20), 3);
+flaky.Lost += s => flakyLost = true;
+flaky.Start(watched);
+await Task.Delay(600);
+flaky.Dispose();
+Check(probes > 5 && !flakyLost, "watchdog forgives occasional failures");
+var stoppedLost = false;
+var stopped = new ServerWatchdog((h, p, t) => Task.FromResult(false), TimeSpan.FromMilliseconds(20), 2);
+stopped.Lost += s => stoppedLost = true;
+stopped.Start(watched);
+stopped.Stop();
+await Task.Delay(300);
+Check(!stoppedLost, "stopped watchdog stays silent");
+Check(ServerWatchdog.CanWatch(watched) && !ServerWatchdog.CanWatch(new ProxyServer { Protocol = "hysteria2" }) && !ServerWatchdog.CanWatch(new ProxyServer { Protocol = "tuic" }), "watchdog skips udp protocols");
+Check(!await ServerWatchdog.TcpProbe("127.0.0.1", 1, CancellationToken.None), "tcp probe fails on a closed port");
 var buffer = new LineBuffer(3);
 for (var i = 1; i <= 5; i++) buffer.Add("l" + i);
 var (c1, l1) = buffer.ReadFrom(0);
@@ -261,7 +285,12 @@ var tunJson = TunConfigBuilder.Build(10808, listedRouting, "vpn.example.com", nu
 var tunRoute = JsonNode.Parse(tunJson)!["route"]!;
 Check(tunRoute["final"]!.ToString() == "direct", "sing-box: everything else direct");
 Check(tunJson.Contains("\"outbound\": \"proxy\"") && tunJson.Contains("chrome.exe") && tunJson.Contains("ya.ru"), "sing-box: listed items go to VPN");
-
+var tunDns = JsonNode.Parse(tunJson)!["dns"]!;
+Check(tunDns["final"]!.ToString() == "local", "dns: VPN for listed - unlisted apps resolve locally");
+var dnsRules = tunDns["rules"]!.AsArray();
+Check(dnsRules.Any(r => r!["server"]!.ToString() == "remote" && r["process_name"] != null), "dns: listed app resolves through VPN");
+var directDns = JsonNode.Parse(TunConfigBuilder.Build(10808, directRouting, "vpn.example.com", null))!["dns"]!;
+Check(directDns["final"]!.ToString() == "remote" && directDns["rules"]!.AsArray().Any(r => r!["server"]!.ToString() == "local" && r["domain_suffix"] != null), "dns: direct list resolves locally, rest through VPN");
 
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
