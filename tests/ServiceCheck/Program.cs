@@ -292,6 +292,10 @@ Check(dnsRules.Any(r => r!["server"]!.ToString() == "remote" && r["process_name"
 var directDns = JsonNode.Parse(TunConfigBuilder.Build(10808, directRouting, "vpn.example.com", null))!["dns"]!;
 Check(directDns["final"]!.ToString() == "remote" && directDns["rules"]!.AsArray().Any(r => r!["server"]!.ToString() == "local" && r["domain_suffix"] != null), "dns: direct list resolves locally, rest through VPN");
 
+Check(new Tunnelka.Storage.AppData().AutoSwitch, "auto-switch is on by default");
+Check(System.Text.Json.JsonSerializer.Deserialize<Tunnelka.Storage.AppData>("{\"KillSwitch\":true}")!.AutoSwitch, "old settings without the field keep auto-switch on");
+Check(!System.Text.Json.JsonSerializer.Deserialize<Tunnelka.Storage.AppData>("{\"AutoSwitch\":false}")!.AutoSwitch, "auto-switch can be turned off");
+
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
 
