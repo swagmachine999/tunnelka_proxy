@@ -276,6 +276,7 @@ public static class L
         ["сервер подписки ответил ошибкой {0}"] = "the subscription server returned error {0}",
         ["Закрыты ядра другого VPN: {0}"] = "Closed cores of another VPN: {0}",
         ["Починить"] = "Repair",
+        ["Сервер сменён без перезапуска TUN"] = "Server changed without restarting TUN",
         ["Сервер {0} не отвечает, ищу другой"] = "Server {0} does not respond, looking for another one",
         ["Сервер {0} не отвечает, ищу другой…"] = "Server {0} does not respond, looking for another one…",
         ["Ни один сервер не ответил, проверьте интернет"] = "No server responded, check your internet",

@@ -163,11 +163,8 @@ public sealed class Session : IDisposable
         Selected = server;
         CardsChanged?.Invoke();
         StateChanged?.Invoke();
-        if (!switching)
-            return;
-
-        Disconnect();
-        _ = Connect();
+        if (switching)
+            _ = SwitchLive();
     }
 
     public string SelectedLink() => AutoServers.IsAuto(Selected) ? AutoServers.Link(Selected!) : Selected?.Link ?? "";
@@ -191,7 +188,21 @@ public sealed class Session : IDisposable
 
     public event Action? AddRequested;
 
-    public async Task Connect()
+    public Task Connect() => ConnectInternal(false);
+
+    private async Task SwitchLive()
+    {
+        if (Data.Tun && Connection.CanSwitchLive)
+        {
+            await ConnectInternal(true);
+            return;
+        }
+
+        Disconnect();
+        await Connect();
+    }
+
+    private async Task ConnectInternal(bool live)
     {
         if (Busy)
             return;
@@ -200,7 +211,7 @@ public sealed class Session : IDisposable
         StateChanged?.Invoke();
         try
         {
-            await ConnectTo(Selected);
+            await ConnectTo(Selected, live);
         }
         finally
         {
@@ -210,7 +221,7 @@ public sealed class Session : IDisposable
         }
     }
 
-    private async Task ConnectTo(ProxyServer? server)
+    private async Task ConnectTo(ProxyServer? server, bool live = false)
     {
         if (AutoServers.IsAuto(server))
         {
@@ -229,7 +240,7 @@ public sealed class Session : IDisposable
 
         Connecting = true;
         StateChanged?.Invoke();
-        if (!await Start(server))
+        if (!await (live ? StartLive(server) : Start(server)))
         {
             Failed?.Invoke();
             if (Active != null)
@@ -257,6 +268,14 @@ public sealed class Session : IDisposable
     }
 
     public event Action? Failed;
+
+    private async Task<bool> StartLive(ProxyServer server)
+    {
+        if (await Connection.SwitchAsync(server, Data.Routing) == ConnectResult.Ok)
+            return true;
+
+        return await Start(server);
+    }
 
     private async Task<bool> Start(ProxyServer server)
     {
@@ -362,8 +381,7 @@ public sealed class Session : IDisposable
 
         Selected = best;
         Dialogs?.Balloon(L.F("Сервер {0} не отвечал, переключился на {1}", name, ServerText.CleanName(best)));
-        Disconnect();
-        await Connect();
+        await SwitchLive();
     }
 
     public void SetMode(bool tun)
