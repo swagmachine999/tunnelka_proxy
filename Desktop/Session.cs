@@ -257,7 +257,7 @@ public sealed class Session : IDisposable
         Connecting = false;
         _clock.Start();
         _poller.Start();
-        if (ServerWatchdog.CanWatch(server))
+        if (Data.AutoSwitch && ServerWatchdog.CanWatch(server))
             _watchdog.Start(server);
         Traffic?.Invoke(0, 0, true);
         Overlay.SetConnected(true);
@@ -620,7 +620,7 @@ public sealed class Session : IDisposable
 
     public RefreshStatus? PingStatusOf(string key) => _pingStatuses.TryGetValue(key, out var status) ? status : null;
 
-    public Task PingAll() => PingTracked("", Data.Servers.ToList());
+    public Task PingAll() => PingTracked("", Subscriptions.InListOrder());
 
     public Task PingSubscription(string url) => PingTracked(url, Subscriptions.Servers(url));
 
@@ -764,6 +764,16 @@ public sealed class Session : IDisposable
 
     public Task ReleaseKillSwitch() =>
         KillSwitch.IsEngaged || KillSwitch.WasLeftOn() ? Task.Run(KillSwitch.Release) : Task.CompletedTask;
+
+    public void SetAutoSwitch(bool on)
+    {
+        Data.AutoSwitch = on;
+        Save();
+        if (!on)
+            _watchdog.Stop();
+        else if (Active != null && !Busy && ServerWatchdog.CanWatch(Active))
+            _watchdog.Start(Active);
+    }
 
     private bool _repairing;
 
