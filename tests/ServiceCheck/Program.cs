@@ -296,6 +296,19 @@ Check(new Tunnelka.Storage.AppData().AutoSwitch, "auto-switch is on by default")
 Check(System.Text.Json.JsonSerializer.Deserialize<Tunnelka.Storage.AppData>("{\"KillSwitch\":true}")!.AutoSwitch, "old settings without the field keep auto-switch on");
 Check(!System.Text.Json.JsonSerializer.Deserialize<Tunnelka.Storage.AppData>("{\"AutoSwitch\":false}")!.AutoSwitch, "auto-switch can be turned off");
 
+Check(PingOrder.Delay(0) == 0 && PingOrder.Delay(3) == 3 * PingOrder.StepMs, "ping starts are spaced in list order");
+Check(PingOrder.Delay(100000) == PingOrder.MaxMs, "ping spacing is capped");
+var pingOrderSettings = new Settings(appLog);
+pingOrderSettings.Data.Profiles.Add(new SubscriptionInfo { Url = "https://a" });
+pingOrderSettings.Data.Profiles.Add(new SubscriptionInfo { Url = "https://b" });
+var pa1 = new ProxyServer { Name = "a1", SubscriptionUrl = "https://a" };
+var pb1 = new ProxyServer { Name = "b1", SubscriptionUrl = "https://b" };
+var pa2 = new ProxyServer { Name = "a2", SubscriptionUrl = "https://a" };
+var pl1 = new ProxyServer { Name = "loose" };
+pingOrderSettings.Data.Servers.AddRange(new[] { pb1, pl1, pa1, pa2 });
+var pingOrderResult = new SubscriptionService(pingOrderSettings, appLog, () => null).InListOrder().Select(s => s.Name).ToArray();
+Check(string.Join(",", pingOrderResult) == "a1,a2,b1,loose", "ping all goes provider by provider, top to bottom");
+
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
 

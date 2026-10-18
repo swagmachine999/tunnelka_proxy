@@ -31,6 +31,13 @@ public sealed class SubscriptionService
 
     public RefreshStatus? StatusOf(string url) => _statuses.TryGetValue(url, out var status) ? status : null;
 
+    public List<ProxyServer> InListOrder()
+    {
+        var ordered = Profiles.SelectMany(p => Servers(p.Url)).ToList();
+        ordered.AddRange(_settings.Data.Servers.Where(s => !ordered.Contains(s)));
+        return ordered;
+    }
+
     public List<ProxyServer> Servers(string url) =>
         _settings.Data.Servers.Where(s => s.SubscriptionUrl == url).ToList();
 

@@ -620,7 +620,7 @@ public sealed class Session : IDisposable
 
     public RefreshStatus? PingStatusOf(string key) => _pingStatuses.TryGetValue(key, out var status) ? status : null;
 
-    public Task PingAll() => PingTracked("", Data.Servers.ToList());
+    public Task PingAll() => PingTracked("", Subscriptions.InListOrder());
 
     public Task PingSubscription(string url) => PingTracked(url, Subscriptions.Servers(url));
 
