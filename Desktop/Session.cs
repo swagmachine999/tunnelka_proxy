@@ -735,11 +735,46 @@ public sealed class Session : IDisposable
             Speed?.Invoke(ServerText.Bytes(averageDown) + L.T("/с"), ServerText.Bytes(averageUp) + L.T("/с"));
     }
 
+    private DateTime _recoverSince = DateTime.MinValue;
+    private int _recoverCount;
+
     private void OnCoreExited()
     {
         if (_exiting || Busy || Active == null)
             return;
 
+        if (Data.Tun && Connection.CanRecover)
+        {
+            _ = RecoverOrDisconnect();
+            return;
+        }
+
+        CoreLost();
+    }
+
+    private async Task RecoverOrDisconnect()
+    {
+        var server = Active;
+        var now = DateTime.UtcNow;
+        if (now - _recoverSince > TimeSpan.FromMinutes(2))
+        {
+            _recoverSince = now;
+            _recoverCount = 0;
+        }
+
+        if (server != null && ++_recoverCount <= 3)
+        {
+            Log.Write(L.T("Xray остановлен извне, перезапускаю"));
+            if (await Connection.RecoverAsync(server, Data.Routing) == ConnectResult.Ok)
+                return;
+        }
+
+        if (Active == server)
+            CoreLost();
+    }
+
+    private void CoreLost()
+    {
         Log.Write(L.T("Ядро VPN завершилось. Причина обычно видна в строках выше"));
         Log.Write(Connection.DescribeExit());
         var blocked = KillSwitch.IsEngaged;
