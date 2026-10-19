@@ -151,6 +151,8 @@ public static class L
         ["Как часто обновлять"] = "How often to update",
         ["Подписки при запуске"] = "Subscriptions on startup",
         ["Обновлять все подписки при открытии приложения"] = "Update all subscriptions when the app opens",
+        ["Данные устройства"] = "Device info",
+        ["Передавать провайдеру подписки имя компьютера, систему и идентификатор устройства"] = "Send the subscription provider the computer name, system and device ID",
         ["Автопереключение"] = "Auto-switch",
         ["Если сервер перестал отвечать, перейти на другой из той же подписки"] = "If the server stops responding, switch to another one from the same subscription",
         ["Пинг при запуске"] = "Ping on startup",

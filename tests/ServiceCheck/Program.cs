@@ -309,6 +309,20 @@ pingOrderSettings.Data.Servers.AddRange(new[] { pb1, pl1, pa1, pa2 });
 var pingOrderResult = new SubscriptionService(pingOrderSettings, appLog, () => null).InListOrder().Select(s => s.Name).ToArray();
 Check(string.Join(",", pingOrderResult) == "a1,a2,b1,loose", "ping all goes provider by provider, top to bottom");
 
+var hw1 = DeviceInfo.BuildHwid("machine-a");
+Check(hw1.Length == 32 && hw1.All(Uri.IsHexDigit) && hw1 == DeviceInfo.BuildHwid("machine-a") && hw1 != DeviceInfo.BuildHwid("machine-b"), "device id is stable, hashed and different per machine");
+Check(DeviceInfo.Ascii("DESKTOP-ABC1", "x") == "DESKTOP-ABC1" && DeviceInfo.Ascii("ПК-Олег", "Windows PC") == "Windows PC", "device name is sent only if it is plain ASCII");
+var devReq = new HttpRequestMessage();
+DeviceInfo.Enabled = true;
+DeviceInfo.Apply(devReq.Headers);
+Check(devReq.Headers.Contains("x-hwid") && devReq.Headers.Contains("x-device-model") && devReq.Headers.Contains("x-device-os") && devReq.Headers.Contains("x-ver-os"), "device headers are added when enabled");
+var devOff = new HttpRequestMessage();
+DeviceInfo.Enabled = false;
+DeviceInfo.Apply(devOff.Headers);
+Check(!devOff.Headers.Contains("x-hwid") && !devOff.Headers.Contains("x-device-model"), "no device headers when disabled");
+DeviceInfo.Enabled = true;
+Check(new Tunnelka.Storage.AppData().SendDeviceInfo, "device info is on by default");
+
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
 

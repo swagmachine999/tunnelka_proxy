@@ -44,6 +44,7 @@ public sealed class Session : IDisposable
     {
         Log = new AppLog();
         _settings = new Settings(Log);
+        DeviceInfo.Enabled = Data.SendDeviceInfo;
         Data.AutoStart = Autostart.IsEnabled();
         Connection = new ConnectionService(Log);
         KillSwitch = new KillSwitch(Log);
@@ -764,6 +765,13 @@ public sealed class Session : IDisposable
 
     public Task ReleaseKillSwitch() =>
         KillSwitch.IsEngaged || KillSwitch.WasLeftOn() ? Task.Run(KillSwitch.Release) : Task.CompletedTask;
+
+    public void SetSendDeviceInfo(bool on)
+    {
+        Data.SendDeviceInfo = on;
+        DeviceInfo.Enabled = on;
+        Save();
+    }
 
     public void SetAutoSwitch(bool on)
     {

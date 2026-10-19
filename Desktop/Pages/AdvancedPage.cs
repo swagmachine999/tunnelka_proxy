@@ -33,6 +33,9 @@ public sealed class AdvancedPage : UserControl
         var autoSwitch = SettingsParts.Toggle(data.AutoSwitch, on => session.SetAutoSwitch(on));
         panel.Children.Add(Ui.Row(L.T("Автопереключение"), L.T("Если сервер перестал отвечать, перейти на другой из той же подписки"), autoSwitch, out _, out _));
 
+        var deviceInfo = SettingsParts.Toggle(data.SendDeviceInfo, on => session.SetSendDeviceInfo(on));
+        panel.Children.Add(Ui.Row(L.T("Данные устройства"), L.T("Передавать провайдеру подписки имя компьютера, систему и идентификатор устройства"), deviceInfo, out _, out _));
+
         var refresh = SettingsParts.Toggle(data.RefreshOnStart, on =>
         {
             data.RefreshOnStart = on;
