@@ -9,8 +9,6 @@ public static class DeviceInfo
 {
     private static string? _hwid;
 
-    public static bool Enabled { get; set; } = true;
-
     public static string Hwid => _hwid ??= BuildHwid(ReadMachineId());
 
     public static string Name => Ascii(Environment.MachineName, "Windows PC");
@@ -19,9 +17,6 @@ public static class DeviceInfo
 
     public static void Apply(HttpRequestHeaders headers)
     {
-        if (!Enabled)
-            return;
-
         headers.TryAddWithoutValidation("x-hwid", Hwid);
         headers.TryAddWithoutValidation("x-device-os", "Windows");
         headers.TryAddWithoutValidation("x-ver-os", OsVersion);

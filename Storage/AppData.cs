@@ -33,7 +33,6 @@ public class AppData
     public bool ConnectOnStart { get; set; }
     public bool KillSwitch { get; set; }
     public bool AutoSwitch { get; set; } = true;
-    public bool SendDeviceInfo { get; set; } = true;
     public bool ResumeAfterRestart { get; set; }
     public OverlayOptions Overlay { get; set; } = new();
 
