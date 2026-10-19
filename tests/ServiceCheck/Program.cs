@@ -309,6 +309,18 @@ pingOrderSettings.Data.Servers.AddRange(new[] { pb1, pl1, pa1, pa2 });
 var pingOrderResult = new SubscriptionService(pingOrderSettings, appLog, () => null).InListOrder().Select(s => s.Name).ToArray();
 Check(string.Join(",", pingOrderResult) == "a1,a2,b1,loose", "ping all goes provider by provider, top to bottom");
 
+var fcLog = new List<string>();
+var fcRunner = new FakeRunner();
+var fcOrder = new List<string>();
+var fcTun = new TunSupervisor(fcRunner, new FakeOwner(), fcLog.Add, () => { fcOrder.Add(fcRunner.Started ? "after" : "before"); return new List<string> { "C:\\Happ\\sing-box.exe" }; });
+fcTun.Start(new TunParameters(10808, "vpn.example.com", null, new RoutingSettings(), "user12345", "password1234567890abcdef"), 7);
+Check(fcOrder.SequenceEqual(new[] { "before" }) && fcRunner.Started, "service closes other VPN cores before starting TUN");
+Check(fcTun.Read(0).Lines.Any(l => l.Contains("Happ")), "closed cores are reported to the app log");
+var fcFailRunner = new FakeRunner();
+var fcFailTun = new TunSupervisor(fcFailRunner, new FakeOwner(), fcLog.Add, () => throw new InvalidOperationException("denied"));
+fcFailTun.Start(new TunParameters(10808, "vpn.example.com", null, new RoutingSettings(), "user12345", "password1234567890abcdef"), 7);
+Check(fcFailRunner.Started, "failure to close other cores does not block TUN");
+
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
 

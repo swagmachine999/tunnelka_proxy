@@ -20,7 +20,7 @@ public sealed class TunnelkaServiceApp : IServiceApp
 
         var ownPath = Environment.ProcessPath ?? throw new InvalidOperationException("process path");
         _runner = new XrayRunner(ServiceConstants.SingBoxPath, "tun.json", ServiceConstants.ConfigDir);
-        _tun = new TunSupervisor(_runner, new ProcessOwnerMonitor(), _log.Write);
+        _tun = new TunSupervisor(_runner, new ProcessOwnerMonitor(), _log.Write, ForeignCores.Stop);
 
         var marker = RegistryKillSwitchMarker.LocalMachine;
         _killSwitch = new FirewallKillSwitch(marker, () => new[] { ServiceConstants.XrayPath, ServiceConstants.SingBoxPath, ownPath }, _log.Write);
