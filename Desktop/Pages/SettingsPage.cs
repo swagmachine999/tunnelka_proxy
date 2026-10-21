@@ -21,7 +21,7 @@ public sealed class SettingsPage : UserControl
         _mode = new SettingsSegmented(156, L.T("Прокси"), "TUN");
         _mode.Select(data.Tun ? 1 : 0);
         _mode.SelectedIndexChanged += (_, _) => session.SetMode(_mode.SelectedIndex == 1);
-        panel.Children.Add(Ui.Row(L.T("Режим"), L.T("TUN — весь трафик компьютера"), _mode, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Режим"), "", _mode, out _, out _));
 
         var killSwitch = SettingsParts.Toggle(data.KillSwitch, on =>
         {
@@ -67,7 +67,7 @@ public sealed class SettingsPage : UserControl
             data.PingOnStart = on;
             session.Save();
         });
-        panel.Children.Add(Ui.Row(L.T("Пинг при запуске"), L.T("Проверять все серверы при открытии приложения"), ping, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Пинг при запуске"), L.T("Проверить пинг локаций при открытии приложения"), ping, out _, out _));
         panel.Children.Add(Gap());
 
         var pingMode = data.RealPing ? L.T("Реальный (via proxy)") : L.T("Быстрый (TCP)");
