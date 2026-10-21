@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Tunnelka.UI;
 
 namespace Tunnelka.Desktop;
 
@@ -17,7 +18,7 @@ public sealed class AdvancedPage : UserControl
         _mode = new SettingsSegmented(156, L.T("Прокси"), "TUN");
         _mode.Select(data.Tun ? 1 : 0);
         _mode.SelectedIndexChanged += (_, _) => session.SetMode(_mode.SelectedIndex == 1);
-        panel.Children.Add(Ui.Row(L.T("Режим"), L.T("TUN — весь трафик компьютера"), _mode, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Режим"), L.T("Прокси: режим обычного прокси. TUN: режим туннеля"), _mode, out _, out _));
 
         var killSwitch = SettingsParts.Toggle(data.KillSwitch, on =>
         {
@@ -45,11 +46,7 @@ public sealed class AdvancedPage : UserControl
             data.PingOnStart = on;
             session.Save();
         });
-        panel.Children.Add(Ui.Row(L.T("Пинг при запуске"), L.T("Проверять все серверы при открытии приложения"), ping, out _, out _));
-
-        var repair = SettingsParts.Pill(L.T("Починить"), false);
-        repair.Click += (_, _) => _ = session.Repair();
-        panel.Children.Add(Ui.Row(L.T("Починить"), L.T("Остановить ядра, снять прокси и блокировку, если что-то зависло"), repair, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Пинг при запуске"), L.T("Проверить пинг локаций при открытии приложения"), ping, out _, out _));
 
         Content = panel;
     }

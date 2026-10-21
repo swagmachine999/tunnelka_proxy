@@ -45,6 +45,8 @@ public sealed class ConnectionService : IDisposable
 
     public bool CanSwitchLive => _xray.IsRunning && _tun.IsRunning && LocalAccess.Enabled;
 
+    public bool CanRecover => !_xray.IsRunning && _tun.IsRunning && LocalAccess.Enabled;
+
     public string DescribeExit() =>
         L.F("Xray: {0}; sing-box: {1}", DescribeCore(_xray.IsRunning, _xray.ExitCode), DescribeCore(_serviceTun.IsRunning || _localTun.IsRunning, _serviceTun.ExitCode ?? _localTun.ExitCode));
 
@@ -140,9 +142,22 @@ public sealed class ConnectionService : IDisposable
         Thread.Sleep(1000);
     }
 
-    private ConnectResult SwitchCore(ProxyServer server, RoutingSettings routing)
+    public async Task<ConnectResult> RecoverAsync(ProxyServer server, RoutingSettings routing)
     {
-        if (!CanSwitchLive)
+        await _gate.WaitAsync();
+        try
+        {
+            return await Task.Run(() => SwitchCore(server, routing, true));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private ConnectResult SwitchCore(ProxyServer server, RoutingSettings routing, bool recover = false)
+    {
+        if (recover ? !CanRecover : !CanSwitchLive)
             return ConnectResult.Failed;
 
         _xray.Stop();
@@ -158,7 +173,7 @@ public sealed class ConnectionService : IDisposable
             return result;
         }
 
-        _log.Write(L.T("Сервер сменён без перезапуска TUN"));
+        _log.Write(recover ? L.T("Xray перезапущен, TUN не прерывался") : L.T("Сервер сменён без перезапуска TUN"));
         return ConnectResult.Ok;
     }
 

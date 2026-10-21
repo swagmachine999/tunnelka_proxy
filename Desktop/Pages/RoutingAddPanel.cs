@@ -15,12 +15,12 @@ public sealed class RoutingAddPanel : UserControl
     {
         _scale = scale;
 
-        var program = SettingsParts.Pill(L.T("+ Программа"), false);
+        var program = SettingsParts.Outline(L.T("Добавить процесс"));
         program.HorizontalAlignment = HorizontalAlignment.Stretch;
         program.Margin = new Thickness(0, 0, 6, 0);
         program.Click += async (_, _) => await PickProcess();
 
-        var file = SettingsParts.Pill(L.T("+ Файл .exe"), false);
+        var file = SettingsParts.Outline(L.T("Добавить файл exe"));
         file.HorizontalAlignment = HorizontalAlignment.Stretch;
         file.Margin = new Thickness(6, 0, 0, 0);
         file.Click += async (_, _) => await PickFile();
