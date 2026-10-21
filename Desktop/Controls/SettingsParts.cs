@@ -47,6 +47,7 @@ internal static class SettingsParts
     {
         var button = Pill(text, false);
         button.Classes.Add("outline");
+        button.Padding = new Thickness(8, 10);
         return button;
     }
 
