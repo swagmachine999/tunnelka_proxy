@@ -91,7 +91,7 @@ public sealed class SettingsPage : UserControl
 
         var repair = SettingsParts.Pill(L.T("Починить"), false);
         repair.Click += (_, _) => _ = session.Repair();
-        panel.Children.Add(Ui.Row(L.T("Починить"), L.T("Если пропал интернет или VPN завис, сбросит подключение"), repair, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Починить"), L.T("Сбросить сеть и исправить подключение"), repair, out _, out _));
 
         Content = panel;
     }
