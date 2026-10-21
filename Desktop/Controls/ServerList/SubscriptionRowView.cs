@@ -56,6 +56,7 @@ public sealed class SubscriptionRowView : Border
         ServerRes.Bind(this, BorderBrushProperty, "BorderBrush2");
 
         _chevron = new ServerIcon(ServerIconKind.Chevron, 32, 50) { Collapsed = info.Collapsed };
+        UpdateChevronTip();
 
         _title = new NameView
         {
@@ -91,19 +92,23 @@ public sealed class SubscriptionRowView : Border
         if (info.SupportUrl.Length > 0)
         {
             var support = new ServerIcon(ServerIconKind.Support, 28, 28);
+            ToolTip.SetTip(support, L.T("Страница поддержки провайдера"));
             support.Clicked += () => ServerLinks.Open(Info.SupportUrl);
             icons.Children.Add(support);
         }
 
         _refresh = new ServerIcon(ServerIconKind.Refresh, 28, 28);
+        ToolTip.SetTip(_refresh, L.T("Обновить подписку"));
         _refresh.Clicked += () => _ = _session.RefreshSubscription(Info.Url);
         icons.Children.Add(_refresh);
 
         _ping = new ServerIcon(ServerIconKind.Ping, 28, 28);
+        ToolTip.SetTip(_ping, L.T("Проверить пинг серверов этого провайдера"));
         _ping.Clicked += () => _ = _session.PingSubscription(Info.Url);
         icons.Children.Add(_ping);
 
         var more = new ServerIcon(ServerIconKind.Menu, 28, 28);
+        ToolTip.SetTip(more, L.T("Ещё"));
         icons.Children.Add(more);
 
         var header = new Grid
@@ -127,6 +132,7 @@ public sealed class SubscriptionRowView : Border
             e.Handled = true;
             _session.Subscriptions.ToggleCollapsed(Info);
             _chevron.Collapsed = Info.Collapsed;
+            UpdateChevronTip();
             BuildDetails();
             CollapseToggled?.Invoke();
         };
@@ -166,6 +172,7 @@ public sealed class SubscriptionRowView : Border
         _refresh.Status = status;
         _ping.Status = _session.PingStatusOf(Info.Url);
         _chevron.Collapsed = Info.Collapsed;
+        UpdateChevronTip();
         _title.SetParts(ServerText.Parts(Info.Title, Info.Title), null);
         BuildSubline();
 
@@ -176,6 +183,9 @@ public sealed class SubscriptionRowView : Border
         _detailsKey = key;
         BuildDetails();
     }
+
+    private void UpdateChevronTip() =>
+        ToolTip.SetTip(_chevron, Info.Collapsed ? L.T("Развернуть") : L.T("Свернуть"));
 
     private void BuildSubline()
     {

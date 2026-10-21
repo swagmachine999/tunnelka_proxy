@@ -1,11 +1,13 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Tunnelka.UI;
 
 namespace Tunnelka.Desktop;
 
 public sealed class PingPage : UserControl
 {
+    private static readonly int[] Intervals = { 1, 2, 3, 5, 10, 15, 30, 60, 300, 600, 1800, 3600 };
     private const string RealPingDefault = "https://www.gstatic.com/generate_204";
 
     private readonly Session _session;
@@ -45,6 +47,17 @@ public sealed class PingPage : UserControl
         panel.Children.Add(urlCaption);
         panel.Children.Add(_url);
         panel.Children.Add(reset);
+
+        var speed = new SettingsStepper(Intervals, ServerText.Duration, data.SpeedInterval, 150);
+        speed.ValueChanged += (_, _) =>
+        {
+            data.SpeedInterval = speed.Value;
+            session.RestartSpeedAveraging();
+            session.Save();
+        };
+        var speedRow = Ui.Row(L.T("Отображение скорости"), L.T("Как часто отображать"), speed, out _, out _);
+        speedRow.Margin = new Thickness(0, 18, 0, 0);
+        panel.Children.Add(speedRow);
 
         _mode.SelectedIndexChanged += (_, _) => Changed();
         _url.TextChanged += (_, _) => Changed();

@@ -109,7 +109,6 @@ public static class TunConfigBuilder
         if (!System.Net.IPAddress.TryParse(serverHost, out _) && serverHost.Length > 0)
             rules.Add(new JsonObject { ["domain"] = new JsonArray(JsonValue.Create(serverHost)), ["server"] = "local" });
 
-        // DNS следует маршрутизации: напрямую идущие программы не должны зависеть от VPN-сервера
         var listedServer = routing.ListedAction == RoutingRule.Proxy ? "remote" : "local";
         foreach (var rule in routing.ActiveRules)
         {

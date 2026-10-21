@@ -61,18 +61,18 @@ public sealed class SettingsHost : UserControl
                 header = Back(L.T("Оверлей"));
                 body = Scrolled(new OverlayPage(_session));
                 break;
-            case SettingsSection.Advanced:
-                header = Back(L.T("Расширенное"));
-                body = Scrolled(new AdvancedPage(_session));
-                break;
             case SettingsSection.Routing:
                 _routing = new RoutingPage(_session, _reconnectHint);
                 header = Back(L.T("Маршрутизация"));
                 body = Scrolled(_routing);
                 break;
             case SettingsSection.Ping:
-                header = Back(L.T("Пинг"));
+                header = Back(L.T("Пинг и скорость"));
                 body = Scrolled(new PingPage(_session));
+                break;
+            case SettingsSection.Advanced:
+                header = Back(L.T("Расширенные"));
+                body = Scrolled(new AdvancedPage(_session));
                 break;
             case SettingsSection.Log:
                 header = BackWithAction(L.T("Журнал"), _log.ClearButton);

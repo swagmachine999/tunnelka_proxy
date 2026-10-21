@@ -7,16 +7,18 @@ public sealed class TunSupervisor : ITunSupervisor, IDisposable
     private readonly ICoreRunner _runner;
     private readonly IOwnerMonitor _owner;
     private readonly Action<string> _log;
+    private readonly Func<IReadOnlyList<string>>? _closeForeign;
     private readonly LineBuffer _lines = new();
     private readonly object _gate = new();
     private IDisposable? _watch;
     private int _generation;
 
-    public TunSupervisor(ICoreRunner runner, IOwnerMonitor owner, Action<string> log)
+    public TunSupervisor(ICoreRunner runner, IOwnerMonitor owner, Action<string> log, Func<IReadOnlyList<string>>? closeForeign = null)
     {
         _runner = runner;
         _owner = owner;
         _log = log;
+        _closeForeign = closeForeign;
         _runner.Output += _lines.Add;
     }
 
@@ -32,6 +34,7 @@ public sealed class TunSupervisor : ITunSupervisor, IDisposable
         {
             StopLocked();
             var generation = ++_generation;
+            CloseForeign();
 
             _runner.Start(TunConfigBuilder.Build(parameters.SocksPort, parameters.Routing, parameters.ServerHost, parameters.PhysicalInterface, parameters.SocksUser, parameters.SocksPassword));
             if (_runner.WaitForExit(StartupCheckMs))
@@ -55,6 +58,29 @@ public sealed class TunSupervisor : ITunSupervisor, IDisposable
     public (long Cursor, List<string> Lines) Read(long cursor) => _lines.ReadFrom(cursor);
 
     public void Dispose() => Stop();
+
+    private void CloseForeign()
+    {
+        if (_closeForeign == null)
+            return;
+
+        IReadOnlyList<string> closed;
+        try
+        {
+            closed = _closeForeign();
+        }
+        catch (Exception ex)
+        {
+            _log($"Closing other VPN cores failed: {ex.Message}");
+            return;
+        }
+
+        if (closed.Count == 0)
+            return;
+
+        _lines.Add("Закрыты ядра другого VPN: " + string.Join(", ", closed));
+        Thread.Sleep(1000);
+    }
 
     private void OwnerGone(int generation)
     {

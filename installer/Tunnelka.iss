@@ -36,6 +36,8 @@ ru.Options=Дополнительно:
 en.Options=Options:
 ru.AutoStart=Запускать вместе с Windows
 en.AutoStart=Start with Windows
+ru.ServiceFailed=Не удалось создать службу Tunnelka. Режим TUN будет запрашивать права администратора при каждом запуске. Запустите установщик ещё раз от имени администратора.
+en.ServiceFailed=Could not create the Tunnelka service. TUN mode will ask for administrator rights each time. Run the installer again as administrator.
 ru.CleanCache=Очистить кэш (ключи и настройки сохранятся)
 en.CleanCache=Clear cache (keys and settings are kept)
 
@@ -134,11 +136,14 @@ procedure InstallService;
 var
   BinPath, Data: String;
 begin
-  BinPath := '"' + ExpandConstant('{app}\Tunnelka.exe') + '" --service';
+  BinPath := '\"' + ExpandConstant('{app}\Tunnelka.exe') + '\" --service';
   if ServiceExists then
     Sc('config ' + ServiceName + ' binPath= "' + BinPath + '" start= auto obj= LocalSystem')
   else
     Sc('create ' + ServiceName + ' binPath= "' + BinPath + '" start= auto obj= LocalSystem DisplayName= "Tunnelka Service"');
+
+  if not ServiceExists then
+    SuppressibleMsgBox(CustomMessage('ServiceFailed'), mbError, MB_OK, IDOK);
 
   Sc('description ' + ServiceName + ' "Tunnelka: TUN mode and kill switch without running the app as administrator"');
   Sc('failure ' + ServiceName + ' reset= 86400 actions= restart/5000/restart/5000/none/0');
