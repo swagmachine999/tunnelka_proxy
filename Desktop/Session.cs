@@ -750,7 +750,7 @@ public sealed class Session : IDisposable
 
         Hint?.Invoke(L.T("VPN упал — интернет заблокирован. Нажми кнопку, чтобы переподключиться"), Tone.Bad);
         Failed?.Invoke();
-        Dialogs?.Balloon(L.T("VPN отключился, kill switch заблокировал интернет. Переподключитесь или выключите kill switch в «Расширенное»."));
+        Dialogs?.Balloon(L.T("VPN отключился, kill switch заблокировал интернет. Переподключитесь или выключите kill switch в настройках."));
     }
 
     public async Task EngageKillSwitch()

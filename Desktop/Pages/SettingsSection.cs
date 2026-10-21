@@ -5,7 +5,6 @@ public enum SettingsSection
     Root,
     Interface,
     Overlay,
-    Advanced,
     Routing,
     Log,
     Ping
