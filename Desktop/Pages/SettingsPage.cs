@@ -37,7 +37,7 @@ public sealed class SettingsPage : UserControl
         var autoSwitch = SettingsParts.Toggle(data.AutoSwitch, on => session.SetAutoSwitch(on));
         panel.Children.Add(Ui.Row(L.T("Автопереключение"), L.T("Если сервер перестал отвечать, перейти на другой из той же подписки"), autoSwitch, out _, out _));
 
-        panel.Children.Add(Ui.ClickRow(L.T("Маршрутизация"), L.T("Какие сайты идут напрямую, через VPN или в блок"), () => open(SettingsSection.Routing), out _, out _));
+        panel.Children.Add(Ui.ClickRow(L.T("Правила маршрута трафика"), L.T("Какие сайты идут напрямую, через VPN или в блок"), () => open(SettingsSection.Routing), out _, out _));
         panel.Children.Add(Gap());
 
         var autoStart = SettingsParts.Toggle(data.AutoStart, on =>
@@ -46,14 +46,14 @@ public sealed class SettingsPage : UserControl
             Autostart.Apply(on);
             session.Save();
         });
-        panel.Children.Add(Ui.Row(L.T("Запуск с Windows"), L.T("Открываться свёрнутым в трей при входе в систему"), autoStart, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Запускать приложение при запуске Windows"), L.T("Открываться свёрнутым в трей при входе в систему"), autoStart, out _, out _));
 
         var connect = SettingsParts.Toggle(data.ConnectOnStart, on =>
         {
             data.ConnectOnStart = on;
             session.Save();
         });
-        panel.Children.Add(Ui.Row(L.T("Подключаться при запуске"), L.T("Сразу включать VPN к последнему серверу"), connect, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Подключиться к последней локации при открытии приложения"), "", connect, out _, out _));
 
         var refresh = SettingsParts.Toggle(data.RefreshOnStart, on =>
         {
@@ -84,7 +84,7 @@ public sealed class SettingsPage : UserControl
             session.RestartSpeedAveraging();
             session.Save();
         };
-        panel.Children.Add(Ui.Row(L.T("Скорость в окне"), L.T("Как часто обновлять"), speed, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Отображение скорости"), L.T("Как часто отображать"), speed, out _, out _));
         panel.Children.Add(Gap());
 
         panel.Children.Add(Ui.ClickRow(L.T("Журнал"), L.T("Сообщения приложения и Xray"), () => open(SettingsSection.Log), out _, out _));

@@ -63,7 +63,7 @@ public sealed class SettingsHost : UserControl
                 break;
             case SettingsSection.Routing:
                 _routing = new RoutingPage(_session, _reconnectHint);
-                header = Back(L.T("Маршрутизация"));
+                header = Back(L.T("Правила маршрута трафика"));
                 body = Scrolled(_routing);
                 break;
             case SettingsSection.Ping:
