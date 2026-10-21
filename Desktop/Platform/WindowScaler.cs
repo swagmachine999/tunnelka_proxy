@@ -12,6 +12,7 @@ public sealed class WindowScaler
     private const double MinDesignHeight = 735;
     private const double ReferenceHeight = 1080;
     private const double ScreenMargin = 24;
+    private const double StartShare = 0.6;
 
     private readonly Window _window;
     private readonly LayoutTransformControl _target;
@@ -40,8 +41,8 @@ public sealed class WindowScaler
 
         if (initial || previous <= 0)
         {
-            _window.Width = Math.Min(DesignWidth * fit, area.Width);
-            _window.Height = Math.Min(DesignHeight * fit, area.Height);
+            _window.Width = Math.Min(Math.Max(area.Width * StartShare, MinDesignWidth * fit), area.Width);
+            _window.Height = Math.Min(Math.Max(area.Height * StartShare, MinDesignHeight * fit), area.Height);
             return;
         }
 
