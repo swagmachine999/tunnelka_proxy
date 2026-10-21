@@ -295,7 +295,7 @@ public static class L
         ["служба не отвечает: она не установлена или не запущена"] = "the service does not respond: it is not installed or not running",
         ["служба от другой версии приложения, запустите установщик ещё раз"] = "the service is from another app version, run the installer again",
         ["служба запущена из другой папки ({0}), а приложение из {1}"] = "the service runs from another folder ({0}), the app runs from {1}",
-        ["Остановить ядра, снять прокси и блокировку, если что-то зависло"] = "Stop the cores and remove the proxy and the block if something got stuck",
+        ["Если пропал интернет или VPN завис, сбросит подключение"] = "If the internet is gone or the VPN is stuck, this resets the connection",
         ["Починка: ядра остановлены, системный прокси и блокировка сняты"] = "Repair: cores stopped, system proxy and block removed",
         ["Готово. Подключитесь заново"] = "Done. Connect again",
         ["Kill switch остался включённым, поэтому интернет может не работать. Перезапустить Tunnelka от имени администратора, чтобы снять блокировку?"] = "Kill switch stayed on, so the internet may not work. Restart Tunnelka as administrator to remove the block?",
