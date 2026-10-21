@@ -27,14 +27,14 @@ public sealed class OverlayPage : UserControl
             if (!_syncing && on != overlay.IsShown)
                 overlay.Toggle();
         });
-        panel.Children.Add(Ui.Row(L.T("Показать оверлей"), L.T("Можно включить и здесь, без горячей клавиши"), _show, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Показать оверлей"), L.T("Вкл/Выкл оверлей"), _show, out _, out _));
 
         var hotkeyToggle = SettingsParts.Toggle(_options.HotkeyEnabled, on =>
         {
             _options.HotkeyEnabled = on;
             HotkeyChanged();
         });
-        panel.Children.Add(Ui.Row(L.T("Горячая клавиша"), L.T("Показывать и скрывать оверлей поверх всех окон"), hotkeyToggle, out _, out _));
+        panel.Children.Add(Ui.Row(L.T("Горячая клавиша"), L.T("Показать или скрыть оверлей по кнопке"), hotkeyToggle, out _, out _));
 
         var keys = new SettingsHotkeyBox(_options.Hotkey);
         keys.KeysChanged += (_, _) =>
