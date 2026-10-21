@@ -12,7 +12,9 @@ public static class SubscriptionLoader
 
     public static async Task<SubscriptionResult> LoadAsync(string url, int? proxyPort = null)
     {
-        using var response = await Client(proxyPort).GetAsync(url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        DeviceInfo.Apply(request.Headers);
+        using var response = await Client(proxyPort).SendAsync(request);
         if (!response.IsSuccessStatusCode)
             throw new InvalidDataException(L.F("сервер подписки ответил ошибкой {0}", (int)response.StatusCode));
 
