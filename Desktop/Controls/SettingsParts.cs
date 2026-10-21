@@ -43,6 +43,13 @@ internal static class SettingsParts
         return button;
     }
 
+    public static Button Outline(string text)
+    {
+        var button = Pill(text, false);
+        button.Classes.Add("outline");
+        return button;
+    }
+
     public static Border Divider()
     {
         var line = new Border { Height = 1 };
