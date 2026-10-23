@@ -296,6 +296,8 @@ public static class L
         ["Сервер {0} не отвечает, ищу другой"] = "Server {0} does not respond, looking for another one",
         ["Связь с сервером {0} пропала, перезапускаю соединение"] = "Lost connection to server {0}, restarting the connection",
         ["Соединение восстановлено"] = "Connection restored",
+        ["Компьютер проснулся, проверяю связь"] = "The computer woke up, checking the connection",
+        ["Связь в порядке"] = "Connection is fine",
         ["Сервер {0} не отвечает, ищу другой…"] = "Server {0} does not respond, looking for another one…",
         ["Ни один сервер не ответил, проверьте интернет"] = "No server responded, check your internet",
         ["Серверы не отвечают, проверьте интернет"] = "Servers do not respond, check your internet",
