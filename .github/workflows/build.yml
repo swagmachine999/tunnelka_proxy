@@ -11,8 +11,8 @@ permissions:
   contents: write
 
 env:
-  XRAY_VERSION: v26.9.30
-  SINGBOX_VERSION: 1.14.2
+  XRAY_VERSION: v26.10.21
+  SINGBOX_VERSION: 1.14.3
   SIGN: ${{ secrets.SIGNPATH_API_TOKEN != '' && github.ref_type == 'tag' }}
 
 jobs:
