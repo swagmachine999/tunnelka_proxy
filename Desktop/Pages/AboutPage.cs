@@ -69,11 +69,18 @@ public sealed class AboutPage : UserControl
             FontWeight = FontWeight.SemiBold
         };
         SettingsTheme.Paint(version, TextBlock.ForegroundProperty, "AccentStrongBrush");
+        var cores = new TextBlock
+        {
+            Text = $"Xray {CoreManifest.XrayDisplayVersion} · sing-box {CoreManifest.SingBoxDisplayVersion}",
+            Classes = { "muted" },
+            FontSize = 12,
+            Margin = new Thickness(0, 2, 0, 0)
+        };
         var texts = new StackPanel
         {
             Margin = new Thickness(18, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            Children = { name, version }
+            Children = { name, version, cores }
         };
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };

@@ -7,6 +7,9 @@ public static class CoreManifest
     private const string XrayVersion = "v26.10.21";
     private const string SingBoxVersion = "1.14.3";
 
+    public static string XrayDisplayVersion => XrayVersion.TrimStart('v');
+    public static string SingBoxDisplayVersion => SingBoxVersion;
+
     public static CorePackage Xray { get; } = new(
         "Xray",
         $"https://github.com/XTLS/Xray-core/releases/download/{XrayVersion}/Xray-windows-64.zip",
