@@ -41,8 +41,6 @@ public sealed class KittenBrain
         _random = seed == 0 ? new Random() : new Random(seed);
     }
 
-    public bool IsPlaying => _playing != null;
-
     public void Press(float time)
     {
         if (_connected || _connecting)

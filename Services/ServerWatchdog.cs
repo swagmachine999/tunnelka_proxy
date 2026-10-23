@@ -1,4 +1,3 @@
-using System.Net.Sockets;
 using Tunnelka.Models;
 
 namespace Tunnelka.Services;
@@ -64,26 +63,6 @@ public sealed class ServerWatchdog : IDisposable
                 return false;
             }
         };
-
-    public static async Task<bool> TcpProbe(string host, int port, CancellationToken token)
-    {
-        using var limit = CancellationTokenSource.CreateLinkedTokenSource(token);
-        limit.CancelAfter(ProbeTimeoutMs);
-        try
-        {
-            using var client = new TcpClient();
-            await client.ConnectAsync(host, port, limit.Token);
-            return true;
-        }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested)
-        {
-            return false;
-        }
-        catch (SocketException)
-        {
-            return false;
-        }
-    }
 
     private async Task Watch(ProxyServer server, CancellationToken token)
     {

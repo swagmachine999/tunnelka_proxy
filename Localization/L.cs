@@ -40,8 +40,6 @@ public static class L
         ["час"] = "hour",
         ["часа"] = "hours",
         ["часов"] = "hours",
-        ["никогда"] = "never",
-        ["в {0:HH:mm}"] = "at {0:HH:mm}",
 
         ["Серверы"] = "Servers",
         ["Статистика"] = "Statistics",
@@ -56,7 +54,6 @@ public static class L
         ["Развернуть"] = "Expand",
         ["Сканировать QR"] = "Scan QR",
         ["Поделиться ключом"] = "Share key",
-        ["Ключей пока нет"] = "No keys yet",
         ["Сначала добавь ключ"] = "Add a key first",
         ["Нажми на кнопку или на +, чтобы добавить ключ"] = "Press the button or + to add a key",
         ["Буфер обмена пуст: сначала скопируй ключ"] = "Clipboard is empty: copy your key first",
@@ -77,9 +74,7 @@ public static class L
         ["Подключиться к последней локации при открытии приложения"] = "Connect to the last location when the app opens",
         ["Автозапуск"] = "Autostart",
         ["Запуск приложения с Windows"] = "Start the app with Windows",
-        ["Открываться свёрнутым в трей при входе в систему"] = "Open minimized to tray when you sign in",
         ["Tunnelka уже запущена. Её значок — рядом с часами."] = "Tunnelka is already running. Its icon is next to the clock.",
-        ["Что-то пошло не так: {0}\n\nПодробности записаны в {1}"] = "Something went wrong: {0}\n\nDetails are saved in {1}",
         ["Подписка закончилась. Продлите её, чтобы VPN снова заработал."] = "The subscription has ended. Renew it to get VPN working again.",
         ["До конца подписки меньше 3 дней. Продлите её, иначе доступ будет приостановлен."] = "Less than 3 days left on the subscription. Renew it, or access will be suspended.",
         ["Продлить подписку →"] = "Renew subscription →",
@@ -91,14 +86,9 @@ public static class L
         ["Удалить ключ"] = "Delete key",
         ["Удалить ключ «{0}» и все его серверы?"] = "Delete the key \"{0}\" and all its servers?",
 
-        ["{0} · обновлено {1} · раз в {2} ч"] = "{0} · updated {1} · every {2} h",
-        ["Трафик: {0} из {1}"] = "Traffic: {0} of {1}",
         ["{0} из {1}"] = "{0} of {1}",
         ["осталось {0}"] = "{0} left",
         ["Подписка истекла"] = "Expired",
-        ["Подписка без срока"] = "No expiry date",
-        ["Подписка истекла {0:dd.MM.yyyy}"] = "Expired on {0:dd.MM.yyyy}",
-        ["Истекает {0:dd.MM.yyyy} · осталось {1}"] = "Expires {0:dd.MM.yyyy} · {1} left",
 
         ["Прокси"] = "Proxy",
         ["Подключено"] = "Connected",
@@ -160,7 +150,6 @@ public static class L
         ["Проверить пинг локаций при открытии приложения"] = "Check location ping when the app opens",
         ["Маршрутизация"] = "Routing",
         ["Правила маршрута трафика"] = "Traffic routing rules",
-        ["Какие сайты идут напрямую, через VPN или в блок"] = "Which sites go direct, through VPN or are blocked",
         ["Журнал"] = "Log",
         ["Сообщения приложения и Xray"] = "App and Xray messages",
         ["Очистить"] = "Clear",
@@ -182,8 +171,6 @@ public static class L
         ["Тестовый адрес для реального пинга"] = "Test address for real ping",
         ["Сбросить адрес"] = "Reset address",
 
-        ["Напрямую - использование без VPN\nЧерез VPN - использование через VPN\nБлок - полная блокировка трафика"] =
-            "Direct - use without VPN\nThrough VPN - use through VPN\nBlock - block all traffic",
         ["Программы (*.exe)|*.exe"] = "Programs (*.exe)|*.exe",
         ["Выбери программу"] = "Choose a program",
 
@@ -204,16 +191,11 @@ public static class L
         ["Режим TUN: через VPN идёт весь трафик"] = "TUN mode: all traffic goes through VPN",
         ["Режим прокси: через VPN идут браузер и программы"] = "Proxy mode: the browser and apps go through VPN",
         ["Не найден {0}"] = "{0} not found",
-        ["Не найден {0}\n\nСкачай sing-box-windows-amd64.zip на github.com/SagerNet/sing-box/releases и положи sing-box.exe в папку core рядом с xray.exe."] =
-            "{0} not found\n\nDownload sing-box-windows-amd64.zip from github.com/SagerNet/sing-box/releases and put sing-box.exe into the core folder next to xray.exe.",
-        ["Для режима TUN нужны права администратора. Перезапустить Tunnelka от имени администратора?"] =
-            "TUN mode needs administrator rights. Restart Tunnelka as administrator?",
         ["Перезапуск отменён: {0}"] = "Restart canceled: {0}",
 
         ["Обновляю подписку"] = "Updating subscription",
         ["{0}: серверов {1}"] = "{0}: {1} servers",
         ["Ошибка подписки: {0}"] = "Subscription error: {0}",
-        ["Порт {0} занят другой программой (например, Happ или v2rayN), беру {1}"] = "Port {0} is used by another app (for example Happ or v2rayN), using {1}",
         ["Порты: SOCKS5 127.0.0.1:{0}, HTTP 127.0.0.1:{1}"] = "Ports: SOCKS5 127.0.0.1:{0}, HTTP 127.0.0.1:{1}",
         ["Не удалось запустить xray: {0}"] = "Could not start xray: {0}",
         ["TUN включён"] = "TUN enabled",
@@ -328,7 +310,6 @@ public static class L
         ["Для {0} нужен {1} в папке core"] = "{0} needs {1} in the core folder",
         ["Напрямую подписка не загрузилась, пробую через VPN"] = "Subscription did not load directly, trying through VPN",
         ["Не удалось снять kill switch: {0}"] = "Could not remove the kill switch: {0}",
-        ["Режим туннеля, kill switch, действия при запуске"] = "Tunnel mode, kill switch, startup actions",
         ["Добавить процесс"] = "Add process",
         ["Добавить файл exe"] = "Add exe file",
         ["Правила для программ надёжно работают в режиме TUN"] = "App rules work reliably in TUN mode",
@@ -349,7 +330,6 @@ public static class L
         ["Трафик ядра идёт напрямую через адаптер {0}, мимо другого VPN"] = "Core traffic goes directly through adapter {0}, bypassing the other VPN",
         ["VPN только для выбранных"] = "VPN only for selected",
         ["Без VPN для выбранных"] = "Without VPN for selected",
-        ["ВЫБРАННЫЕ ПРОГРАММЫ И САЙТЫ"] = "SELECTED APPS AND SITES",
         ["Всё через VPN"] = "Everything via VPN",
         ["Программы и сайты из списка идут напрямую, остальное через VPN"] = "Apps and sites from the list go direct, the rest goes through VPN",
         ["Список не действует, весь трафик идёт через VPN"] = "The list is not used, all traffic goes through VPN",
