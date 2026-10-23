@@ -1,4 +1,5 @@
 using Avalonia.Threading;
+using Microsoft.Win32;
 using Tunnelka.Models;
 using Tunnelka.Parsing;
 using Tunnelka.Services;
@@ -37,6 +38,8 @@ public sealed class Session : IDisposable
     private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromSeconds(60) };
     private readonly HashSet<ProxyServer> _pinging = new();
     private readonly ServerWatchdog _watchdog;
+    private readonly Func<string, int, CancellationToken, Task<bool>> _tunnelProbe;
+    private bool _resuming;
     private DateTime _connectedAt;
     private bool _exiting;
 
@@ -59,7 +62,9 @@ public sealed class Session : IDisposable
         _clock.Tick += (_, _) => ClockTick?.Invoke(Elapsed);
         _poller.Updated += OnTraffic;
         _refreshTimer.Tick += async (_, _) => await RefreshDue();
-        _watchdog = new ServerWatchdog(ServerWatchdog.TunnelProbe(() => ProxyPort, () => Data.PingUrl), TimeSpan.FromSeconds(15), 3);
+        _tunnelProbe = ServerWatchdog.TunnelProbe(() => ProxyPort, () => Data.PingUrl);
+        _watchdog = new ServerWatchdog(_tunnelProbe, TimeSpan.FromSeconds(15), 3);
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
         _watchdog.Lost += server => Dispatcher.UIThread.Post(() => _ = Failover(server));
         Connection.Exited += () => Dispatcher.UIThread.Post(OnCoreExited);
         Connection.Warning += text => Dispatcher.UIThread.Post(() => Hint?.Invoke(text, Tone.Mid));
@@ -357,9 +362,54 @@ public sealed class Session : IDisposable
 
     private DateTime _healedAt;
 
-    private async Task<bool> TryHeal(ProxyServer lost)
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
     {
-        if (!Data.Tun || !Connection.CanSwitchLive || DateTime.UtcNow - _healedAt < TimeSpan.FromMinutes(2))
+        if (e.Mode == PowerModes.Resume)
+            Dispatcher.UIThread.Post(() => _ = AfterResume());
+    }
+
+    private async Task AfterResume()
+    {
+        if (_resuming || Active == null)
+            return;
+
+        _resuming = true;
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5));
+            var server = Active;
+            if (server == null || Busy || _exiting)
+                return;
+
+            Log.Write(L.T("Компьютер проснулся, проверяю связь"));
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                if (await _tunnelProbe(server.Address, server.Port, CancellationToken.None))
+                {
+                    Log.Write(L.T("Связь в порядке"));
+                    return;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(3));
+                if (Active != server || Busy || _exiting)
+                    return;
+            }
+
+            if (await TryHeal(server, true))
+                return;
+
+            _resuming = false;
+            await Failover(server);
+        }
+        finally
+        {
+            _resuming = false;
+        }
+    }
+
+    private async Task<bool> TryHeal(ProxyServer lost, bool force = false)
+    {
+        if (!Data.Tun || !Connection.CanSwitchLive || (!force && DateTime.UtcNow - _healedAt < TimeSpan.FromMinutes(2)))
             return false;
 
         _healedAt = DateTime.UtcNow;
@@ -388,7 +438,7 @@ public sealed class Session : IDisposable
 
     private async Task Failover(ProxyServer lost)
     {
-        if (Active != lost || Busy)
+        if (Active != lost || Busy || _resuming)
             return;
 
         var name = ServerText.CleanName(lost);
@@ -911,6 +961,7 @@ public sealed class Session : IDisposable
     {
         _clock.Stop();
         _refreshTimer.Stop();
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _poller.Dispose();
         _watchdog.Dispose();
         Overlay.Dispose();
