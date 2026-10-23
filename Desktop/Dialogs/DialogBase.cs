@@ -71,14 +71,6 @@ public abstract class DialogBase : Window
         };
     }
 
-    protected static TextBlock Heading(string text) => new()
-    {
-        Text = text,
-        FontSize = 16.5,
-        FontWeight = FontWeight.SemiBold,
-        TextWrapping = TextWrapping.Wrap
-    };
-
     protected static TextBlock Body(string text, bool muted = true)
     {
         var block = new TextBlock { Text = text, FontSize = 15.4, TextWrapping = TextWrapping.Wrap };

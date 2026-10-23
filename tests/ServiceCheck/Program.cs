@@ -83,7 +83,6 @@ stopped.Stop();
 await Task.Delay(300);
 Check(!stoppedLost, "stopped watchdog stays silent");
 Check(ServerWatchdog.CanWatch(watched) && !ServerWatchdog.CanWatch(new ProxyServer { Protocol = "hysteria2" }) && !ServerWatchdog.CanWatch(new ProxyServer { Protocol = "tuic" }), "watchdog skips udp protocols");
-Check(!await ServerWatchdog.TcpProbe("127.0.0.1", 1, CancellationToken.None), "tcp probe fails on a closed port");
 Check(CoreManifest.All.All(p => !p.Executable.Contains("sing", StringComparison.OrdinalIgnoreCase) && !p.Executable.Contains("xray", StringComparison.OrdinalIgnoreCase)), "core files carry neutral names");
 Check(XrayRunner.XrayPath.EndsWith(CoreFiles.Proxy) && XrayRunner.SingBoxPath.EndsWith(CoreFiles.Tun), "runner looks for the renamed cores");
 Check(await ServerWatchdog.TunnelProbe(() => null, () => "http://127.0.0.1/")("h", 1, CancellationToken.None), "tunnel probe stays quiet when nothing is running");

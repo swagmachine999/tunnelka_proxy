@@ -19,8 +19,6 @@ internal static class Win32
 
     public static void ClickThrough(Window window) => AddExStyle(window, ExTransparent | ExToolWindow | ExNoActivate);
 
-    public static void ToolWindow(Window window) => AddExStyle(window, ExToolWindow);
-
     public static void Foreground(Window window)
     {
         var handle = Handle(window);
