@@ -323,7 +323,7 @@ public static class L
         ["sing-box не запустил {0}, код {1}"] = "sing-box did not start {0}, code {1}",
         ["Адаптер TUN создан: {0}"] = "TUN adapter created: {0}",
         ["Блокирует интернет, если VPN упал (режим TUN)"] = "Blocks the internet if VPN drops (TUN mode)",
-        ["Для {0} нужен sing-box.exe в папке core"] = "{0} needs sing-box.exe in the core folder",
+        ["Для {0} нужен {1} в папке core"] = "{0} needs {1} in the core folder",
         ["Напрямую подписка не загрузилась, пробую через VPN"] = "Subscription did not load directly, trying through VPN",
         ["Не удалось снять kill switch: {0}"] = "Could not remove the kill switch: {0}",
         ["Режим туннеля, kill switch, действия при запуске"] = "Tunnel mode, kill switch, startup actions",
