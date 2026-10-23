@@ -4,14 +4,14 @@ public sealed record CorePackage(string Name, string Url, string Sha256, long Si
 
 public static class CoreManifest
 {
-    private const string XrayVersion = "v26.9.30";
-    private const string SingBoxVersion = "1.14.2";
+    private const string XrayVersion = "v26.10.21";
+    private const string SingBoxVersion = "1.14.3";
 
     public static CorePackage Xray { get; } = new(
         "Xray",
         $"https://github.com/XTLS/Xray-core/releases/download/{XrayVersion}/Xray-windows-64.zip",
-        "b17a619343c11b89d8faf36278298856749b15c52277d875d32051b33dcda617",
-        21_392_686,
+        "fc58c39ee2f2717b4c54d28d374362389e5319b20ae44aea76ea45a5243ec827",
+        15_029_603,
         CoreFiles.Proxy,
         new[]
         {
@@ -24,8 +24,8 @@ public static class CoreManifest
     public static CorePackage SingBox { get; } = new(
         "sing-box",
         $"https://github.com/SagerNet/sing-box/releases/download/v{SingBoxVersion}/sing-box-{SingBoxVersion}-windows-amd64.zip",
-        "c2d8bfff918755808781dfdeeb8581b6c91eb3a243d9a7b55483cfc0c0684d32",
-        32_857_903,
+        "d8b86ef58936dba9230ec6a57ffa4243933f3c14ef4809828b6c553440ed1518",
+        32_853_953,
         CoreFiles.Tun,
         new[]
         {
