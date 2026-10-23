@@ -8,11 +8,14 @@ public sealed class UpdateWatcher : IDisposable
     private static readonly TimeSpan FirstCheck = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan Repeat = TimeSpan.FromHours(6);
 
+    private static readonly TimeSpan Retry = TimeSpan.FromMinutes(1);
+
     private static Version? _offered;
 
     private readonly Func<int?> _proxyPort;
     private readonly Action<UpdateInfo> _offer;
     private readonly DispatcherTimer _timer = new() { Interval = FirstCheck };
+    private UpdateInfo? _pending;
 
     public UpdateWatcher(Func<int?> proxyPort, Action<UpdateInfo> offer)
     {
@@ -27,15 +30,29 @@ public sealed class UpdateWatcher : IDisposable
 
     private async Task Check()
     {
-        _timer.Interval = Repeat;
         try
         {
-            var update = await UpdateService.CheckAsync(_proxyPort());
-            if (update == null || update.Version == _offered)
-                return;
+            if (_pending == null)
+            {
+                _timer.Interval = Repeat;
+                var update = await UpdateService.CheckAsync(_proxyPort());
+                if (update == null || update.Version == _offered)
+                    return;
 
-            _offered = update.Version;
-            _offer(update);
+                _pending = update;
+            }
+
+            if (Win32.FullscreenAppActive())
+            {
+                _timer.Interval = Retry;
+                return;
+            }
+
+            var offer = _pending;
+            _pending = null;
+            _timer.Interval = Repeat;
+            _offered = offer.Version;
+            _offer(offer);
         }
         catch (Exception)
         {
