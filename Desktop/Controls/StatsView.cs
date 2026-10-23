@@ -85,26 +85,44 @@ public sealed class StatsView : Control
 
         var plot = new Rect(r.X + 16, r.Y + 40, Math.Max(1, r.Width - 32), r.Height - 56);
         var grid = new Pen(Ui.Brush(this, "BorderBrush2"), 1, new DashStyle(new double[] { 4, 4 }, 0));
-        for (var i = 0; i <= 3; i++)
-        {
-            var y = plot.Y + plot.Height * i / 3;
-            context.DrawLine(grid, new Point(plot.X, y), new Point(plot.Right, y));
-        }
-
         var down = _speeds.Select(s => s.Down).ToList();
         var up = _speeds.Select(s => s.Up).ToList();
-        if (!_connected && down.All(v => v == 0) && up.All(v => v == 0))
+        var empty = !_connected && down.All(v => v == 0) && up.All(v => v == 0);
+        var top = AxisTop(Math.Max(down.DefaultIfEmpty(0).Max(), up.DefaultIfEmpty(0).Max()));
+
+        for (var i = 0; i <= 2; i++)
+        {
+            var y = plot.Y + plot.Height * i / 2;
+            context.DrawLine(grid, new Point(plot.X, y), new Point(plot.Right, y));
+            if (empty || i == 2)
+                continue;
+
+            var label = ServerText.Bytes(top * (2 - i) / 2) + L.T("/с");
+            Write(context, label, 11, FontWeight.Normal, muted, new Rect(plot.X, y - 15, plot.Width, 14), TextAlignment.Right);
+        }
+
+        if (empty)
         {
             Write(context, L.T("Подключись, чтобы увидеть трафик"), 14, FontWeight.Normal, muted, plot, TextAlignment.Center);
             return;
         }
 
-        var max = Math.Max(1024, Math.Max(down.DefaultIfEmpty(0).Max(), up.DefaultIfEmpty(0).Max())) * 1.15;
-        Write(context, ServerText.Bytes(max) + L.T("/с"), 13, FontWeight.Normal, muted,
-            new Rect(r.X + 16, r.Y + 10, Math.Max(1, r.Width - 32), 20), TextAlignment.Right);
+        DrawSeries(context, plot, up, top, Ui.Color(this, "PinkColor"));
+        DrawSeries(context, plot, down, top, Ui.Color(this, "AccentColor"));
+    }
 
-        DrawSeries(context, plot, up, max, Ui.Color(this, "PinkColor"));
-        DrawSeries(context, plot, down, max, Ui.Color(this, "AccentColor"));
+    private static double AxisTop(double peak)
+    {
+        const double Kb = 1024;
+        const double Mb = 1024 * 1024;
+        double[] steps = { 64 * Kb, 128 * Kb, 256 * Kb, 512 * Kb, Mb, 2 * Mb, 3 * Mb, 5 * Mb, 10 * Mb, 15 * Mb, 20 * Mb, 30 * Mb, 50 * Mb, 100 * Mb, 200 * Mb, 500 * Mb, 1000 * Mb };
+        foreach (var step in steps)
+        {
+            if (peak * 1.05 <= step)
+                return step;
+        }
+
+        return peak * 1.15;
     }
 
     private static void DrawSeries(DrawingContext context, Rect plot, List<double> values, double max, Color color)
