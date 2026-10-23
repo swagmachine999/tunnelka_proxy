@@ -355,12 +355,46 @@ public sealed class Session : IDisposable
             Log.Write(L.T("Отключено"));
     }
 
+    private DateTime _healedAt;
+
+    private async Task<bool> TryHeal(ProxyServer lost)
+    {
+        if (!Data.Tun || !Connection.CanSwitchLive || DateTime.UtcNow - _healedAt < TimeSpan.FromMinutes(2))
+            return false;
+
+        _healedAt = DateTime.UtcNow;
+        Log.Write(L.F("Связь с сервером {0} пропала, перезапускаю соединение", ServerText.CleanName(lost)));
+        Busy = true;
+        StateChanged?.Invoke();
+        var ok = false;
+        try
+        {
+            ok = await Connection.SwitchAsync(lost, Data.Routing) == ConnectResult.Ok;
+        }
+        finally
+        {
+            Busy = false;
+            StateChanged?.Invoke();
+        }
+
+        if (!ok || Active != lost)
+            return false;
+
+        Log.Write(L.T("Соединение восстановлено"));
+        if (Data.AutoSwitch && ServerWatchdog.CanWatch(lost))
+            _watchdog.Start(lost);
+        return true;
+    }
+
     private async Task Failover(ProxyServer lost)
     {
         if (Active != lost || Busy)
             return;
 
         var name = ServerText.CleanName(lost);
+        if (await TryHeal(lost))
+            return;
+
         Log.Write(L.F("Сервер {0} не отвечает, ищу другой", name));
         Hint?.Invoke(L.F("Сервер {0} не отвечает, ищу другой…", name), Tone.Mid);
 
