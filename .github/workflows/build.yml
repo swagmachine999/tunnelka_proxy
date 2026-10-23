@@ -70,12 +70,14 @@ jobs:
           New-Item -ItemType Directory -Force publish/core | Out-Null
           Invoke-WebRequest "https://github.com/XTLS/Xray-core/releases/download/$env:XRAY_VERSION/Xray-windows-64.zip" -OutFile xray.zip
           Expand-Archive xray.zip -DestinationPath xray
-          Copy-Item xray/xray.exe, xray/geoip.dat, xray/geosite.dat publish/core/
+          Copy-Item xray/xray.exe publish/core/tunnelka-proxy.exe
+          Copy-Item xray/geoip.dat, xray/geosite.dat publish/core/
           Copy-Item xray/LICENSE publish/core/LICENSE-xray.txt
           Invoke-WebRequest "https://github.com/SagerNet/sing-box/releases/download/v$env:SINGBOX_VERSION/sing-box-$env:SINGBOX_VERSION-windows-amd64.zip" -OutFile singbox.zip
           Expand-Archive singbox.zip -DestinationPath singbox
           $dir = "singbox/sing-box-$env:SINGBOX_VERSION-windows-amd64"
-          Copy-Item "$dir/sing-box.exe", "$dir/libcronet.dll" publish/core/
+          Copy-Item "$dir/sing-box.exe" publish/core/tunnelka-tun.exe
+          Copy-Item "$dir/libcronet.dll" publish/core/
           Copy-Item "$dir/LICENSE" publish/core/LICENSE-sing-box.txt
 
       - name: Report contents

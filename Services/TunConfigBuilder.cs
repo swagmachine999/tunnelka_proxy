@@ -9,7 +9,7 @@ public static class TunConfigBuilder
     public const string InterfaceName = "Tunnelka";
     public const string Address = "172.19.0.1";
 
-    private static readonly string[] DirectProcesses = { "xray.exe", "sing-box.exe", "Tunnelka.exe" };
+    private static readonly string[] DirectProcesses = { CoreFiles.Proxy, CoreFiles.Tun, "Tunnelka.exe" };
 
     public static string Build(int socksPort, RoutingSettings routing, string serverHost, string? physicalInterface, string? socksUser = null, string? socksPassword = null)
     {

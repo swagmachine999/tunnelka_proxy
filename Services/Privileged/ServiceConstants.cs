@@ -20,7 +20,7 @@ public static class ServiceConstants
 
     public static string InstalledCore => Path.Combine(AppContext.BaseDirectory, "core");
 
-    public static string SingBoxPath => Path.Combine(InstalledCore, "sing-box.exe");
+    public static string SingBoxPath => Path.Combine(InstalledCore, CoreFiles.Tun);
 
-    public static string XrayPath => Path.Combine(InstalledCore, "xray.exe");
+    public static string XrayPath => Path.Combine(InstalledCore, CoreFiles.Proxy);
 }

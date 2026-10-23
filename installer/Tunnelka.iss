@@ -47,6 +47,8 @@ Name: "autostart"; Description: "{cm:AutoStart}"; GroupDescription: "{cm:Options
 Name: "cleancache"; Description: "{cm:CleanCache}"; GroupDescription: "{cm:Options}"; Flags: unchecked
 
 [InstallDelete]
+Type: files; Name: "{app}\core\xray.exe"
+Type: files; Name: "{app}\core\sing-box.exe"
 Type: files; Name: "{localappdata}\Tunnelka\config.json"; Tasks: cleancache
 Type: files; Name: "{localappdata}\Tunnelka\tun.json"; Tasks: cleancache
 Type: files; Name: "{localappdata}\Tunnelka\ping-*.json"; Tasks: cleancache

@@ -7,14 +7,14 @@ Tunnelka ships with the following third-party components. Each keeps its own lic
 - Version: 26.9.30
 - License: Mozilla Public License 2.0 (`core/LICENSE-xray.txt`)
 - Source code: https://github.com/XTLS/Xray-core/tree/v26.9.30
-- Files: `core/xray.exe`, `core/geoip.dat`, `core/geosite.dat`
+- Files: `core/tunnelka-proxy.exe` (unmodified Xray-core executable, renamed), `core/geoip.dat`, `core/geosite.dat`
 
 ## sing-box
 
 - Version: 1.14.2
 - License: GNU General Public License v3.0 or later (`core/LICENSE-sing-box.txt`)
 - Source code: https://github.com/SagerNet/sing-box/tree/v1.14.2
-- Files: `core/sing-box.exe`, `core/libcronet.dll`
+- Files: `core/tunnelka-tun.exe` (unmodified sing-box executable, renamed), `core/libcronet.dll`
 - sing-box runs as a separate program. Its unmodified source code for this exact version is available at the link above.
 
 ## ZXing.Net
