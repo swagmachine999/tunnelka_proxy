@@ -256,7 +256,7 @@ public sealed class ConnectionService : IDisposable
     {
         if (!File.Exists(XrayRunner.SingBoxPath))
         {
-            _log.Write(L.F("Для {0} нужен sing-box.exe в папке core", server.Protocol));
+            _log.Write(L.F("Для {0} нужен {1} в папке core", server.Protocol, CoreFiles.Tun));
             return false;
         }
 
