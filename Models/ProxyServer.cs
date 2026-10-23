@@ -31,6 +31,7 @@ public class ProxyServer
     public string Congestion { get; set; } = "";
     public string UdpRelayMode { get; set; } = "";
     public string Link { get; set; } = "";
+    public string Description { get; set; } = "";
     public string? SubscriptionUrl { get; set; }
 
     [JsonIgnore]
