@@ -26,10 +26,62 @@ public static class LinkParser
         };
 
         server.Link = link;
+        ApplyDescription(server, link);
         if (string.IsNullOrWhiteSpace(server.Name))
             server.Name = $"{server.Address}:{server.Port}";
 
         return server;
+    }
+
+    private const string DescriptionKey = "serverDescription=";
+
+    private static void ApplyDescription(ProxyServer server, string link)
+    {
+        var hash = link.IndexOf('#');
+        var fragment = hash >= 0 ? link[(hash + 1)..] : "";
+        var inFragment = fragment.IndexOf(DescriptionKey, StringComparison.OrdinalIgnoreCase);
+        if (inFragment >= 0)
+        {
+            server.Description = ReadDescription(fragment, inFragment);
+            server.Name = Unescape(fragment[..inFragment].TrimEnd('?', '&'));
+            return;
+        }
+
+        var query = hash >= 0 ? link[..hash] : link;
+        var inQuery = query.IndexOf(DescriptionKey, StringComparison.OrdinalIgnoreCase);
+        if (inQuery > 0 && query[inQuery - 1] is '?' or '&')
+            server.Description = ReadDescription(query, inQuery);
+    }
+
+    private static string ReadDescription(string text, int keyStart)
+    {
+        var start = keyStart + DescriptionKey.Length;
+        var end = text.IndexOf('&', start);
+        var raw = Unescape(end < 0 ? text[start..] : text[start..end]).Trim();
+        if (raw.Length == 0)
+            return "";
+
+        try
+        {
+            var decoded = Base64Helper.Decode(raw).Trim();
+            return decoded.Contains('\uFFFD') ? raw : decoded;
+        }
+        catch (FormatException)
+        {
+            return raw;
+        }
+    }
+
+    private static string Unescape(string text)
+    {
+        try
+        {
+            return Uri.UnescapeDataString(text);
+        }
+        catch (UriFormatException)
+        {
+            return text;
+        }
     }
 
     public static List<ProxyServer> ParseInput(string text)

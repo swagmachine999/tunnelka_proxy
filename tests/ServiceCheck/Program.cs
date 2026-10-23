@@ -1,6 +1,7 @@
 using System.IO.Pipes;
 using System.Text.Json.Nodes;
 using Tunnelka.Models;
+using Tunnelka.Parsing;
 using Tunnelka.Services;
 using Tunnelka.Services.Privileged;
 
@@ -51,6 +52,14 @@ Check(ServerMatcher.Successor(Srv("Германия", "7.7.7.7", "https://a"), r
 Check(ServerMatcher.Successor(Srv("Нет", "7.7.7.7", "https://a"), refreshed) == refreshed[1], "successor falls back to first of same subscription");
 Check(ServerMatcher.Successor(Srv("Нет", "7.7.7.7", "https://zzz"), refreshed) == null, "successor is null when subscription is gone");
 Check(ServerMatcher.Successor(new ProxyServer { Name = "manual" }, refreshed) == null, "manual server has no successor");
+var noted = LinkParser.Parse("vless://11111111-1111-1111-1111-111111111111@1.2.3.4:443?type=tcp&security=none#%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F?serverDescription=0JHRi9GB0YLRgNGL0Lkg0YHQtdGA0LLQtdGA");
+Check(noted.Name == "Германия" && noted.Description == "Быстрый сервер", "provider description is read from the fragment");
+var notedQuery = LinkParser.Parse("vless://11111111-1111-1111-1111-111111111111@1.2.3.4:443?type=tcp&serverDescription=0JHRi9GB0YLRgNGL0Lkg0YHQtdGA0LLQtdGA#Name");
+Check(notedQuery.Name == "Name" && notedQuery.Description == "Быстрый сервер", "provider description is read from the query");
+var plain = LinkParser.Parse("vless://11111111-1111-1111-1111-111111111111@1.2.3.4:443?type=tcp#Name");
+Check(plain.Name == "Name" && plain.Description == "", "no description when the provider sends none");
+var noText = LinkParser.Parse("vless://11111111-1111-1111-1111-111111111111@1.2.3.4:443?type=tcp#Name?serverDescription=%D0%9F%D1%80%D0%BE%D1%81%D1%82%D0%BE%20%D1%82%D0%B5%D0%BA%D1%81%D1%82");
+Check(noText.Description == "Просто текст", "plain text description is kept as is");
 var lostSignal = new TaskCompletionSource<ProxyServer>();
 var dead = new ServerWatchdog((h, p, t) => Task.FromResult(false), TimeSpan.FromMilliseconds(20), 3);
 dead.Lost += s => lostSignal.TrySetResult(s);
