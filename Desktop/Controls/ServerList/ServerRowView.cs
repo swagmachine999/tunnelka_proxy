@@ -36,7 +36,7 @@ public sealed class ServerRowView : Border
         Server = server;
         _auto = AutoServers.IsAuto(server);
         DisplayName = _auto ? L.T("Авто") : ServerText.CleanName(server);
-        Height = 42;
+        Height = server.Description.Length > 0 && !_auto ? 56 : 42;
         Margin = new Thickness(4, 2, 4, 2);
         CornerRadius = new CornerRadius(12);
         Background = Brushes.Transparent;
@@ -115,10 +115,26 @@ public sealed class ServerRowView : Border
             IsHitTestVisible = false
         };
         Grid.SetColumn(badge, 0);
-        Grid.SetColumn(_name, 1);
+        Control nameBlock = _name;
+        if (server.Description.Length > 0 && !_auto)
+        {
+            var note = new TextBlock
+            {
+                Text = server.Description,
+                FontSize = 12,
+                FontFamily = new FontFamily("Segoe UI"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 1, 8, 0)
+            };
+            ServerRes.Bind(note, TextBlock.ForegroundProperty, "TextMutedBrush");
+            _name.VerticalAlignment = VerticalAlignment.Top;
+            nameBlock = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { _name, note } };
+        }
+
+        Grid.SetColumn(nameBlock, 1);
         Grid.SetColumn(pingHost, 2);
         content.Children.Add(badge);
-        content.Children.Add(_name);
+        content.Children.Add(nameBlock);
         content.Children.Add(pingHost);
 
         var layers = new Grid();
