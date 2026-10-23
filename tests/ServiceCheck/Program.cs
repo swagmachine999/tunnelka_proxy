@@ -75,6 +75,8 @@ await Task.Delay(300);
 Check(!stoppedLost, "stopped watchdog stays silent");
 Check(ServerWatchdog.CanWatch(watched) && !ServerWatchdog.CanWatch(new ProxyServer { Protocol = "hysteria2" }) && !ServerWatchdog.CanWatch(new ProxyServer { Protocol = "tuic" }), "watchdog skips udp protocols");
 Check(!await ServerWatchdog.TcpProbe("127.0.0.1", 1, CancellationToken.None), "tcp probe fails on a closed port");
+Check(await ServerWatchdog.TunnelProbe(() => null, () => "http://127.0.0.1/")("h", 1, CancellationToken.None), "tunnel probe stays quiet when nothing is running");
+Check(!await ServerWatchdog.TunnelProbe(() => 1, () => "http://127.0.0.1/")("h", 1, CancellationToken.None), "tunnel probe fails when the proxy does not answer");
 var buffer = new LineBuffer(3);
 for (var i = 1; i <= 5; i++) buffer.Add("l" + i);
 var (c1, l1) = buffer.ReadFrom(0);

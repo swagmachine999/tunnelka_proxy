@@ -36,7 +36,7 @@ public sealed class Session : IDisposable
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromSeconds(60) };
     private readonly HashSet<ProxyServer> _pinging = new();
-    private readonly ServerWatchdog _watchdog = new(ServerWatchdog.TcpProbe, TimeSpan.FromSeconds(15), 3);
+    private readonly ServerWatchdog _watchdog;
     private DateTime _connectedAt;
     private bool _exiting;
 
@@ -59,6 +59,7 @@ public sealed class Session : IDisposable
         _clock.Tick += (_, _) => ClockTick?.Invoke(Elapsed);
         _poller.Updated += OnTraffic;
         _refreshTimer.Tick += async (_, _) => await RefreshDue();
+        _watchdog = new ServerWatchdog(ServerWatchdog.TunnelProbe(() => ProxyPort, () => Data.PingUrl), TimeSpan.FromSeconds(15), 3);
         _watchdog.Lost += server => Dispatcher.UIThread.Post(() => _ = Failover(server));
         Connection.Exited += () => Dispatcher.UIThread.Post(OnCoreExited);
         Connection.Warning += text => Dispatcher.UIThread.Post(() => Hint?.Invoke(text, Tone.Mid));
