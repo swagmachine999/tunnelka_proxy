@@ -605,7 +605,6 @@ public sealed class Session : IDisposable
         SetHeroBusy(true);
         var ok = await Subscriptions.RefreshAll(Active);
         AfterServersChanged();
-        WarnAboutExpiring();
         ShowResult(ok);
     }
 
@@ -628,7 +627,6 @@ public sealed class Session : IDisposable
             SetHeroBusy(true);
         var ok = await Subscriptions.Refresh(url, Active);
         AfterServersChanged();
-        WarnAboutExpiring();
         if (shown)
             ShowResult(ok);
     }
@@ -651,19 +649,6 @@ public sealed class Session : IDisposable
             AfterServersChanged();
 
         CardsChanged?.Invoke();
-        WarnAboutExpiring();
-    }
-
-    private void WarnAboutExpiring()
-    {
-        var titles = Subscriptions.TakeNewlyExpiring();
-        if (titles.Count == 0)
-            return;
-
-        var text = titles.Count == 1
-            ? L.F("Подписка «{0}» скоро закончится. Продлите её, иначе доступ будет приостановлен.", titles[0])
-            : L.F("Подписки {0} скоро закончатся. Продлите их, иначе доступ будет приостановлен.", string.Join(", ", titles.Select(t => $"«{t}»")));
-        Dialogs?.Balloon(text);
     }
 
     public void DeleteSubscription(string url)
