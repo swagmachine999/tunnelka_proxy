@@ -255,7 +255,14 @@ public static class XrayConfigBuilder
                 stream["xhttpSettings"] = new JsonObject { ["path"] = Or(s.Path, "/"), ["host"] = s.Host, ["mode"] = Or(s.Mode, "auto") };
                 break;
             case "grpc":
-                stream["grpcSettings"] = new JsonObject { ["serviceName"] = s.ServiceName, ["multiMode"] = s.Mode == "multi" };
+                stream["grpcSettings"] = new JsonObject
+                {
+                    ["serviceName"] = s.ServiceName,
+                    ["multiMode"] = s.Mode == "multi",
+                    ["idle_timeout"] = 30,
+                    ["health_check_timeout"] = 15,
+                    ["permit_without_stream"] = true
+                };
                 break;
             case "tcp" when s.HeaderType == "http":
                 stream["tcpSettings"] = new JsonObject
@@ -272,6 +279,8 @@ public static class XrayConfigBuilder
                 };
                 break;
         }
+
+        stream["sockopt"] = new JsonObject { ["tcpKeepAliveIdle"] = 30, ["tcpKeepAliveInterval"] = 15 };
 
         if (s.Security == "tls")
         {

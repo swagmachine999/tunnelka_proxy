@@ -77,6 +77,8 @@ Check(ServerWatchdog.CanWatch(watched) && !ServerWatchdog.CanWatch(new ProxyServ
 Check(!await ServerWatchdog.TcpProbe("127.0.0.1", 1, CancellationToken.None), "tcp probe fails on a closed port");
 Check(CoreManifest.All.All(p => !p.Executable.Contains("sing", StringComparison.OrdinalIgnoreCase) && !p.Executable.Contains("xray", StringComparison.OrdinalIgnoreCase)), "core files carry neutral names");
 Check(XrayRunner.XrayPath.EndsWith(CoreFiles.Proxy) && XrayRunner.SingBoxPath.EndsWith(CoreFiles.Tun), "runner looks for the renamed cores");
+Check(await ServerWatchdog.TunnelProbe(() => null, () => "http://127.0.0.1/")("h", 1, CancellationToken.None), "tunnel probe stays quiet when nothing is running");
+Check(!await ServerWatchdog.TunnelProbe(() => 1, () => "http://127.0.0.1/")("h", 1, CancellationToken.None), "tunnel probe fails when the proxy does not answer");
 var buffer = new LineBuffer(3);
 for (var i = 1; i <= 5; i++) buffer.Add("l" + i);
 var (c1, l1) = buffer.ReadFrom(0);
