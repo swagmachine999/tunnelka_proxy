@@ -59,7 +59,26 @@ public static class SubscriptionLoader
         foreach (var server in servers)
             server.SubscriptionUrl = url;
 
+        if (servers.Count > 0 && servers.All(s => s.Description.Length == 0))
+            DescriptionFeed.Apply(servers, await LoadDescriptions(url, proxyPort));
+
         return new SubscriptionResult(servers, info);
+    }
+
+    private static async Task<string> LoadDescriptions(string url, int? proxyPort)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            DeviceInfo.Apply(request.Headers);
+            request.Headers.UserAgent.ParseAdd(DescriptionFeed.UserAgent);
+            using var response = await Client(proxyPort).SendAsync(request);
+            return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync() : "";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return "";
+        }
     }
 
     private static void ParseUserInfo(string? value, SubscriptionInfo info)

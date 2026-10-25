@@ -110,7 +110,7 @@ internal sealed class ConfirmView : UserControl
             Height = 44,
             CornerRadius = new CornerRadius(22),
             FontSize = 15.4,
-            Padding = new Thickness(0)
+            Padding = new Thickness(0, 0, 0, 3)
         };
         if (primary)
         {

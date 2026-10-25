@@ -79,6 +79,9 @@ public sealed class CoreDownloader
 
             foreach (var (_, target) in package.Files)
                 File.Move(Path.Combine(staging, target), Path.Combine(CoreLocator.DownloadedDir, target), true);
+
+            foreach (var legacy in CoreFiles.Legacy)
+                TryDelete(Path.Combine(CoreLocator.DownloadedDir, legacy));
         }
         finally
         {

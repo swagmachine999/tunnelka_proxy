@@ -1,4 +1,3 @@
-using System.Net.Sockets;
 using Tunnelka.Models;
 
 namespace Tunnelka.Services;
@@ -39,25 +38,31 @@ public sealed class ServerWatchdog : IDisposable
 
     public void Dispose() => Stop();
 
-    public static async Task<bool> TcpProbe(string host, int port, CancellationToken token)
-    {
-        using var limit = CancellationTokenSource.CreateLinkedTokenSource(token);
-        limit.CancelAfter(ProbeTimeoutMs);
-        try
+    public static Func<string, int, CancellationToken, Task<bool>> TunnelProbe(Func<int?> proxyPort, Func<string> url) =>
+        async (_, _, token) =>
         {
-            using var client = new TcpClient();
-            await client.ConnectAsync(host, port, limit.Token);
-            return true;
-        }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested)
-        {
-            return false;
-        }
-        catch (SocketException)
-        {
-            return false;
-        }
-    }
+            var port = proxyPort();
+            if (port == null)
+                return true;
+
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(token);
+            limit.CancelAfter(ProbeTimeoutMs + 2000);
+            try
+            {
+                using var handler = new HttpClientHandler { UseProxy = true, Proxy = LocalAccess.HttpProxy(port.Value) };
+                using var client = new HttpClient(handler);
+                using var response = await client.GetAsync(url(), HttpCompletionOption.ResponseHeadersRead, limit.Token);
+                return (int)response.StatusCode < 500;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        };
 
     private async Task Watch(ProxyServer server, CancellationToken token)
     {

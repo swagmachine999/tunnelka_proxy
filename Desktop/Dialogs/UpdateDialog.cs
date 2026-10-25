@@ -30,6 +30,7 @@ public sealed class UpdateDialog : DialogBase
         var dialog = new UpdateDialog(update, proxyPort);
         _ = dialog.Present(owner, false);
         dialog.Activate();
+        Win32.BringToFront(dialog);
     }
 
     private async Task Install()

@@ -29,8 +29,8 @@ public sealed class XrayRunner : ICoreRunner
     public event Action? Exited;
 
     public static string ConfigDir => Storage.AppStorage.Folder;
-    public static string XrayPath => CoreLocator.Find("xray.exe");
-    public static string SingBoxPath => CoreLocator.Find("sing-box.exe");
+    public static string XrayPath => CoreLocator.Find(CoreFiles.Proxy);
+    public static string SingBoxPath => CoreLocator.Find(CoreFiles.Tun);
 
     public bool IsRunning => _process is { HasExited: false };
 

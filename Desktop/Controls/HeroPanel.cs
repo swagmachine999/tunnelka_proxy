@@ -8,9 +8,6 @@ namespace Tunnelka.Desktop.Controls;
 
 public sealed class HeroPanel : UserControl
 {
-    public const double RequiredHeight =
-        HeroGeometry.HeaderHeight + HeroGeometry.BottomMargin + HeroGeometry.FooterHeight + HeroGeometry.GroupHeight * HeroGeometry.GroupScale;
-
     private const double HintHoldSeconds = 8;
     private const int FrameDefaultMs = 33;
     private const int HiddenFrameMs = 250;
