@@ -89,7 +89,7 @@ public abstract class DialogBase : Window
         FontSize = 15.4,
         HorizontalContentAlignment = HorizontalAlignment.Center,
         VerticalContentAlignment = VerticalAlignment.Center,
-        Padding = new Thickness(18, 0)
+        Padding = new Thickness(18, 0, 18, 3)
     };
 
     protected static Button Secondary(string text, double minWidth = 110)
@@ -105,7 +105,7 @@ public abstract class DialogBase : Window
             BorderThickness = new Thickness(1),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Padding = new Thickness(18, 0)
+            Padding = new Thickness(18, 0, 18, 3)
         };
         button.Paint(Button.BorderBrushProperty, "AccentBrush");
         return button;
