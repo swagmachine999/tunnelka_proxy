@@ -58,6 +58,12 @@ var notedQuery = LinkParser.Parse("vless://11111111-1111-1111-1111-111111111111@
 Check(notedQuery.Name == "Name" && notedQuery.Description == "Быстрый сервер", "provider description is read from the query");
 var plain = LinkParser.Parse("vless://11111111-1111-1111-1111-111111111111@1.2.3.4:443?type=tcp#Name");
 Check(plain.Name == "Name" && plain.Description == "", "no description when the provider sends none");
+var feedJson = "[{\"remarks\":\"Германия\",\"meta\":{\"serverDescription\":\"Быстрый сервер\"},\"outbounds\":[]},{\"remarks\":\"Без заметки\",\"outbounds\":[]}]";
+var feedServers = new List<ProxyServer> { new() { Name = "Германия" }, new() { Name = "Без заметки" }, new() { Name = "Другая" } };
+DescriptionFeed.Apply(feedServers, feedJson);
+Check(feedServers[0].Description == "Быстрый сервер" && feedServers[1].Description == "" && feedServers[2].Description == "", "descriptions from the json feed are matched by name");
+DescriptionFeed.Apply(feedServers, "vless://not-json");
+Check(DescriptionFeed.Read("[broken").Count == 0, "broken description feed is ignored");
 var noText = LinkParser.Parse("vless://11111111-1111-1111-1111-111111111111@1.2.3.4:443?type=tcp#Name?serverDescription=%D0%9F%D1%80%D0%BE%D1%81%D1%82%D0%BE%20%D1%82%D0%B5%D0%BA%D1%81%D1%82");
 Check(noText.Description == "Просто текст", "plain text description is kept as is");
 var lostSignal = new TaskCompletionSource<ProxyServer>();
