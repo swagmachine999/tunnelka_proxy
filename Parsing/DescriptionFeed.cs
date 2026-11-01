@@ -5,8 +5,6 @@ namespace Tunnelka.Parsing;
 
 public static class DescriptionFeed
 {
-    public const string UserAgent = "Happ/2.0";
-
     public static Dictionary<string, string> Read(string json)
     {
         var result = new Dictionary<string, string>();

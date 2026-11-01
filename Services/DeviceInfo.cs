@@ -15,6 +15,8 @@ public static class DeviceInfo
 
     public static string OsVersion => Environment.OSVersion.Version.ToString();
 
+    public static string UserAgent => "Tunnelka/" + UpdateService.Current;
+
     public static void Apply(HttpRequestHeaders headers)
     {
         headers.TryAddWithoutValidation("x-hwid", Hwid);
