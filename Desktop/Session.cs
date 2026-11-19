@@ -53,7 +53,7 @@ public sealed class Session : IDisposable
         Subscriptions = new SubscriptionService(_settings, Log, () => Connection.IsRunning ? XrayConfigBuilder.HttpPort : null);
         Autos = new AutoServers(_settings, Subscriptions);
         History = new TrafficHistory(_settings);
-        _pinger = new PingService(_settings);
+        _pinger = new PingService();
         _tracker = new TrafficTracker(_settings);
         Selected = Autos.Restore(Data.LastServerLink)
             ?? Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink)
@@ -62,7 +62,7 @@ public sealed class Session : IDisposable
         _clock.Tick += (_, _) => ClockTick?.Invoke(Elapsed);
         _poller.Updated += OnTraffic;
         _refreshTimer.Tick += async (_, _) => await RefreshDue();
-        _tunnelProbe = ServerWatchdog.TunnelProbe(() => ProxyPort, () => Data.PingUrl);
+        _tunnelProbe = ServerWatchdog.TunnelProbe(() => ProxyPort, () => PingTarget.Url);
         _watchdog = new ServerWatchdog(_tunnelProbe, TimeSpan.FromSeconds(15), 3);
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         _watchdog.Lost += server => Dispatcher.UIThread.Post(() => _ = Failover(server));
@@ -283,7 +283,7 @@ public sealed class Session : IDisposable
 
     private async Task<StartOutcome> StartLive(ProxyServer server)
     {
-        var result = await Connection.SwitchAsync(server, Data.Routing, Data.PingUrl);
+        var result = await Connection.SwitchAsync(server, Data.Routing, PingTarget.Url);
         if (result == ConnectResult.Ok)
             return StartOutcome.Connected;
         if (result == ConnectResult.Reverted)
@@ -300,7 +300,7 @@ public sealed class Session : IDisposable
 
     private async Task<bool> Start(ProxyServer server)
     {
-        var result = await Connection.StartAsync(server, Data.Tun, Data.Routing, Data.PingUrl);
+        var result = await Connection.StartAsync(server, Data.Tun, Data.Routing, PingTarget.Url);
         switch (result)
         {
             case ConnectResult.Ok:
@@ -437,7 +437,7 @@ public sealed class Session : IDisposable
         var ok = false;
         try
         {
-            ok = await Connection.SwitchAsync(lost, Data.Routing, Data.PingUrl) == ConnectResult.Ok;
+            ok = await Connection.SwitchAsync(lost, Data.Routing, PingTarget.Url) == ConnectResult.Ok;
         }
         finally
         {
@@ -866,7 +866,7 @@ public sealed class Session : IDisposable
         if (server != null && ++_recoverCount <= 3)
         {
             Log.Write(L.T("Xray остановлен извне, перезапускаю"));
-            if (await Connection.RecoverAsync(server, Data.Routing, Data.PingUrl) == ConnectResult.Ok)
+            if (await Connection.RecoverAsync(server, Data.Routing, PingTarget.Url) == ConnectResult.Ok)
                 return;
         }
 

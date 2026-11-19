@@ -7,6 +7,5 @@ public enum SettingsSection
     Overlay,
     Routing,
     Log,
-    Ping,
     Advanced
 }

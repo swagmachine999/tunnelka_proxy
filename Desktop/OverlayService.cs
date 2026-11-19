@@ -27,7 +27,7 @@ public sealed class OverlayService : IDisposable
             return;
 
         _session = session;
-        _probe = new LatencyProbe(() => session.ProxyPort, () => session.Data.PingUrl);
+        _probe = new LatencyProbe(() => session.ProxyPort, () => PingTarget.Url);
         _lossProbe = new LossProbe(() => session.LossTarget());
         _probe.Measured += ms => Dispatcher.UIThread.Post(() =>
         {

@@ -4,13 +4,6 @@ namespace Tunnelka.Services;
 
 public sealed class PingService
 {
-    private readonly Settings _settings;
-
-    public PingService(Settings settings)
-    {
-        _settings = settings;
-    }
-
     public async Task Ping(IReadOnlyList<ProxyServer> servers, Action<ProxyServer> done)
     {
         await PingReal(servers, done);
@@ -34,7 +27,7 @@ public sealed class PingService
             done(server);
         }
 
-        var results = await RealPinger.PingAsync(servers, _settings.Data.PingUrl, Report);
+        var results = await RealPinger.PingAsync(servers, PingTarget.Url, Report);
         foreach (var pair in results)
             Report(pair.Key, pair.Value);
     }

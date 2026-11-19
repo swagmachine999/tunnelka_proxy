@@ -13,7 +13,6 @@ public class AppData
     public int SpeedInterval { get; set; } = 3;
     public int UiScale { get; set; } = UiScaleMigration.DefaultPercent;
     public int UiScaleModel { get; set; }
-    public string PingUrl { get; set; } = "https://www.gstatic.com/generate_204";
     public RoutingSettings Routing { get; set; } = new();
 
     [JsonPropertyName("Rules")]

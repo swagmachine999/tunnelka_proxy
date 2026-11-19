@@ -141,7 +141,7 @@ public static class L
         ["Язык"] = "Language",
         ["Режим"] = "Mode",
         ["Отображение скорости"] = "Speed display",
-        ["Как часто отображать"] = "How often to show",
+        ["Как часто обновлять скорость в интерфейсе"] = "How often to update speed in the interface",
         ["Подписки при запуске"] = "Subscriptions on startup",
         ["Обновлять все подписки при открытии приложения"] = "Update all subscriptions when the app opens",
         ["Автопереключение"] = "Auto-switch",
@@ -155,21 +155,10 @@ public static class L
         ["Очистить"] = "Clear",
 
         ["Пинг"] = "Ping",
-        ["Пинг и скорость"] = "Ping and speed",
         ["Расширенные"] = "Advanced",
-        ["Язык, масштаб, тема"] = "Language, scale, theme",
-        ["Тип пинга и отображение скорости"] = "Ping type and speed display",
+        ["Язык, масштаб, тема, скорость"] = "Language, scale, theme, speed",
         ["Режим, kill switch, автопереключение, запуск"] = "Mode, kill switch, auto-switch, startup",
         ["Прокси: режим обычного прокси. TUN: режим туннеля"] = "Proxy: regular proxy mode. TUN: tunnel mode",
-        ["Тип пинга"] = "Ping type",
-        ["Реальный (via proxy)"] = "Real (via proxy)",
-        ["Быстрый (TCP)"] = "Fast (TCP)",
-        ["Реальный: запрос идёт через сам сервер, как при работе VPN. Делается два запроса, берётся лучший. Нерабочий сервер покажет n/a."] =
-            "Real: the request goes through the server itself, just like VPN traffic. Two requests are made and the best one counts. A broken server shows n/a.",
-        ["Быстрый: проверяет только, открыт ли порт сервера. Мгновенно, но может показать пинг у сервера, через который VPN не работает."] =
-            "Fast: only checks whether the server port is open. Instant, but may show ping for a server where VPN does not work.",
-        ["Тестовый адрес для реального пинга"] = "Test address for real ping",
-        ["Сбросить адрес"] = "Reset address",
 
         ["Программы (*.exe)|*.exe"] = "Programs (*.exe)|*.exe",
         ["Выбери программу"] = "Choose a program",
