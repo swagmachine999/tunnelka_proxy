@@ -246,11 +246,15 @@ public sealed class Session : IDisposable
 
         Connecting = true;
         StateChanged?.Invoke();
-        if (!await (live ? StartLive(server) : Start(server)))
+        var outcome = live ? await StartLive(server) : await Start(server) ? StartOutcome.Connected : StartOutcome.Failed;
+        if (outcome != StartOutcome.Connected)
         {
-            Failed?.Invoke();
-            if (Active != null)
-                Disconnect();
+            if (outcome == StartOutcome.Failed)
+            {
+                Failed?.Invoke();
+                if (Active != null)
+                    Disconnect();
+            }
             return;
         }
 
@@ -275,17 +279,28 @@ public sealed class Session : IDisposable
 
     public event Action? Failed;
 
-    private async Task<bool> StartLive(ProxyServer server)
-    {
-        if (await Connection.SwitchAsync(server, Data.Routing) == ConnectResult.Ok)
-            return true;
+    private enum StartOutcome { Connected, Reverted, Failed }
 
-        return await Start(server);
+    private async Task<StartOutcome> StartLive(ProxyServer server)
+    {
+        var result = await Connection.SwitchAsync(server, Data.Routing, Data.PingUrl);
+        if (result == ConnectResult.Ok)
+            return StartOutcome.Connected;
+        if (result == ConnectResult.Reverted)
+        {
+            if (Active != null)
+                Selected = Active;
+            CardsChanged?.Invoke();
+            Hint?.Invoke(L.F("Локация {0} не ответила, прежнее подключение сохранено", ServerText.CleanName(server)), Tone.Bad);
+            return StartOutcome.Reverted;
+        }
+
+        return await Start(server) ? StartOutcome.Connected : StartOutcome.Failed;
     }
 
     private async Task<bool> Start(ProxyServer server)
     {
-        var result = await Connection.StartAsync(server, Data.Tun, Data.Routing);
+        var result = await Connection.StartAsync(server, Data.Tun, Data.Routing, Data.PingUrl);
         switch (result)
         {
             case ConnectResult.Ok:
@@ -300,6 +315,9 @@ public sealed class Session : IDisposable
                 break;
             case ConnectResult.NeedsAdministrator:
                 RestartAsAdministrator("--connect");
+                break;
+            case ConnectResult.NoTraffic:
+                Hint?.Invoke(L.T("Сервер запустился, но интернет через него не работает"), Tone.Bad);
                 break;
             default:
                 ShowLogRequested?.Invoke();
@@ -419,7 +437,7 @@ public sealed class Session : IDisposable
         var ok = false;
         try
         {
-            ok = await Connection.SwitchAsync(lost, Data.Routing) == ConnectResult.Ok;
+            ok = await Connection.SwitchAsync(lost, Data.Routing, Data.PingUrl) == ConnectResult.Ok;
         }
         finally
         {
@@ -835,7 +853,7 @@ public sealed class Session : IDisposable
         if (server != null && ++_recoverCount <= 3)
         {
             Log.Write(L.T("Xray остановлен извне, перезапускаю"));
-            if (await Connection.RecoverAsync(server, Data.Routing) == ConnectResult.Ok)
+            if (await Connection.RecoverAsync(server, Data.Routing, Data.PingUrl) == ConnectResult.Ok)
                 return;
         }
 

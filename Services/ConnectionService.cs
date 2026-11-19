@@ -15,6 +15,8 @@ public sealed class ConnectionService : IDisposable
     private readonly XrayRunner _relay = new(XrayRunner.SingBoxPath, "relay.json");
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _proxyEnabled;
+    private ProxyServer? _activeServer;
+    private RoutingSettings? _activeRouting;
 
     public ConnectionService(AppLog log)
         : this(log, ServiceClient.Default)
@@ -53,12 +55,12 @@ public sealed class ConnectionService : IDisposable
     private static string DescribeCore(bool running, int? exitCode) =>
         running ? L.T("работает") : exitCode is { } code ? L.F("завершился, код {0}", code) : L.T("не запущен");
 
-    public async Task<ConnectResult> StartAsync(ProxyServer server, bool tun, RoutingSettings routing)
+    public async Task<ConnectResult> StartAsync(ProxyServer server, bool tun, RoutingSettings routing, string? probeUrl = null)
     {
         await _gate.WaitAsync();
         try
         {
-            return await Task.Run(() => StartCore(server, tun, routing));
+            return await Task.Run(() => StartCore(server, tun, routing, probeUrl));
         }
         finally
         {
@@ -66,12 +68,12 @@ public sealed class ConnectionService : IDisposable
         }
     }
 
-    public async Task<ConnectResult> SwitchAsync(ProxyServer server, RoutingSettings routing)
+    public async Task<ConnectResult> SwitchAsync(ProxyServer server, RoutingSettings routing, string? probeUrl = null)
     {
         await _gate.WaitAsync();
         try
         {
-            return await Task.Run(() => SwitchCore(server, routing));
+            return await Task.Run(() => SwitchCore(server, routing, false, probeUrl));
         }
         finally
         {
@@ -105,13 +107,15 @@ public sealed class ConnectionService : IDisposable
         }
     }
 
-    private ConnectResult StartCore(ProxyServer server, bool tun, RoutingSettings routing)
+    private ConnectResult StartCore(ProxyServer server, bool tun, RoutingSettings routing, string? probeUrl)
     {
         var backend = tun ? ChooseTun() : null;
         if (tun && backend == null)
             return ConnectResult.NeedsAdministrator;
 
         StopCores();
+        _activeServer = null;
+        _activeRouting = null;
         XrayRunner.KillOrphans(XrayRunner.XrayPath);
         XrayRunner.KillOrphans(XrayRunner.SingBoxPath);
         if (tun)
@@ -121,6 +125,9 @@ public sealed class ConnectionService : IDisposable
         var result = StartXray(server, XrayRoutingPolicy.For(tun, routing), tun);
         if (result == ConnectResult.Ok && tun)
             result = StartTun(backend!, routing, server.Address);
+        if (result == ConnectResult.Ok && !string.IsNullOrWhiteSpace(probeUrl)
+            && !VerifyConnection(probeUrl, tun))
+            result = ConnectResult.NoTraffic;
 
         if (result != ConnectResult.Ok)
         {
@@ -129,6 +136,8 @@ public sealed class ConnectionService : IDisposable
         }
 
         ApplySystemProxy(!tun);
+        _activeServer = server;
+        _activeRouting = routing;
         return ConnectResult.Ok;
     }
 
@@ -142,12 +151,12 @@ public sealed class ConnectionService : IDisposable
         Thread.Sleep(1000);
     }
 
-    public async Task<ConnectResult> RecoverAsync(ProxyServer server, RoutingSettings routing)
+    public async Task<ConnectResult> RecoverAsync(ProxyServer server, RoutingSettings routing, string? probeUrl = null)
     {
         await _gate.WaitAsync();
         try
         {
-            return await Task.Run(() => SwitchCore(server, routing, true));
+            return await Task.Run(() => SwitchCore(server, routing, true, probeUrl));
         }
         finally
         {
@@ -155,7 +164,7 @@ public sealed class ConnectionService : IDisposable
         }
     }
 
-    private ConnectResult SwitchCore(ProxyServer server, RoutingSettings routing, bool recover = false)
+    private ConnectResult SwitchCore(ProxyServer server, RoutingSettings routing, bool recover = false, string? probeUrl = null)
     {
         if (recover ? !CanRecover : !CanSwitchLive)
             return ConnectResult.Failed;
@@ -165,16 +174,45 @@ public sealed class ConnectionService : IDisposable
         var result = StartXray(server, XrayRoutingPolicy.For(true, routing), true, true);
         if (result == ConnectResult.Ok && !_xray.WaitForPort(XrayConfigBuilder.SocksPort, 3000))
             result = ConnectResult.Failed;
+        if (result == ConnectResult.Ok && !string.IsNullOrWhiteSpace(probeUrl)
+            && !VerifyConnection(probeUrl, true))
+            result = ConnectResult.NoTraffic;
 
         if (result != ConnectResult.Ok)
         {
             _xray.Stop();
             _relay.Stop();
+            if (!recover && RestorePrevious(routing, probeUrl))
+                return ConnectResult.Reverted;
+            _activeServer = null;
+            _activeRouting = null;
             return result;
         }
 
+        _activeServer = server;
+        _activeRouting = routing;
         _log.Write(recover ? L.T("Xray перезапущен, TUN не прерывался") : L.T("Сервер сменён без перезапуска TUN"));
         return ConnectResult.Ok;
+    }
+
+    private bool RestorePrevious(RoutingSettings routing, string? probeUrl)
+    {
+        if (_activeServer == null)
+            return false;
+
+        var old = _activeServer;
+        var oldRouting = _activeRouting ?? routing;
+        var result = StartXray(old, XrayRoutingPolicy.For(true, oldRouting), true, true);
+        if (result == ConnectResult.Ok && _xray.WaitForPort(XrayConfigBuilder.SocksPort, 3000)
+            && (string.IsNullOrWhiteSpace(probeUrl) || VerifyConnection(probeUrl, true)))
+        {
+            _log.Write(L.T("Новая локация не ответила, прежнее подключение восстановлено"));
+            return true;
+        }
+
+        _xray.Stop();
+        _relay.Stop();
+        return false;
     }
 
     private ITunBackend? ChooseTun()
@@ -223,6 +261,8 @@ public sealed class ConnectionService : IDisposable
     private void StopCore()
     {
         StopCores();
+        _activeServer = null;
+        _activeRouting = null;
         ApplySystemProxy(false);
     }
 
@@ -238,10 +278,11 @@ public sealed class ConnectionService : IDisposable
             if (SingBoxRelay.Needs(server) && !File.Exists(XrayRunner.SingBoxPath))
                 return ConnectResult.SingBoxMissing;
 
-            if (SingBoxRelay.Needs(server) && !StartRelay(server))
+            if (SingBoxRelay.Needs(server) && !StartRelay(server, tun))
                 return ConnectResult.Failed;
 
-            _xray.Start(XrayConfigBuilder.Build(server, routing, tun));
+            var physicalInterface = tun ? NetworkAdapters.Physical() : null;
+            _xray.Start(XrayConfigBuilder.Build(server, routing, tun, physicalInterface));
             _log.Write(L.F("Порты: SOCKS5 127.0.0.1:{0}, HTTP 127.0.0.1:{1}", XrayConfigBuilder.SocksPort, XrayConfigBuilder.HttpPort));
             return ConnectResult.Ok;
         }
@@ -252,7 +293,7 @@ public sealed class ConnectionService : IDisposable
         }
     }
 
-    private bool StartRelay(ProxyServer server)
+    private bool StartRelay(ProxyServer server, bool tun)
     {
         if (!File.Exists(XrayRunner.SingBoxPath))
         {
@@ -260,11 +301,39 @@ public sealed class ConnectionService : IDisposable
             return false;
         }
 
-        _relay.Start(SingBoxRelay.Build(new[] { (server, XrayConfigBuilder.RelayPort) }, true));
+        var physicalInterface = tun ? NetworkAdapters.Physical() : null;
+        if (tun && physicalInterface == null)
+            _log.Write(L.T("Не найден основной сетевой адаптер для Hysteria2/TUIC; проверяем маршрут автоматически"));
+        _relay.Start(SingBoxRelay.Build(new[] { (server, XrayConfigBuilder.RelayPort) }, true, physicalInterface));
         if (_relay.WaitForPort(XrayConfigBuilder.RelayPort, 5000))
             return true;
 
         _log.Write(L.F("sing-box не запустил {0}, код {1}", server.Protocol, _relay.ExitCode ?? -1));
+        return false;
+    }
+
+    private bool VerifyConnection(string url, bool tun)
+    {
+        if (tun && !NetworkAdapters.OwnTunnelActive())
+        {
+            for (var i = 0; i < 20 && !NetworkAdapters.OwnTunnelActive() && _tun.IsRunning; i++)
+                Thread.Sleep(500);
+            if (!NetworkAdapters.OwnTunnelActive())
+            {
+                _log.Write(L.T("Адаптер TUN не появился; доступ через сервер не проверен"));
+                return false;
+            }
+        }
+
+        var probe = ServerWatchdog.TunnelProbe(() => XrayConfigBuilder.HttpPort, () => url);
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            if (probe("", 0, CancellationToken.None).GetAwaiter().GetResult())
+                return true;
+            Thread.Sleep(300);
+        }
+
+        _log.Write(L.T("Сервер запущен, но запросы через него не проходят"));
         return false;
     }
 

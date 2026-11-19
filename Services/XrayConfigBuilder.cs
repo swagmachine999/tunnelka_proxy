@@ -46,8 +46,10 @@ public static class XrayConfigBuilder
         }
     }
 
-    public static string Build(ProxyServer server, RoutingSettings routing, bool protectHttp = false)
+    public static string Build(ProxyServer server, RoutingSettings routing, bool protectHttp = false, string? physicalInterface = null)
     {
+        var proxyOutbound = Outbound(server, "proxy", RelayPort, true);
+        BindOutbound(proxyOutbound, physicalInterface);
         var routingRules = new JsonArray
         {
             new JsonObject
@@ -84,7 +86,7 @@ public static class XrayConfigBuilder
             },
             ["outbounds"] = new JsonArray
             {
-                Outbound(server, "proxy", RelayPort, true),
+                proxyOutbound,
                 new JsonObject { ["tag"] = "direct", ["protocol"] = "freedom" },
                 new JsonObject { ["tag"] = "block", ["protocol"] = "blackhole" }
             },
@@ -96,6 +98,24 @@ public static class XrayConfigBuilder
         };
 
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    public static void BindOutbound(JsonObject outbound, string? physicalInterface)
+    {
+        if (physicalInterface == null || outbound["protocol"]?.ToString() == "socks")
+            return;
+
+        if (outbound["streamSettings"] is not JsonObject stream)
+        {
+            stream = new JsonObject();
+            outbound["streamSettings"] = stream;
+        }
+        if (stream["sockopt"] is not JsonObject sockopt)
+        {
+            sockopt = new JsonObject();
+            stream["sockopt"] = sockopt;
+        }
+        sockopt["interface"] = physicalInterface;
     }
 
     private static JsonObject RuleNode(RoutingRule rule, RoutingSettings routing)
@@ -166,7 +186,7 @@ public static class XrayConfigBuilder
         var outbound = new JsonObject
         {
             ["tag"] = tag,
-            ["protocol"] = server.Protocol == "ss" ? "shadowsocks" : server.Protocol,
+            ["protocol"] = server.Protocol switch { "ss" => "shadowsocks", "hysteria2" => "hysteria", _ => server.Protocol },
             ["settings"] = Settings(server)
         };
 
@@ -178,6 +198,12 @@ public static class XrayConfigBuilder
 
     private static JsonObject Settings(ProxyServer s) => s.Protocol switch
     {
+        "hysteria2" => new JsonObject
+        {
+            ["address"] = s.Address,
+            ["port"] = s.Port,
+            ["version"] = 2
+        },
         "vless" => new JsonObject
         {
             ["vnext"] = new JsonArray(new JsonObject
@@ -230,7 +256,7 @@ public static class XrayConfigBuilder
 
     private static JsonObject Stream(ProxyServer s)
     {
-        var network = s.Network switch
+        var network = s.Protocol == "hysteria2" ? "hysteria" : s.Network switch
         {
             "" or "raw" => "tcp",
             "splithttp" => "xhttp",
@@ -245,6 +271,9 @@ public static class XrayConfigBuilder
 
         switch (network)
         {
+            case "hysteria":
+                stream["hysteriaSettings"] = new JsonObject { ["version"] = 2, ["auth"] = s.Secret };
+                break;
             case "ws":
                 stream["wsSettings"] = new JsonObject { ["path"] = Or(s.Path, "/"), ["host"] = s.Host };
                 break;
@@ -280,6 +309,9 @@ public static class XrayConfigBuilder
                 break;
         }
 
+        if (!string.IsNullOrWhiteSpace(s.FinalMask))
+            stream["finalmask"] = JsonNode.Parse(s.FinalMask) ?? throw new FormatException("Empty finalmask");
+
         stream["sockopt"] = new JsonObject { ["tcpKeepAliveIdle"] = 30, ["tcpKeepAliveInterval"] = 15 };
 
         if (s.Security == "tls")
@@ -291,8 +323,8 @@ public static class XrayConfigBuilder
             };
             if (s.AllowInsecure)
                 tls["allowInsecure"] = true;
-            if (s.Alpn.Length > 0)
-                tls["alpn"] = new JsonArray(s.Alpn.Split(',').Select(a => (JsonNode)a.Trim()).ToArray());
+            if (s.Alpn.Length > 0 || s.Protocol == "hysteria2")
+                tls["alpn"] = new JsonArray(Or(s.Alpn, "h3").Split(',').Select(a => (JsonNode)a.Trim()).ToArray());
             stream["tlsSettings"] = tls;
         }
         else if (s.Security == "reality")

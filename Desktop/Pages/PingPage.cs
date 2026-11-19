@@ -11,7 +11,6 @@ public sealed class PingPage : UserControl
     private const string RealPingDefault = "https://www.gstatic.com/generate_204";
 
     private readonly Session _session;
-    private readonly SettingsSegmented _mode;
     private readonly TextBox _url;
 
     public PingPage(Session session)
@@ -19,11 +18,6 @@ public sealed class PingPage : UserControl
         _session = session;
         var data = session.Data;
         var panel = new StackPanel();
-
-        _mode = new SettingsSegmented(double.NaN, L.T("Реальный (via proxy)"), L.T("Быстрый (TCP)"));
-        _mode.Select(data.RealPing ? 0 : 1);
-        _mode.Height = 40;
-        _mode.Margin = new Thickness(0, 0, 0, 8);
 
         _url = new TextBox
         {
@@ -38,10 +32,7 @@ public sealed class PingPage : UserControl
         reset.Margin = new Thickness(0, 10, 0, 0);
         reset.Click += (_, _) => _url.Text = RealPingDefault;
 
-        panel.Children.Add(SettingsParts.Caption(L.T("Тип пинга")));
-        panel.Children.Add(_mode);
-        panel.Children.Add(SettingsParts.Paragraph(L.T("Быстрый: проверяет только, открыт ли порт сервера. Мгновенно, но может показать пинг у сервера, через который VPN не работает.")));
-        panel.Children.Add(SettingsParts.Paragraph(L.T("Реальный: запрос идёт через сам сервер, как при работе VPN. Делается два запроса, берётся лучший. Нерабочий сервер покажет n/a.")));
+        panel.Children.Add(SettingsParts.Paragraph(L.T("Пинг проверяется запросом через сервер VPN. Нерабочий сервер покажет n/a. Проверка может занять несколько секунд.")));
         var urlCaption = SettingsParts.Caption(L.T("Тестовый адрес для реального пинга"));
         urlCaption.Margin = new Thickness(2, 18, 0, 6);
         panel.Children.Add(urlCaption);
@@ -59,7 +50,6 @@ public sealed class PingPage : UserControl
         speedRow.Margin = new Thickness(0, 18, 0, 0);
         panel.Children.Add(speedRow);
 
-        _mode.SelectedIndexChanged += (_, _) => Changed();
         _url.TextChanged += (_, _) => Changed();
         Content = panel;
     }
@@ -67,7 +57,6 @@ public sealed class PingPage : UserControl
     private void Changed()
     {
         var data = _session.Data;
-        data.RealPing = _mode.SelectedIndex == 0;
         var url = (_url.Text ?? "").Trim();
         if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https"))
             data.PingUrl = url;

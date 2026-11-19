@@ -6,9 +6,10 @@ namespace Tunnelka.Services;
 
 public static class SingBoxRelay
 {
-    public static bool Needs(ProxyServer server) => server.Protocol is "hysteria2" or "tuic";
+    public static bool Needs(ProxyServer server) => server.Protocol == "tuic"
+        || (server.Protocol == "hysteria2" && string.IsNullOrWhiteSpace(server.FinalMask));
 
-    public static string Build(IReadOnlyList<(ProxyServer Server, int Port)> relays, bool secure = false)
+    public static string Build(IReadOnlyList<(ProxyServer Server, int Port)> relays, bool secure = false, string? physicalInterface = null)
     {
         var inbounds = new JsonArray();
         var outbounds = new JsonArray();
@@ -45,6 +46,14 @@ public static class SingBoxRelay
                 ["rules"] = rules
             }
         };
+
+        // The relay is a separate sing-box process. Without an explicit underlay,
+        // its UDP connection can follow the TUN default route back into the tunnel.
+        var route = config["route"]!.AsObject();
+        if (physicalInterface != null)
+            route["default_interface"] = physicalInterface;
+        else
+            route["auto_detect_interface"] = true;
 
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }

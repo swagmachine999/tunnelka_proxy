@@ -4,7 +4,7 @@ namespace Tunnelka.Services;
 
 public sealed class ServerWatchdog : IDisposable
 {
-    private const int ProbeTimeoutMs = 4000;
+    private const int ProbeTimeoutMs = 8000;
 
     private readonly Func<string, int, CancellationToken, Task<bool>> _probe;
     private readonly TimeSpan _interval;
@@ -20,7 +20,7 @@ public sealed class ServerWatchdog : IDisposable
 
     public event Action<ProxyServer>? Lost;
 
-    public static bool CanWatch(ProxyServer server) => server.Protocol is not ("hysteria2" or "tuic");
+    public static bool CanWatch(ProxyServer server) => !string.IsNullOrWhiteSpace(server.Address);
 
     public void Start(ProxyServer server)
     {

@@ -148,6 +148,7 @@ public static class LinkParser
             Mode = Get("mode"),
             HeaderType = Get("headerType"),
             Alpn = Get("alpn"),
+            FinalMask = Get("fm"),
             AllowInsecure = Get("allowInsecure") is "1" or "true"
         };
 
@@ -178,6 +179,7 @@ public static class LinkParser
             Alpn = Get("alpn"),
             Obfs = Get("obfs"),
             ObfsPassword = Get("obfs-password"),
+            FinalMask = Get("fm"),
             AllowInsecure = Get("insecure") is "1" or "true"
         };
 
