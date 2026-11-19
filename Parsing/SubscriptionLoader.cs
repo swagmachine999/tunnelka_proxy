@@ -71,7 +71,6 @@ public static class SubscriptionLoader
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             DeviceInfo.Apply(request.Headers);
-            request.Headers.UserAgent.ParseAdd(DescriptionFeed.UserAgent);
             using var response = await Client(proxyPort).SendAsync(request);
             return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync() : "";
         }
@@ -173,7 +172,7 @@ public static class SubscriptionLoader
     private static HttpClient CreateClient(HttpClientHandler handler)
     {
         var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("v2rayN/7.0");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(DeviceInfo.UserAgent);
         return client;
     }
 }

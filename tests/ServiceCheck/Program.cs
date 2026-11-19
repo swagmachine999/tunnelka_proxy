@@ -102,14 +102,18 @@ var udpServer = new ProxyServer { Protocol = "hysteria2", Address = "vpn.example
 var fm = "{\"udp\":[{\"type\":\"salamander\",\"settings\":{\"password\":\"test-obfs\"}}],\"quicParams\":{\"congestion\":\"bbr\"}}";
 var hyLink = "hysteria2://test-password@vpn.example.com:443?obfs=salamander&obfs-password=test-obfs&sni=example.com&fm=" + Uri.EscapeDataString(fm) + "#Lithuania";
 var masked = LinkParser.Parse(hyLink);
-Check(masked.FinalMask == fm && !SingBoxRelay.Needs(masked), "Hysteria2 finalmask is parsed and uses native Xray");
+Check(masked.FinalMask == fm && SingBoxRelay.Needs(masked), "compatible Hysteria2 finalmask keeps the sing-box relay");
 var oldData = new Tunnelka.Storage.AppData();
 oldData.Servers.Add(new ProxyServer { Protocol = "hysteria2", Link = hyLink });
 Tunnelka.Storage.StoredServerMigration.Apply(oldData);
 Check(oldData.Servers[0].FinalMask == fm, "stored servers recover finalmask without a subscription refresh");
-var nativeHy = JsonNode.Parse(XrayConfigBuilder.Build(masked, new RoutingSettings(), true, "Ethernet"))!["outbounds"]![0]!;
+var relayHy = JsonNode.Parse(XrayConfigBuilder.Build(masked, new RoutingSettings(), true, "Ethernet"))!["outbounds"]![0]!;
+Check(relayHy["protocol"]!.ToString() == "socks", "compatible Hysteria2 stays on the existing sing-box path");
+var extendedMask = LinkParser.Parse(hyLink.Replace(Uri.EscapeDataString(fm), Uri.EscapeDataString(fm.Replace("\"bbr\"", "\"custom\""))));
+Check(!SingBoxRelay.Needs(extendedMask), "unknown Hysteria2 finalmask settings use native Xray");
+var nativeHy = JsonNode.Parse(XrayConfigBuilder.Build(extendedMask, new RoutingSettings(), true, "Ethernet"))!["outbounds"]![0]!;
 Check(nativeHy["protocol"]!.ToString() == "hysteria" && nativeHy["streamSettings"]!["network"]!.ToString() == "hysteria"
-    && nativeHy["streamSettings"]!["finalmask"]!["udp"]![0]!["settings"]!["password"]!.ToString() == "test-obfs", "Xray receives the complete finalmask configuration");
+    && nativeHy["streamSettings"]!["finalmask"]!["udp"]![0]!["settings"]!["password"]!.ToString() == "test-obfs", "Xray receives finalmask settings that sing-box cannot represent");
 var pinnedRelay = JsonNode.Parse(SingBoxRelay.Build(new[] { (udpServer, 10809) }, physicalInterface: "Ethernet"))!;
 Check(pinnedRelay["route"]!["default_interface"]!.ToString() == "Ethernet"
     && pinnedRelay["route"]!["auto_detect_interface"] == null
@@ -383,12 +387,15 @@ var fcFailTun = new TunSupervisor(fcFailRunner, new FakeOwner(), fcLog.Add, () =
 fcFailTun.Start(new TunParameters(10808, "vpn.example.com", null, new RoutingSettings(), "user12345", "password1234567890abcdef"), 7);
 Check(fcFailRunner.Started, "failure to close other cores does not block TUN");
 
-var hw1 = DeviceInfo.BuildHwid("machine-a");
-Check(hw1.Length == 32 && hw1.All(Uri.IsHexDigit) && hw1 == DeviceInfo.BuildHwid("machine-a") && hw1 != DeviceInfo.BuildHwid("machine-b"), "device id is stable, hashed and different per machine");
-Check(DeviceInfo.Ascii("DESKTOP-ABC1", "x") == "DESKTOP-ABC1" && DeviceInfo.Ascii("ПК-Олег", "Windows PC") == "Windows PC", "device name is sent only if it is plain ASCII");
 var devReq = new HttpRequestMessage();
 DeviceInfo.Apply(devReq.Headers);
-Check(devReq.Headers.Contains("x-hwid") && devReq.Headers.Contains("x-device-model") && devReq.Headers.Contains("x-device-os") && devReq.Headers.Contains("x-ver-os"), "device headers are always added to subscription requests");
+Check(devReq.Headers.Count() == 2
+    && devReq.Headers.GetValues("x-device-os").Single() == DeviceInfo.Platform
+    && devReq.Headers.GetValues("x-device-model").Single() == DeviceInfo.Platform,
+    "subscription device headers contain only a generic platform name");
+Check(!devReq.Headers.Contains("x-hwid") && !devReq.Headers.Contains("x-ver-os")
+    && DeviceInfo.UserAgent.StartsWith("Tunnelka/", StringComparison.Ordinal),
+    "subscription requests omit device identifiers and use the Tunnelka user agent");
 
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
