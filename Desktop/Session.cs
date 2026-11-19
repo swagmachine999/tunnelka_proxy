@@ -307,7 +307,7 @@ public sealed class Session : IDisposable
                 return true;
             case ConnectResult.XrayMissing:
             case ConnectResult.SingBoxMissing:
-                var missing = CoreLocator.Missing();
+                var missing = CoreLocator.Missing(Data.Tun, new[] { server });
                 if (missing.Count > 0 && Dialogs != null && await Dialogs.AskCoreDownload(missing))
                     return await Start(server);
 
@@ -762,6 +762,19 @@ public sealed class Session : IDisposable
     {
         if (servers.Count == 0)
             return;
+
+        var missing = CoreLocator.Missing(false, servers);
+        if (missing.Count > 0)
+        {
+            if (Dialogs == null || !await Dialogs.AskCoreDownload(missing))
+            {
+                foreach (var server in servers)
+                    server.PingMs = -1;
+                CardsChanged?.Invoke();
+                Hint?.Invoke(L.T("Для проверки пинга нужны файлы VPN"), Tone.Mid);
+                return;
+            }
+        }
 
         var hero = HeroServer;
         var shown = hero != null && (servers.Contains(hero) || (AutoServers.IsAuto(hero) && Autos.Members(hero).Any(servers.Contains)));
