@@ -17,7 +17,7 @@ public static class CoreLocator
 
     public static IReadOnlyList<CorePackage> Missing(bool tun, IEnumerable<ProxyServer> servers)
     {
-        var needsSingBox = tun || servers.Any(server => SingBoxRelay.Needs(server));
+        var needsSingBox = tun || servers.Any(SingBoxRelay.Needs);
         return CoreManifest.All
             .Where(p => (p != CoreManifest.SingBox || needsSingBox) && !File.Exists(Find(p.Executable)))
             .ToList();

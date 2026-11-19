@@ -128,9 +128,6 @@ public sealed class ConnectionService : IDisposable
         if (result == ConnectResult.Ok && !string.IsNullOrWhiteSpace(probeUrl)
             && !VerifyConnection(probeUrl, tun))
             result = ConnectResult.NoTraffic;
-        if (result == ConnectResult.NoTraffic && !string.IsNullOrWhiteSpace(probeUrl)
-            && TryRelayFallback(server, XrayRoutingPolicy.For(tun, routing), tun, probeUrl))
-            result = ConnectResult.Ok;
 
         if (result != ConnectResult.Ok)
         {
@@ -180,9 +177,6 @@ public sealed class ConnectionService : IDisposable
         if (result == ConnectResult.Ok && !string.IsNullOrWhiteSpace(probeUrl)
             && !VerifyConnection(probeUrl, true))
             result = ConnectResult.NoTraffic;
-        if (result == ConnectResult.NoTraffic && !string.IsNullOrWhiteSpace(probeUrl)
-            && TryRelayFallback(server, XrayRoutingPolicy.For(true, routing), true, probeUrl))
-            result = ConnectResult.Ok;
 
         if (result != ConnectResult.Ok)
         {
@@ -211,12 +205,6 @@ public sealed class ConnectionService : IDisposable
         var result = StartXray(old, XrayRoutingPolicy.For(true, oldRouting), true, true);
         if (result == ConnectResult.Ok && _xray.WaitForPort(XrayConfigBuilder.SocksPort, 3000)
             && (string.IsNullOrWhiteSpace(probeUrl) || VerifyConnection(probeUrl, true)))
-        {
-            _log.Write(L.T("Новая локация не ответила, прежнее подключение восстановлено"));
-            return true;
-        }
-        if (!string.IsNullOrWhiteSpace(probeUrl)
-            && TryRelayFallback(old, XrayRoutingPolicy.For(true, oldRouting), true, probeUrl))
         {
             _log.Write(L.T("Новая локация не ответила, прежнее подключение восстановлено"));
             return true;
@@ -278,7 +266,7 @@ public sealed class ConnectionService : IDisposable
         ApplySystemProxy(false);
     }
 
-    private ConnectResult StartXray(ProxyServer server, RoutingSettings routing, bool tun, bool keepPorts = false, bool relayFallback = false)
+    private ConnectResult StartXray(ProxyServer server, RoutingSettings routing, bool tun, bool keepPorts = false)
     {
         if (!File.Exists(XrayRunner.XrayPath))
             return ConnectResult.XrayMissing;
@@ -287,14 +275,14 @@ public sealed class ConnectionService : IDisposable
         {
             if (!keepPorts)
                 XrayConfigBuilder.ChoosePorts();
-            if (SingBoxRelay.Needs(server, relayFallback) && !File.Exists(XrayRunner.SingBoxPath))
+            if (SingBoxRelay.Needs(server) && !File.Exists(XrayRunner.SingBoxPath))
                 return ConnectResult.SingBoxMissing;
 
-            if (SingBoxRelay.Needs(server, relayFallback) && !StartRelay(server, tun))
+            if (SingBoxRelay.Needs(server) && !StartRelay(server, tun))
                 return ConnectResult.Failed;
 
             var physicalInterface = tun ? NetworkAdapters.Physical() : null;
-            _xray.Start(XrayConfigBuilder.Build(server, routing, tun, physicalInterface, relayFallback));
+            _xray.Start(XrayConfigBuilder.Build(server, routing, tun, physicalInterface));
             _log.Write(L.F("Порты: SOCKS5 127.0.0.1:{0}, HTTP 127.0.0.1:{1}", XrayConfigBuilder.SocksPort, XrayConfigBuilder.HttpPort));
             return ConnectResult.Ok;
         }
@@ -303,21 +291,6 @@ public sealed class ConnectionService : IDisposable
             _log.Write(L.F("Не удалось запустить xray: {0}", ex.Message));
             return ConnectResult.Failed;
         }
-    }
-
-    private bool TryRelayFallback(ProxyServer server, RoutingSettings routing, bool tun, string probeUrl)
-    {
-        if (!SingBoxRelay.CanRelayFallback(server) || !File.Exists(XrayRunner.SingBoxPath))
-            return false;
-
-        _log.Write(L.T("Hysteria2 через Xray не ответил; проверяем совместимый маршрут через sing-box"));
-        _xray.Stop();
-        _relay.Stop();
-        if (StartXray(server, routing, tun, keepPorts: true, relayFallback: true) != ConnectResult.Ok
-            || !_xray.WaitForPort(XrayConfigBuilder.SocksPort, 3000))
-            return false;
-
-        return VerifyConnection(probeUrl, tun);
     }
 
     private bool StartRelay(ProxyServer server, bool tun)

@@ -102,23 +102,15 @@ var udpServer = new ProxyServer { Protocol = "hysteria2", Address = "vpn.example
 var fm = "{\"udp\":[{\"type\":\"salamander\",\"settings\":{\"password\":\"test-obfs\"}}],\"quicParams\":{\"congestion\":\"bbr\"}}";
 var hyLink = "hysteria2://test-password@vpn.example.com:443?obfs=salamander&obfs-password=test-obfs&sni=example.com&fm=" + Uri.EscapeDataString(fm) + "#Lithuania";
 var masked = LinkParser.Parse(hyLink);
-Check(masked.FinalMask == fm && !SingBoxRelay.Needs(masked), "Hysteria2 finalmask uses native Xray");
+Check(masked.FinalMask == fm && SingBoxRelay.Needs(masked), "compatible Hysteria2 finalmask keeps the sing-box relay");
 var oldData = new Tunnelka.Storage.AppData();
 oldData.Servers.Add(new ProxyServer { Protocol = "hysteria2", Link = hyLink });
 Tunnelka.Storage.StoredServerMigration.Apply(oldData);
 Check(oldData.Servers[0].FinalMask == fm, "stored servers recover finalmask without a subscription refresh");
-var maskedHy = JsonNode.Parse(XrayConfigBuilder.Build(masked, new RoutingSettings(), true, "Ethernet"))!["outbounds"]![0]!;
-Check(maskedHy["protocol"]!.ToString() == "hysteria"
-    && JsonNode.DeepEquals(maskedHy["streamSettings"]!["finalmask"], JsonNode.Parse(fm))
-    && maskedHy["streamSettings"]!["sockopt"]!["interface"]!.ToString() == "Ethernet",
-    "Hysteria2 passes the original finalmask to Xray through the physical adapter");
-Check(SingBoxRelay.CanRelayFallback(masked) && SingBoxRelay.Needs(masked, fallback: true)
-    && JsonNode.Parse(XrayConfigBuilder.Build(masked, new RoutingSettings(), true, "Ethernet", relayFallback: true))!["outbounds"]![0]!["protocol"]!.ToString() == "socks",
-    "compatible Hysteria2 finalmask can fall back to sing-box");
-Check(SingBoxRelay.Needs(udpServer), "Hysteria2 without finalmask keeps the sing-box relay");
+var relayHy = JsonNode.Parse(XrayConfigBuilder.Build(masked, new RoutingSettings(), true, "Ethernet"))!["outbounds"]![0]!;
+Check(relayHy["protocol"]!.ToString() == "socks", "compatible Hysteria2 stays on the existing sing-box path");
 var extendedMask = LinkParser.Parse(hyLink.Replace(Uri.EscapeDataString(fm), Uri.EscapeDataString(fm.Replace("\"bbr\"", "\"custom\""))));
-Check(!SingBoxRelay.Needs(extendedMask), "other Hysteria2 finalmask settings use native Xray");
-Check(!SingBoxRelay.CanRelayFallback(extendedMask), "unknown Hysteria2 finalmask cannot silently lose settings in the relay");
+Check(!SingBoxRelay.Needs(extendedMask), "unknown Hysteria2 finalmask settings use native Xray");
 var nativeHy = JsonNode.Parse(XrayConfigBuilder.Build(extendedMask, new RoutingSettings(), true, "Ethernet"))!["outbounds"]![0]!;
 Check(nativeHy["protocol"]!.ToString() == "hysteria" && nativeHy["streamSettings"]!["network"]!.ToString() == "hysteria"
     && nativeHy["streamSettings"]!["finalmask"]!["udp"]![0]!["settings"]!["password"]!.ToString() == "test-obfs", "Xray receives finalmask settings that sing-box cannot represent");

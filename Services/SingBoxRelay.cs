@@ -6,15 +6,13 @@ namespace Tunnelka.Services;
 
 public static class SingBoxRelay
 {
-    // Try the provider's FinalMask in Xray first. A compatible mask can fall back to sing-box.
-    public static bool Needs(ProxyServer server, bool fallback = false) => server.Protocol == "tuic"
-        || (server.Protocol == "hysteria2"
-            && (string.IsNullOrWhiteSpace(server.FinalMask) || (fallback && CanRelayFallback(server))));
+    public static bool Needs(ProxyServer server) => server.Protocol == "tuic"
+        || (server.Protocol == "hysteria2" && CanRepresentFinalMask(server));
 
-    public static bool CanRelayFallback(ProxyServer server)
+    private static bool CanRepresentFinalMask(ProxyServer server)
     {
-        if (server.Protocol != "hysteria2" || string.IsNullOrWhiteSpace(server.FinalMask))
-            return false;
+        if (string.IsNullOrWhiteSpace(server.FinalMask))
+            return true;
 
         try
         {

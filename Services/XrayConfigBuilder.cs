@@ -46,9 +46,9 @@ public static class XrayConfigBuilder
         }
     }
 
-    public static string Build(ProxyServer server, RoutingSettings routing, bool protectHttp = false, string? physicalInterface = null, bool relayFallback = false)
+    public static string Build(ProxyServer server, RoutingSettings routing, bool protectHttp = false, string? physicalInterface = null)
     {
-        var proxyOutbound = Outbound(server, "proxy", RelayPort, true, relayFallback);
+        var proxyOutbound = Outbound(server, "proxy", RelayPort, true);
         BindOutbound(proxyOutbound, physicalInterface);
         var routingRules = new JsonArray
         {
@@ -167,9 +167,9 @@ public static class XrayConfigBuilder
         }
     };
 
-    public static JsonObject Outbound(ProxyServer server, string tag, int relayPort, bool secureRelay = false, bool relayFallback = false)
+    public static JsonObject Outbound(ProxyServer server, string tag, int relayPort, bool secureRelay = false)
     {
-        if (SingBoxRelay.Needs(server, relayFallback))
+        if (SingBoxRelay.Needs(server))
         {
             var relay = new JsonObject { ["address"] = "127.0.0.1", ["port"] = relayPort };
             if (secureRelay && LocalAccess.Enabled)

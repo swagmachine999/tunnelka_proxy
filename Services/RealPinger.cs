@@ -17,38 +17,33 @@ public static class RealPinger
     public static async Task<Dictionary<ProxyServer, int>> PingAsync(IReadOnlyList<ProxyServer> servers, string url, Action<ProxyServer, int>? progress = null)
     {
         var results = await TryBatch(servers, url, progress);
-        if (results == null)
+        if (results != null)
+            return results;
+
+        var retryResults = new ConcurrentDictionary<ProxyServer, int>(servers.Select(s => new KeyValuePair<ProxyServer, int>(s, -1)));
+        if (servers.Count == 1)
+            return retryResults.ToDictionary(pair => pair.Key, pair => pair.Value);
+
+        using var gate = new SemaphoreSlim(4);
+        await Task.WhenAll(servers.Select(async server =>
         {
-            var retryResults = new ConcurrentDictionary<ProxyServer, int>(servers.Select(s => new KeyValuePair<ProxyServer, int>(s, -1)));
-            using var gate = new SemaphoreSlim(4);
-            await Task.WhenAll(servers.Select(async server =>
+            await gate.WaitAsync();
+            try
             {
-                await gate.WaitAsync();
-                try
-                {
-                    var single = await TryBatch(new[] { server }, url, progress);
-                    if (single != null)
-                        retryResults[server] = single[server];
-                }
-                finally
-                {
-                    gate.Release();
-                }
-            }));
-            results = retryResults.ToDictionary(pair => pair.Key, pair => pair.Value);
-        }
+                var single = await TryBatch(new[] { server }, url, progress);
+                if (single != null)
+                    retryResults[server] = single[server];
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
 
-        foreach (var server in servers.Where(s => results[s] < 0 && SingBoxRelay.CanRelayFallback(s)))
-        {
-            var fallback = await TryBatch(new[] { server }, url, progress, relayFallback: true);
-            if (fallback != null)
-                results[server] = fallback[server];
-        }
-
-        return results;
+        return retryResults.ToDictionary(pair => pair.Key, pair => pair.Value);
     }
 
-    private static async Task<Dictionary<ProxyServer, int>?> TryBatch(IReadOnlyList<ProxyServer> servers, string url, Action<ProxyServer, int>? progress = null, bool relayFallback = false)
+    private static async Task<Dictionary<ProxyServer, int>?> TryBatch(IReadOnlyList<ProxyServer> servers, string url, Action<ProxyServer, int>? progress = null)
     {
         var results = new ConcurrentDictionary<ProxyServer, int>(servers.Select(s => new KeyValuePair<ProxyServer, int>(s, -1)));
         if (servers.Count == 0 || !File.Exists(XrayRunner.XrayPath))
@@ -57,7 +52,7 @@ public static class RealPinger
         var ports = FreePorts(servers.Count * 2);
         var relayPorts = ports.Skip(servers.Count).ToList();
         var relays = servers.Select((server, i) => (Server: server, Port: relayPorts[i]))
-            .Where(r => SingBoxRelay.Needs(r.Server, relayFallback)).ToList();
+            .Where(r => SingBoxRelay.Needs(r.Server)).ToList();
         var physicalInterface = NetworkAdapters.OwnTunnelActive() ? NetworkAdapters.Physical() : null;
 
         Directory.CreateDirectory(XrayRunner.ConfigDir);
@@ -77,7 +72,7 @@ public static class RealPinger
                     relay = null;
             }
 
-            File.WriteAllText(configPath, BuildConfig(servers, ports, relayPorts, physicalInterface, relayFallback));
+            File.WriteAllText(configPath, BuildConfig(servers, ports, relayPorts, physicalInterface));
             process = Run(XrayRunner.XrayPath, configPath);
 
             if (process == null || !await WaitForPort(process, ports[0]))
@@ -185,7 +180,7 @@ public static class RealPinger
         return best;
     }
 
-    private static string BuildConfig(IReadOnlyList<ProxyServer> servers, IReadOnlyList<int> ports, IReadOnlyList<int> relayPorts, string? physicalInterface, bool relayFallback)
+    private static string BuildConfig(IReadOnlyList<ProxyServer> servers, IReadOnlyList<int> ports, IReadOnlyList<int> relayPorts, string? physicalInterface)
     {
         var inbounds = new JsonArray();
         var outbounds = new JsonArray();
@@ -196,7 +191,7 @@ public static class RealPinger
             JsonObject outbound;
             try
             {
-                outbound = XrayConfigBuilder.Outbound(servers[i], $"out-{i}", relayPorts[i], relayFallback: relayFallback);
+                outbound = XrayConfigBuilder.Outbound(servers[i], $"out-{i}", relayPorts[i]);
                 XrayConfigBuilder.BindOutbound(outbound, physicalInterface);
             }
             catch (Exception)
