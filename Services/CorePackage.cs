@@ -1,20 +1,21 @@
 namespace Tunnelka.Services;
 
-public sealed record CorePackage(string Name, string Url, string Sha256, long Size, string Executable, IReadOnlyList<(string Entry, string Target)> Files);
+public sealed record CorePackage(string Name, string Version, string Url, string Sha256, long Size, string Executable, IReadOnlyList<(string Entry, string Target)> Files);
 
 public static class CoreManifest
 {
-    private const string XrayVersion = "v26.10.21";
-    private const string SingBoxVersion = "1.14.3";
+    private const string XrayVersion = "v26.11.9";
+    private const string SingBoxVersion = "1.14.4";
 
     public static string XrayDisplayVersion => XrayVersion.TrimStart('v');
     public static string SingBoxDisplayVersion => SingBoxVersion;
 
     public static CorePackage Xray { get; } = new(
         "Xray",
+        XrayDisplayVersion,
         $"https://github.com/XTLS/Xray-core/releases/download/{XrayVersion}/Xray-windows-64.zip",
-        "fc58c39ee2f2717b4c54d28d374362389e5319b20ae44aea76ea45a5243ec827",
-        15_029_603,
+        "1262522266337b824f07beb8e1375786b437683b3890105469088f8e17e0a69d",
+        16_697_596,
         CoreFiles.Proxy,
         new[]
         {
@@ -26,9 +27,10 @@ public static class CoreManifest
 
     public static CorePackage SingBox { get; } = new(
         "sing-box",
+        SingBoxVersion,
         $"https://github.com/SagerNet/sing-box/releases/download/v{SingBoxVersion}/sing-box-{SingBoxVersion}-windows-amd64.zip",
-        "d8b86ef58936dba9230ec6a57ffa4243933f3c14ef4809828b6c553440ed1518",
-        32_853_953,
+        "99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df",
+        32_891_280,
         CoreFiles.Tun,
         new[]
         {

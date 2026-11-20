@@ -300,6 +300,15 @@ public sealed class Session : IDisposable
 
     private async Task<bool> Start(ProxyServer server)
     {
+        if (Data.Tun && !Connection.IsRunning && Dialogs != null)
+        {
+            var outdated = CoreLocator.Missing(true, new[] { server })
+                .Where(package => File.Exists(CoreLocator.Find(package.Executable)))
+                .ToList();
+            if (outdated.Count > 0)
+                await Dialogs.AskCoreDownload(outdated);
+        }
+
         var result = await Connection.StartAsync(server, Data.Tun, Data.Routing, PingTarget.Url);
         switch (result)
         {

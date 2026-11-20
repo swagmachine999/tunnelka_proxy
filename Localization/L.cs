@@ -304,8 +304,8 @@ public static class L
         ["Правила для программ надёжно работают в режиме TUN"] = "App rules work reliably in TUN mode",
         ["Сайт или IP, например sberbank.ru"] = "Site or IP, e.g. example.com",
         ["Скачать файлы VPN?"] = "Download the VPN files?",
-        ["Не хватает файлов для работы VPN: {0}. Скачать их с официальных страниц разработчиков на GitHub (около {1} МБ)? Подлинность проверяется контрольной суммой."] =
-            "Some files needed for the VPN are missing: {0}. Download them from the developers' official GitHub pages (about {1} MB)? Authenticity is checked with a checksum.",
+        ["Нужны файлы VPN: {0}. Скачать их с официальных страниц разработчиков на GitHub (около {1} МБ)? Подлинность проверяется контрольной суммой."] =
+            "VPN files are needed: {0}. Download them from the developers' official GitHub pages (about {1} MB)? Authenticity is checked with a checksum.",
         ["Скачать"] = "Download",
         ["Не сейчас"] = "Not now",
         ["Не удалось скачать: {0}"] = "Download failed: {0}",
