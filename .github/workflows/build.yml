@@ -28,8 +28,9 @@ jobs:
       - name: Version
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_TYPE -eq 'tag') { $version = $env:GITHUB_REF_NAME.TrimStart('v'); $label = $version }
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { $version = $env:GITHUB_REF_NAME -replace '^v\.?', ''; $label = $version }
           else { $version = ([xml](Get-Content Tunnelka.csproj)).Project.PropertyGroup.Version | Select-Object -First 1; $label = "dev-$($env:GITHUB_SHA.Substring(0, 7))" }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid release version: $version" }
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
           "ZIP_NAME=Tunnelka-$label-win-x64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
           "SETUP_NAME=Tunnelka-Setup-$version.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
