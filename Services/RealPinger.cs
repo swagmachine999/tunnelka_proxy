@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -9,8 +10,8 @@ namespace Tunnelka.Services;
 
 public static class RealPinger
 {
-    private const int Parallel = 16;
-    private const int TimeoutMs = 5000;
+    private const int Parallel = 4;
+    private const int TimeoutMs = 8000;
 
 
     public static async Task<Dictionary<ProxyServer, int>> PingAsync(IReadOnlyList<ProxyServer> servers, string url, Action<ProxyServer, int>? progress = null)
@@ -19,9 +20,9 @@ public static class RealPinger
         if (results != null)
             return results;
 
-        results = servers.ToDictionary(s => s, _ => -1);
+        var retryResults = new ConcurrentDictionary<ProxyServer, int>(servers.Select(s => new KeyValuePair<ProxyServer, int>(s, -1)));
         if (servers.Count == 1)
-            return results;
+            return retryResults.ToDictionary(pair => pair.Key, pair => pair.Value);
 
         using var gate = new SemaphoreSlim(4);
         await Task.WhenAll(servers.Select(async server =>
@@ -31,7 +32,7 @@ public static class RealPinger
             {
                 var single = await TryBatch(new[] { server }, url, progress);
                 if (single != null)
-                    results[server] = single[server];
+                    retryResults[server] = single[server];
             }
             finally
             {
@@ -39,19 +40,20 @@ public static class RealPinger
             }
         }));
 
-        return results;
+        return retryResults.ToDictionary(pair => pair.Key, pair => pair.Value);
     }
 
     private static async Task<Dictionary<ProxyServer, int>?> TryBatch(IReadOnlyList<ProxyServer> servers, string url, Action<ProxyServer, int>? progress = null)
     {
-        var results = servers.ToDictionary(s => s, _ => -1);
+        var results = new ConcurrentDictionary<ProxyServer, int>(servers.Select(s => new KeyValuePair<ProxyServer, int>(s, -1)));
         if (servers.Count == 0 || !File.Exists(XrayRunner.XrayPath))
-            return results;
+            return results.ToDictionary(pair => pair.Key, pair => pair.Value);
 
         var ports = FreePorts(servers.Count * 2);
         var relayPorts = ports.Skip(servers.Count).ToList();
         var relays = servers.Select((server, i) => (Server: server, Port: relayPorts[i]))
             .Where(r => SingBoxRelay.Needs(r.Server)).ToList();
+        var physicalInterface = NetworkAdapters.OwnTunnelActive() ? NetworkAdapters.Physical() : null;
 
         Directory.CreateDirectory(XrayRunner.ConfigDir);
         var id = Guid.NewGuid().ToString("N");
@@ -64,13 +66,13 @@ public static class RealPinger
         {
             if (relays.Count > 0 && File.Exists(XrayRunner.SingBoxPath))
             {
-                File.WriteAllText(relayPath, SingBoxRelay.Build(relays));
+                File.WriteAllText(relayPath, SingBoxRelay.Build(relays, physicalInterface: physicalInterface));
                 relay = Run(XrayRunner.SingBoxPath, relayPath);
                 if (relay == null || !await WaitForPort(relay, relays[0].Port))
                     relay = null;
             }
 
-            File.WriteAllText(configPath, BuildConfig(servers, ports, relayPorts));
+            File.WriteAllText(configPath, BuildConfig(servers, ports, relayPorts, physicalInterface));
             process = Run(XrayRunner.XrayPath, configPath);
 
             if (process == null || !await WaitForPort(process, ports[0]))
@@ -93,11 +95,11 @@ public static class RealPinger
             });
 
             await Task.WhenAll(tasks);
-            return results;
+            return results.ToDictionary(pair => pair.Key, pair => pair.Value);
         }
         catch (Exception)
         {
-            return results;
+            return results.ToDictionary(pair => pair.Key, pair => pair.Value);
         }
         finally
         {
@@ -108,15 +110,23 @@ public static class RealPinger
         }
     }
 
-    private static Process? Run(string exe, string configPath) =>
-        Process.Start(new ProcessStartInfo(exe, $"run -c \"{configPath}\"")
+    private static Process? Run(string exe, string configPath)
+    {
+        var process = new Process { StartInfo = new ProcessStartInfo(exe, $"run -c \"{configPath}\"")
         {
             WorkingDirectory = Path.GetDirectoryName(exe) ?? AppContext.BaseDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true
-        });
+        } };
+        process.OutputDataReceived += (_, _) => { };
+        process.ErrorDataReceived += (_, _) => { };
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        return process;
+    }
 
     private static void Kill(Process? process)
     {
@@ -170,7 +180,7 @@ public static class RealPinger
         return best;
     }
 
-    private static string BuildConfig(IReadOnlyList<ProxyServer> servers, IReadOnlyList<int> ports, IReadOnlyList<int> relayPorts)
+    private static string BuildConfig(IReadOnlyList<ProxyServer> servers, IReadOnlyList<int> ports, IReadOnlyList<int> relayPorts, string? physicalInterface)
     {
         var inbounds = new JsonArray();
         var outbounds = new JsonArray();
@@ -182,6 +192,7 @@ public static class RealPinger
             try
             {
                 outbound = XrayConfigBuilder.Outbound(servers[i], $"out-{i}", relayPorts[i]);
+                XrayConfigBuilder.BindOutbound(outbound, physicalInterface);
             }
             catch (Exception)
             {

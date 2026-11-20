@@ -9,11 +9,24 @@ public static class NetworkAdapters
 
     public static string? Physical() =>
         Active()
-            .Where(n => n.NetworkInterfaceType is NetworkInterfaceType.Ethernet or NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.GigabitEthernet)
             .Where(n => !IsTunnel(n) && n.Description.IndexOf("Hyper-V", StringComparison.OrdinalIgnoreCase) < 0)
-            .OrderBy(n => n.NetworkInterfaceType == NetworkInterfaceType.Wireless80211)
+            .OrderBy(n => n.NetworkInterfaceType is NetworkInterfaceType.Ethernet or NetworkInterfaceType.GigabitEthernet ? 0
+                : n.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 ? 1 : 2)
             .Select(n => n.Name)
             .FirstOrDefault();
+
+    public static bool OwnTunnelActive()
+    {
+        try
+        {
+            return NetworkInterface.GetAllNetworkInterfaces().Any(n =>
+                n.OperationalStatus == OperationalStatus.Up && HasAddress(n, TunConfigBuilder.Address));
+        }
+        catch (NetworkInformationException)
+        {
+            return false;
+        }
+    }
 
     public static string? OtherTunnel() =>
         Active()

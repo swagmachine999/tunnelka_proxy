@@ -1,11 +1,14 @@
 using Avalonia;
 using Avalonia.Controls;
 using Tunnelka.Storage;
+using Tunnelka.UI;
 
 namespace Tunnelka.Desktop;
 
 public sealed class InterfacePage : UserControl
 {
+    private static readonly int[] SpeedIntervals = { 1, 2, 3, 5, 10, 15, 30, 60, 300, 600, 1800, 3600 };
+
     private readonly Session _session;
     private readonly SettingsStepper _scale;
 
@@ -26,6 +29,15 @@ public sealed class InterfacePage : UserControl
 
         var dark = SettingsParts.Toggle(data.DarkTheme, on => session.SetDark(on));
         panel.Children.Add(Ui.Row(L.T("Тёмная тема"), L.T("Мягкие тёмные цвета"), dark, out _, out _));
+
+        var speed = new SettingsStepper(SpeedIntervals, ServerText.Duration, data.SpeedInterval, 150);
+        speed.ValueChanged += (_, _) =>
+        {
+            data.SpeedInterval = speed.Value;
+            session.RestartSpeedAveraging();
+            session.Save();
+        };
+        panel.Children.Add(Ui.Row(L.T("Отображение скорости"), L.T("Как часто обновлять скорость в интерфейсе"), speed, out _, out _));
 
         Content = panel;
     }

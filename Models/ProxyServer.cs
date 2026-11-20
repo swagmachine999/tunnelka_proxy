@@ -30,6 +30,7 @@ public class ProxyServer
     public string ObfsPassword { get; set; } = "";
     public string Congestion { get; set; } = "";
     public string UdpRelayMode { get; set; } = "";
+    public string FinalMask { get; set; } = "";
     public string Link { get; set; } = "";
     public string Description { get; set; } = "";
     public string? SubscriptionUrl { get; set; }
@@ -40,6 +41,13 @@ public class ProxyServer
     public bool IsSameAs(ProxyServer other) =>
         Protocol == other.Protocol && Address == other.Address && Port == other.Port
         && Secret == other.Secret && Password == other.Password
+        && Method == other.Method && Flow == other.Flow
         && Network == other.Network && Security == other.Security && Sni == other.Sni
-        && Path == other.Path && ServiceName == other.ServiceName;
+        && Fingerprint == other.Fingerprint && PublicKey == other.PublicKey && ShortId == other.ShortId
+        && SpiderX == other.SpiderX && Path == other.Path && Host == other.Host
+        && ServiceName == other.ServiceName && Mode == other.Mode && HeaderType == other.HeaderType
+        && Alpn == other.Alpn && AllowInsecure == other.AllowInsecure
+        && Obfs == other.Obfs && ObfsPassword == other.ObfsPassword
+        && Congestion == other.Congestion && UdpRelayMode == other.UdpRelayMode
+        && FinalMask == other.FinalMask;
 }

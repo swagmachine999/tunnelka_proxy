@@ -66,10 +66,6 @@ public sealed class SettingsHost : UserControl
                 header = Back(L.T("Маршрутизация"));
                 body = Scrolled(_routing);
                 break;
-            case SettingsSection.Ping:
-                header = Back(L.T("Пинг и скорость"));
-                body = Scrolled(new PingPage(_session));
-                break;
             case SettingsSection.Advanced:
                 header = Back(L.T("Расширенные"));
                 body = Scrolled(new AdvancedPage(_session));

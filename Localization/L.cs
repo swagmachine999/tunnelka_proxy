@@ -141,7 +141,7 @@ public static class L
         ["Язык"] = "Language",
         ["Режим"] = "Mode",
         ["Отображение скорости"] = "Speed display",
-        ["Как часто отображать"] = "How often to show",
+        ["Как часто обновлять скорость в интерфейсе"] = "How often to update speed in the interface",
         ["Подписки при запуске"] = "Subscriptions on startup",
         ["Обновлять все подписки при открытии приложения"] = "Update all subscriptions when the app opens",
         ["Автопереключение"] = "Auto-switch",
@@ -155,21 +155,10 @@ public static class L
         ["Очистить"] = "Clear",
 
         ["Пинг"] = "Ping",
-        ["Пинг и скорость"] = "Ping and speed",
         ["Расширенные"] = "Advanced",
-        ["Язык, масштаб, тема"] = "Language, scale, theme",
-        ["Тип пинга и отображение скорости"] = "Ping type and speed display",
+        ["Язык, масштаб, тема, скорость"] = "Language, scale, theme, speed",
         ["Режим, kill switch, автопереключение, запуск"] = "Mode, kill switch, auto-switch, startup",
         ["Прокси: режим обычного прокси. TUN: режим туннеля"] = "Proxy: regular proxy mode. TUN: tunnel mode",
-        ["Тип пинга"] = "Ping type",
-        ["Реальный (via proxy)"] = "Real (via proxy)",
-        ["Быстрый (TCP)"] = "Fast (TCP)",
-        ["Реальный: запрос идёт через сам сервер, как при работе VPN. Делается два запроса, берётся лучший. Нерабочий сервер покажет n/a."] =
-            "Real: the request goes through the server itself, just like VPN traffic. Two requests are made and the best one counts. A broken server shows n/a.",
-        ["Быстрый: проверяет только, открыт ли порт сервера. Мгновенно, но может показать пинг у сервера, через который VPN не работает."] =
-            "Fast: only checks whether the server port is open. Instant, but may show ping for a server where VPN does not work.",
-        ["Тестовый адрес для реального пинга"] = "Test address for real ping",
-        ["Сбросить адрес"] = "Reset address",
 
         ["Программы (*.exe)|*.exe"] = "Programs (*.exe)|*.exe",
         ["Выбери программу"] = "Choose a program",
@@ -315,8 +304,8 @@ public static class L
         ["Правила для программ надёжно работают в режиме TUN"] = "App rules work reliably in TUN mode",
         ["Сайт или IP, например sberbank.ru"] = "Site or IP, e.g. example.com",
         ["Скачать файлы VPN?"] = "Download the VPN files?",
-        ["Не хватает файлов для работы VPN: {0}. Скачать их с официальных страниц разработчиков на GitHub (около {1} МБ)? Подлинность проверяется контрольной суммой."] =
-            "Some files needed for the VPN are missing: {0}. Download them from the developers' official GitHub pages (about {1} MB)? Authenticity is checked with a checksum.",
+        ["Нужны файлы VPN: {0}. Скачать их с официальных страниц разработчиков на GitHub (около {1} МБ)? Подлинность проверяется контрольной суммой."] =
+            "VPN files are needed: {0}. Download them from the developers' official GitHub pages (about {1} MB)? Authenticity is checked with a checksum.",
         ["Скачать"] = "Download",
         ["Не сейчас"] = "Not now",
         ["Не удалось скачать: {0}"] = "Download failed: {0}",

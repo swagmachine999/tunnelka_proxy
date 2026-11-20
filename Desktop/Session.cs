@@ -53,7 +53,7 @@ public sealed class Session : IDisposable
         Subscriptions = new SubscriptionService(_settings, Log, () => Connection.IsRunning ? XrayConfigBuilder.HttpPort : null);
         Autos = new AutoServers(_settings, Subscriptions);
         History = new TrafficHistory(_settings);
-        _pinger = new PingService(_settings);
+        _pinger = new PingService();
         _tracker = new TrafficTracker(_settings);
         Selected = Autos.Restore(Data.LastServerLink)
             ?? Data.Servers.FirstOrDefault(s => s.Link == Data.LastServerLink)
@@ -62,7 +62,7 @@ public sealed class Session : IDisposable
         _clock.Tick += (_, _) => ClockTick?.Invoke(Elapsed);
         _poller.Updated += OnTraffic;
         _refreshTimer.Tick += async (_, _) => await RefreshDue();
-        _tunnelProbe = ServerWatchdog.TunnelProbe(() => ProxyPort, () => Data.PingUrl);
+        _tunnelProbe = ServerWatchdog.TunnelProbe(() => ProxyPort, () => PingTarget.Url);
         _watchdog = new ServerWatchdog(_tunnelProbe, TimeSpan.FromSeconds(15), 3);
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         _watchdog.Lost += server => Dispatcher.UIThread.Post(() => _ = Failover(server));
@@ -246,11 +246,15 @@ public sealed class Session : IDisposable
 
         Connecting = true;
         StateChanged?.Invoke();
-        if (!await (live ? StartLive(server) : Start(server)))
+        var outcome = live ? await StartLive(server) : await Start(server) ? StartOutcome.Connected : StartOutcome.Failed;
+        if (outcome != StartOutcome.Connected)
         {
-            Failed?.Invoke();
-            if (Active != null)
-                Disconnect();
+            if (outcome == StartOutcome.Failed)
+            {
+                Failed?.Invoke();
+                if (Active != null)
+                    Disconnect();
+            }
             return;
         }
 
@@ -275,24 +279,44 @@ public sealed class Session : IDisposable
 
     public event Action? Failed;
 
-    private async Task<bool> StartLive(ProxyServer server)
-    {
-        if (await Connection.SwitchAsync(server, Data.Routing) == ConnectResult.Ok)
-            return true;
+    private enum StartOutcome { Connected, Reverted, Failed }
 
-        return await Start(server);
+    private async Task<StartOutcome> StartLive(ProxyServer server)
+    {
+        var result = await Connection.SwitchAsync(server, Data.Routing, PingTarget.Url);
+        if (result == ConnectResult.Ok)
+            return StartOutcome.Connected;
+        if (result == ConnectResult.Reverted)
+        {
+            if (Active != null)
+                Selected = Active;
+            CardsChanged?.Invoke();
+            Hint?.Invoke(L.F("Локация {0} не ответила, прежнее подключение сохранено", ServerText.CleanName(server)), Tone.Bad);
+            return StartOutcome.Reverted;
+        }
+
+        return await Start(server) ? StartOutcome.Connected : StartOutcome.Failed;
     }
 
     private async Task<bool> Start(ProxyServer server)
     {
-        var result = await Connection.StartAsync(server, Data.Tun, Data.Routing);
+        if (Data.Tun && !Connection.IsRunning && Dialogs != null)
+        {
+            var outdated = CoreLocator.Missing(true, new[] { server })
+                .Where(package => File.Exists(CoreLocator.Find(package.Executable)))
+                .ToList();
+            if (outdated.Count > 0)
+                await Dialogs.AskCoreDownload(outdated);
+        }
+
+        var result = await Connection.StartAsync(server, Data.Tun, Data.Routing, PingTarget.Url);
         switch (result)
         {
             case ConnectResult.Ok:
                 return true;
             case ConnectResult.XrayMissing:
             case ConnectResult.SingBoxMissing:
-                var missing = CoreLocator.Missing();
+                var missing = CoreLocator.Missing(Data.Tun, new[] { server });
                 if (missing.Count > 0 && Dialogs != null && await Dialogs.AskCoreDownload(missing))
                     return await Start(server);
 
@@ -300,6 +324,9 @@ public sealed class Session : IDisposable
                 break;
             case ConnectResult.NeedsAdministrator:
                 RestartAsAdministrator("--connect");
+                break;
+            case ConnectResult.NoTraffic:
+                Hint?.Invoke(L.T("Сервер запустился, но интернет через него не работает"), Tone.Bad);
                 break;
             default:
                 ShowLogRequested?.Invoke();
@@ -419,7 +446,7 @@ public sealed class Session : IDisposable
         var ok = false;
         try
         {
-            ok = await Connection.SwitchAsync(lost, Data.Routing) == ConnectResult.Ok;
+            ok = await Connection.SwitchAsync(lost, Data.Routing, PingTarget.Url) == ConnectResult.Ok;
         }
         finally
         {
@@ -745,6 +772,19 @@ public sealed class Session : IDisposable
         if (servers.Count == 0)
             return;
 
+        var missing = CoreLocator.Missing(false, servers);
+        if (missing.Count > 0)
+        {
+            if (Dialogs == null || !await Dialogs.AskCoreDownload(missing))
+            {
+                foreach (var server in servers)
+                    server.PingMs = -1;
+                CardsChanged?.Invoke();
+                Hint?.Invoke(L.T("Для проверки пинга нужны файлы VPN"), Tone.Mid);
+                return;
+            }
+        }
+
         var hero = HeroServer;
         var shown = hero != null && (servers.Contains(hero) || (AutoServers.IsAuto(hero) && Autos.Members(hero).Any(servers.Contains)));
         if (shown)
@@ -835,7 +875,7 @@ public sealed class Session : IDisposable
         if (server != null && ++_recoverCount <= 3)
         {
             Log.Write(L.T("Xray остановлен извне, перезапускаю"));
-            if (await Connection.RecoverAsync(server, Data.Routing) == ConnectResult.Ok)
+            if (await Connection.RecoverAsync(server, Data.Routing, PingTarget.Url) == ConnectResult.Ok)
                 return;
         }
 

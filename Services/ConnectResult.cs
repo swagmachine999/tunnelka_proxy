@@ -6,5 +6,7 @@ public enum ConnectResult
     XrayMissing,
     SingBoxMissing,
     NeedsAdministrator,
+    Reverted,
+    NoTraffic,
     Failed
 }

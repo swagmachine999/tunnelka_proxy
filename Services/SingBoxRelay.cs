@@ -6,9 +6,48 @@ namespace Tunnelka.Services;
 
 public static class SingBoxRelay
 {
-    public static bool Needs(ProxyServer server) => server.Protocol is "hysteria2" or "tuic";
+    public static bool Needs(ProxyServer server) => server.Protocol == "tuic"
+        || (server.Protocol == "hysteria2" && CanRepresentFinalMask(server));
 
-    public static string Build(IReadOnlyList<(ProxyServer Server, int Port)> relays, bool secure = false)
+    private static bool CanRepresentFinalMask(ProxyServer server)
+    {
+        if (string.IsNullOrWhiteSpace(server.FinalMask))
+            return true;
+
+        try
+        {
+            if (JsonNode.Parse(server.FinalMask) is not JsonObject mask
+                || mask.Any(part => part.Key is not ("udp" or "quicParams")))
+                return false;
+
+            if (mask["quicParams"] is { } quic
+                && (quic is not JsonObject parameters || parameters.Count != 1
+                    || parameters["congestion"]?.ToString() != "bbr"))
+                return false;
+
+            if (mask["udp"] is { } udp)
+            {
+                if (udp is not JsonArray entries || entries.Count != 1
+                    || server.Obfs != "salamander" || server.ObfsPassword.Length == 0)
+                    return false;
+
+                var expected = new JsonObject
+                {
+                    ["type"] = "salamander",
+                    ["settings"] = new JsonObject { ["password"] = server.ObfsPassword }
+                };
+                return JsonNode.DeepEquals(entries[0], expected);
+            }
+
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    public static string Build(IReadOnlyList<(ProxyServer Server, int Port)> relays, bool secure = false, string? physicalInterface = null)
     {
         var inbounds = new JsonArray();
         var outbounds = new JsonArray();
@@ -45,6 +84,14 @@ public static class SingBoxRelay
                 ["rules"] = rules
             }
         };
+
+        // The relay is a separate sing-box process. Without an explicit underlay,
+        // its UDP connection can follow the TUN default route back into the tunnel.
+        var route = config["route"]!.AsObject();
+        if (physicalInterface != null)
+            route["default_interface"] = physicalInterface;
+        else
+            route["auto_detect_interface"] = true;
 
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }

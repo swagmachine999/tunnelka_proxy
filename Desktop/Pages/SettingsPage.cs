@@ -27,10 +27,9 @@ public sealed class SettingsPage : UserControl
         panel.Children.Add(Ui.Row(L.T("Автоподключение"), L.T("Подключиться к последней локации при открытии приложения"), connect, out _, out _));
         panel.Children.Add(Gap());
 
-        panel.Children.Add(Ui.ClickRow(L.T("Интерфейс"), L.T("Язык, масштаб, тема"), () => open(SettingsSection.Interface), out _, out _));
+        panel.Children.Add(Ui.ClickRow(L.T("Интерфейс"), L.T("Язык, масштаб, тема, скорость"), () => open(SettingsSection.Interface), out _, out _));
         panel.Children.Add(Ui.ClickRow(L.T("Оверлей"), L.T("Пинг и скорость поверх игр и окон"), () => open(SettingsSection.Overlay), out _, out _));
         panel.Children.Add(Ui.ClickRow(L.T("Маршрутизация"), L.T("Правила маршрута трафика"), () => open(SettingsSection.Routing), out _, out _));
-        panel.Children.Add(Ui.ClickRow(L.T("Пинг и скорость"), L.T("Тип пинга и отображение скорости"), () => open(SettingsSection.Ping), out _, out _));
         panel.Children.Add(Ui.ClickRow(L.T("Расширенные"), L.T("Режим, kill switch, автопереключение, запуск"), () => open(SettingsSection.Advanced), out _, out _));
         panel.Children.Add(Gap());
 

@@ -47,6 +47,12 @@ var oldSelected = Srv("Германия", "1.1.1.1", "https://a");
 var refreshed = new List<ProxyServer> { Srv("Другой", "9.9.9.9", "https://b"), Srv("Франция", "2.2.2.2", "https://a"), Srv("Германия 2", "1.1.1.1", "https://a"), Srv("Германия", "3.3.3.3", "https://a") };
 Check(oldSelected.IsSameAs(Srv("переименован", "1.1.1.1", "https://a")), "same endpoint is same server even if renamed");
 Check(!oldSelected.IsSameAs(Srv("Германия", "1.1.1.1", "https://a", "other")), "different key is a different server");
+var changedMask = Srv("Германия", "1.1.1.1", "https://a");
+changedMask.FinalMask = "{\"udp\":[]}";
+Check(!oldSelected.IsSameAs(changedMask), "changed finalmask is a new server configuration");
+var changedObfs = Srv("Германия", "1.1.1.1", "https://a");
+changedObfs.ObfsPassword = "new-obfs";
+Check(!oldSelected.IsSameAs(changedObfs), "changed obfuscation key is a new server configuration");
 Check(ServerMatcher.Successor(oldSelected, refreshed) == refreshed[2], "successor prefers the same endpoint");
 Check(ServerMatcher.Successor(Srv("Германия", "7.7.7.7", "https://a"), refreshed) == refreshed[3], "successor falls back to the same name");
 Check(ServerMatcher.Successor(Srv("Нет", "7.7.7.7", "https://a"), refreshed) == refreshed[1], "successor falls back to first of same subscription");
@@ -88,7 +94,32 @@ stopped.Start(watched);
 stopped.Stop();
 await Task.Delay(300);
 Check(!stoppedLost, "stopped watchdog stays silent");
-Check(ServerWatchdog.CanWatch(watched) && !ServerWatchdog.CanWatch(new ProxyServer { Protocol = "hysteria2" }) && !ServerWatchdog.CanWatch(new ProxyServer { Protocol = "tuic" }), "watchdog skips udp protocols");
+Check(ServerWatchdog.CanWatch(watched)
+    && ServerWatchdog.CanWatch(new ProxyServer { Protocol = "hysteria2", Address = "vpn.example.com" })
+    && ServerWatchdog.CanWatch(new ProxyServer { Protocol = "tuic", Address = "vpn.example.com" })
+    && !ServerWatchdog.CanWatch(new ProxyServer()), "watchdog checks all valid server protocols");
+var udpServer = new ProxyServer { Protocol = "hysteria2", Address = "vpn.example.com", Port = 443, Secret = "test-password", Sni = "example.com", Obfs = "salamander", ObfsPassword = "test-obfs" };
+var fm = "{\"udp\":[{\"type\":\"salamander\",\"settings\":{\"password\":\"test-obfs\"}}],\"quicParams\":{\"congestion\":\"bbr\"}}";
+var hyLink = "hysteria2://test-password@vpn.example.com:443?obfs=salamander&obfs-password=test-obfs&sni=example.com&fm=" + Uri.EscapeDataString(fm) + "#Lithuania";
+var masked = LinkParser.Parse(hyLink);
+Check(masked.FinalMask == fm && SingBoxRelay.Needs(masked), "compatible Hysteria2 finalmask keeps the sing-box relay");
+var oldData = new Tunnelka.Storage.AppData();
+oldData.Servers.Add(new ProxyServer { Protocol = "hysteria2", Link = hyLink });
+Tunnelka.Storage.StoredServerMigration.Apply(oldData);
+Check(oldData.Servers[0].FinalMask == fm, "stored servers recover finalmask without a subscription refresh");
+var relayHy = JsonNode.Parse(XrayConfigBuilder.Build(masked, new RoutingSettings(), true, "Ethernet"))!["outbounds"]![0]!;
+Check(relayHy["protocol"]!.ToString() == "socks", "compatible Hysteria2 stays on the existing sing-box path");
+var extendedMask = LinkParser.Parse(hyLink.Replace(Uri.EscapeDataString(fm), Uri.EscapeDataString(fm.Replace("\"bbr\"", "\"custom\""))));
+Check(!SingBoxRelay.Needs(extendedMask), "unknown Hysteria2 finalmask settings use native Xray");
+var nativeHy = JsonNode.Parse(XrayConfigBuilder.Build(extendedMask, new RoutingSettings(), true, "Ethernet"))!["outbounds"]![0]!;
+Check(nativeHy["protocol"]!.ToString() == "hysteria" && nativeHy["streamSettings"]!["network"]!.ToString() == "hysteria"
+    && nativeHy["streamSettings"]!["finalmask"]!["udp"]![0]!["settings"]!["password"]!.ToString() == "test-obfs", "Xray receives finalmask settings that sing-box cannot represent");
+var pinnedRelay = JsonNode.Parse(SingBoxRelay.Build(new[] { (udpServer, 10809) }, physicalInterface: "Ethernet"))!;
+Check(pinnedRelay["route"]!["default_interface"]!.ToString() == "Ethernet"
+    && pinnedRelay["route"]!["auto_detect_interface"] == null
+    && pinnedRelay["outbounds"]![0]!["obfs"]!["type"]!.ToString() == "salamander", "Hysteria2 relay uses the physical adapter and keeps obfuscation");
+var fallbackRelay = JsonNode.Parse(SingBoxRelay.Build(new[] { (udpServer, 10809) }))!;
+Check(fallbackRelay["route"]!["auto_detect_interface"]!.GetValue<bool>(), "relay detects the adapter when no physical interface was found");
 Check(CoreManifest.All.All(p => !p.Executable.Contains("sing", StringComparison.OrdinalIgnoreCase) && !p.Executable.Contains("xray", StringComparison.OrdinalIgnoreCase)), "core files carry neutral names");
 Check(XrayRunner.XrayPath.EndsWith(CoreFiles.Proxy) && XrayRunner.SingBoxPath.EndsWith(CoreFiles.Tun), "runner looks for the renamed cores");
 Check(await ServerWatchdog.TunnelProbe(() => null, () => "http://127.0.0.1/")("h", 1, CancellationToken.None), "tunnel probe stays quiet when nothing is running");
@@ -203,6 +234,13 @@ if (OperatingSystem.IsWindows() && System.Security.Principal.WindowsIdentity.Get
     SecureDirectory.Ensure(dir);
     var rules = new DirectoryInfo(dir).GetAccessControl();
     Check(rules.AreAccessRulesProtected, "windows: data folder does not inherit user access");
+    rules.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+        System.Security.Principal.WindowsIdentity.GetCurrent().User!,
+        System.Security.AccessControl.FileSystemRights.FullControl,
+        System.Security.AccessControl.InheritanceFlags.ContainerInherit | System.Security.AccessControl.InheritanceFlags.ObjectInherit,
+        System.Security.AccessControl.PropagationFlags.None,
+        System.Security.AccessControl.AccessControlType.Allow));
+    new DirectoryInfo(dir).SetAccessControl(rules);
     Directory.Delete(dir, true);
 }
 
@@ -285,6 +323,14 @@ Check(recentLines.Count == 300 && recentLines[299].EndsWith("line 399"), "log ke
 
 
 var routeServer = new ProxyServer { Protocol = "vless", Address = "vpn.example.com", Port = 443, Secret = "11111111-1111-1111-1111-111111111111", Network = "tcp", Security = "reality", PublicKey = "x", ShortId = "ab", Sni = "example.com" };
+var pinnedXray = JsonNode.Parse(XrayConfigBuilder.Build(routeServer, new RoutingSettings(), true, "Ethernet"))!;
+Check(pinnedXray["outbounds"]![0]!["streamSettings"]!["sockopt"]!["interface"]!.ToString() == "Ethernet", "VLESS outbound stays on the physical adapter under TUN");
+var ssOutbound = XrayConfigBuilder.Outbound(new ProxyServer { Protocol = "ss", Address = "vpn.example.com", Port = 443, Method = "aes-256-gcm", Secret = "test" }, "proxy", 10810);
+XrayConfigBuilder.BindOutbound(ssOutbound, "Ethernet");
+Check(ssOutbound["streamSettings"]!["sockopt"]!["interface"]!.ToString() == "Ethernet", "Shadowsocks outbound can use the physical adapter");
+var localRelayOutbound = XrayConfigBuilder.Outbound(udpServer, "proxy", 10810);
+XrayConfigBuilder.BindOutbound(localRelayOutbound, "Ethernet");
+Check(localRelayOutbound["streamSettings"] == null, "local relay traffic stays on loopback");
 var listedRouting = new RoutingSettings { ListMode = RoutingMode.VpnForListed, Rules = { new RoutingRule { Value = "process:chrome.exe" }, new RoutingRule { Value = "domain:ya.ru" } } };
 string Final(RoutingSettings r) { var rules = JsonNode.Parse(XrayConfigBuilder.Build(routeServer, r))!["routing"]!["rules"]!.AsArray(); var last = rules[rules.Count - 1]!; return last["outboundTag"]!.ToString() + "/" + (last["network"]?.ToString() ?? "-"); }
 LocalAccess.Renew(true);
@@ -317,6 +363,8 @@ Check(!System.Text.Json.JsonSerializer.Deserialize<Tunnelka.Storage.AppData>("{\
 Check(PingOrder.Delay(0) == 0 && PingOrder.Delay(3) == 3 * PingOrder.StepMs, "ping starts are spaced in list order");
 Check(PingOrder.Delay(100000) == PingOrder.MaxMs, "ping spacing is capped");
 var pingOrderSettings = new Settings(appLog);
+pingOrderSettings.Data.Profiles.Clear();
+pingOrderSettings.Data.Servers.Clear();
 pingOrderSettings.Data.Profiles.Add(new SubscriptionInfo { Url = "https://a" });
 pingOrderSettings.Data.Profiles.Add(new SubscriptionInfo { Url = "https://b" });
 var pa1 = new ProxyServer { Name = "a1", SubscriptionUrl = "https://a" };
@@ -339,12 +387,15 @@ var fcFailTun = new TunSupervisor(fcFailRunner, new FakeOwner(), fcLog.Add, () =
 fcFailTun.Start(new TunParameters(10808, "vpn.example.com", null, new RoutingSettings(), "user12345", "password1234567890abcdef"), 7);
 Check(fcFailRunner.Started, "failure to close other cores does not block TUN");
 
-var hw1 = DeviceInfo.BuildHwid("machine-a");
-Check(hw1.Length == 32 && hw1.All(Uri.IsHexDigit) && hw1 == DeviceInfo.BuildHwid("machine-a") && hw1 != DeviceInfo.BuildHwid("machine-b"), "device id is stable, hashed and different per machine");
-Check(DeviceInfo.Ascii("DESKTOP-ABC1", "x") == "DESKTOP-ABC1" && DeviceInfo.Ascii("ПК-Олег", "Windows PC") == "Windows PC", "device name is sent only if it is plain ASCII");
 var devReq = new HttpRequestMessage();
 DeviceInfo.Apply(devReq.Headers);
-Check(devReq.Headers.Contains("x-hwid") && devReq.Headers.Contains("x-device-model") && devReq.Headers.Contains("x-device-os") && devReq.Headers.Contains("x-ver-os"), "device headers are always added to subscription requests");
+Check(devReq.Headers.Count() == 2
+    && devReq.Headers.GetValues("x-device-os").Single() == DeviceInfo.Platform
+    && devReq.Headers.GetValues("x-device-model").Single() == DeviceInfo.Platform,
+    "subscription device headers contain only a generic platform name");
+Check(!devReq.Headers.Contains("x-hwid") && !devReq.Headers.Contains("x-ver-os")
+    && DeviceInfo.UserAgent.StartsWith("Tunnelka/", StringComparison.Ordinal),
+    "subscription requests omit device identifiers and use the Tunnelka user agent");
 
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;

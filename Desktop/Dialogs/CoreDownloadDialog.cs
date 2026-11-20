@@ -13,10 +13,10 @@ public sealed class CoreDownloadDialog : DialogBase
     private CoreDownloadDialog(IReadOnlyList<CorePackage> packages) : base("Tunnelka", 460)
     {
         _packages = packages;
-        var names = string.Join(", ", packages.Select(p => p.Name));
+        var names = string.Join(", ", packages.Select(p => $"{p.Name} {p.Version}"));
         var megabytes = Math.Max(1, (int)(packages.Sum(p => p.Size) / (1024 * 1024)));
         _view = new ConfirmView(L.T("Скачать файлы VPN?"),
-            L.F("Не хватает файлов для работы VPN: {0}. Скачать их с официальных страниц разработчиков на GitHub (около {1} МБ)? Подлинность проверяется контрольной суммой.", names, megabytes),
+            L.F("Нужны файлы VPN: {0}. Скачать их с официальных страниц разработчиков на GitHub (около {1} МБ)? Подлинность проверяется контрольной суммой.", names, megabytes),
             L.T("Скачать"), L.T("Не сейчас"));
         this.Paint(BackgroundProperty, "HeroBrush");
         Content = _view;

@@ -98,6 +98,7 @@ public static class AppStorage
         MigrateSubscriptions(data);
         MigrateRouting(data);
         SubscriptionUrlMigration.Apply(data);
+        StoredServerMigration.Apply(data);
         UiScaleMigration.Apply(data);
     }
 
