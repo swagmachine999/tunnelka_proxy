@@ -1,4 +1,7 @@
+using System.Diagnostics;
+using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using Tunnelka.Models;
 using Tunnelka.Services.Privileged;
 
@@ -122,7 +125,8 @@ public sealed class ConnectionService : IDisposable
             CloseForeignCores();
 
         LocalAccess.Renew(tun);
-        var result = StartXray(server, XrayRoutingPolicy.For(tun, routing), tun);
+        var result = StartXray(server, XrayRoutingPolicy.For(tun, routing), tun,
+            resolveRelayBeforeTun: tun);
         if (result == ConnectResult.Ok && tun)
             result = StartTun(backend!, routing, server.Address);
         if (result == ConnectResult.Ok && !string.IsNullOrWhiteSpace(probeUrl)
@@ -266,7 +270,8 @@ public sealed class ConnectionService : IDisposable
         ApplySystemProxy(false);
     }
 
-    private ConnectResult StartXray(ProxyServer server, RoutingSettings routing, bool tun, bool keepPorts = false)
+    private ConnectResult StartXray(ProxyServer server, RoutingSettings routing, bool tun,
+        bool keepPorts = false, bool resolveRelayBeforeTun = false)
     {
         if (!File.Exists(XrayRunner.XrayPath))
             return ConnectResult.XrayMissing;
@@ -278,7 +283,7 @@ public sealed class ConnectionService : IDisposable
             if (SingBoxRelay.Needs(server) && !File.Exists(XrayRunner.SingBoxPath))
                 return ConnectResult.SingBoxMissing;
 
-            if (SingBoxRelay.Needs(server) && !StartRelay(server, tun))
+            if (SingBoxRelay.Needs(server) && !StartRelay(server, tun, resolveRelayBeforeTun))
                 return ConnectResult.Failed;
 
             var physicalInterface = tun ? NetworkAdapters.Physical() : null;
@@ -293,7 +298,7 @@ public sealed class ConnectionService : IDisposable
         }
     }
 
-    private bool StartRelay(ProxyServer server, bool tun)
+    private bool StartRelay(ProxyServer server, bool tun, bool resolveBeforeTun)
     {
         if (!File.Exists(XrayRunner.SingBoxPath))
         {
@@ -304,7 +309,11 @@ public sealed class ConnectionService : IDisposable
         var physicalInterface = tun ? NetworkAdapters.Physical() : null;
         if (tun && physicalInterface == null)
             _log.Write(L.T("Не найден основной сетевой адаптер для Hysteria2/TUIC; проверяем маршрут автоматически"));
-        _relay.Start(SingBoxRelay.Build(new[] { (server, XrayConfigBuilder.RelayPort) }, true, physicalInterface));
+        // Resolve before TUN changes the system route and DNS. Otherwise the relay
+        // can spend several seconds resolving its own server through the new tunnel.
+        var address = resolveBeforeTun ? ResolveRelayAddress(server.Address) : null;
+        _relay.Start(SingBoxRelay.Build(new[] { (server, XrayConfigBuilder.RelayPort) }, true,
+            physicalInterface, _ => address));
         if (_relay.WaitForPort(XrayConfigBuilder.RelayPort, 5000))
             return true;
 
@@ -312,8 +321,36 @@ public sealed class ConnectionService : IDisposable
         return false;
     }
 
+    private string? ResolveRelayAddress(string host)
+    {
+        if (IPAddress.TryParse(host, out var literal))
+            return literal.ToString();
+
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            var addresses = Dns.GetHostAddressesAsync(host, limit.Token).GetAwaiter().GetResult();
+            var address = addresses.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+                ?? addresses.FirstOrDefault();
+            if (address != null)
+            {
+                _log.Write(L.F("Адрес сервера определён до запуска TUN за {0} мс",
+                    (int)Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+                return address.ToString();
+            }
+        }
+        catch (Exception ex) when (ex is SocketException or OperationCanceledException or ArgumentException)
+        {
+            _log.Write(L.F("Не удалось заранее определить адрес сервера: {0}", ex.Message));
+        }
+
+        return null;
+    }
+
     private bool VerifyConnection(string url, bool tun)
     {
+        var started = Stopwatch.GetTimestamp();
         if (tun && !NetworkAdapters.OwnTunnelActive())
         {
             for (var i = 0; i < 20 && !NetworkAdapters.OwnTunnelActive() && _tun.IsRunning; i++)
@@ -329,7 +366,11 @@ public sealed class ConnectionService : IDisposable
         for (var attempt = 0; attempt < 2; attempt++)
         {
             if (probe("", 0, CancellationToken.None).GetAwaiter().GetResult())
+            {
+                _log.Write(L.F("Проверка доступа через VPN: {0} мс",
+                    (int)Stopwatch.GetElapsedTime(started).TotalMilliseconds));
                 return true;
+            }
             Thread.Sleep(300);
         }
 

@@ -47,7 +47,8 @@ public static class SingBoxRelay
         }
     }
 
-    public static string Build(IReadOnlyList<(ProxyServer Server, int Port)> relays, bool secure = false, string? physicalInterface = null)
+    public static string Build(IReadOnlyList<(ProxyServer Server, int Port)> relays, bool secure = false,
+        string? physicalInterface = null, Func<ProxyServer, string?>? resolvedAddress = null)
     {
         var inbounds = new JsonArray();
         var outbounds = new JsonArray();
@@ -65,7 +66,7 @@ public static class SingBoxRelay
             if (secure && LocalAccess.Enabled)
                 inbound["users"] = new JsonArray(new JsonObject { ["username"] = LocalAccess.User, ["password"] = LocalAccess.Password });
             inbounds.Add(inbound);
-            outbounds.Add(Outbound(relays[i].Server, $"out-{i}"));
+            outbounds.Add(Outbound(relays[i].Server, $"out-{i}", resolvedAddress?.Invoke(relays[i].Server)));
             rules.Add(new JsonObject { ["inbound"] = $"in-{i}", ["outbound"] = $"out-{i}" });
         }
 
@@ -96,13 +97,13 @@ public static class SingBoxRelay
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
-    private static JsonObject Outbound(ProxyServer s, string tag)
+    private static JsonObject Outbound(ProxyServer s, string tag, string? resolvedAddress)
     {
         var outbound = new JsonObject
         {
             ["type"] = s.Protocol,
             ["tag"] = tag,
-            ["server"] = s.Address,
+            ["server"] = resolvedAddress ?? s.Address,
             ["server_port"] = s.Port,
             ["tls"] = Tls(s)
         };
