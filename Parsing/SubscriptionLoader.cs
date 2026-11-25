@@ -10,10 +10,10 @@ public static class SubscriptionLoader
     private static readonly HttpClient Http = CreateClient(new HttpClientHandler { UseProxy = false });
     private static readonly Dictionary<string, HttpClient> Proxied = new();
 
-    public static async Task<SubscriptionResult> LoadAsync(string url, int? proxyPort = null)
+    public static async Task<SubscriptionResult> LoadAsync(string url, int? proxyPort = null, bool sendHwid = true)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        DeviceInfo.Apply(request.Headers);
+        DeviceInfo.Apply(request.Headers, sendHwid);
         using var response = await Client(proxyPort).SendAsync(request);
         if (!response.IsSuccessStatusCode)
             throw new InvalidDataException(L.F("сервер подписки ответил ошибкой {0}", (int)response.StatusCode));
@@ -60,17 +60,17 @@ public static class SubscriptionLoader
             server.SubscriptionUrl = url;
 
         if (servers.Count > 0 && servers.All(s => s.Description.Length == 0))
-            DescriptionFeed.Apply(servers, await LoadDescriptions(url, proxyPort));
+            DescriptionFeed.Apply(servers, await LoadDescriptions(url, proxyPort, sendHwid));
 
         return new SubscriptionResult(servers, info);
     }
 
-    private static async Task<string> LoadDescriptions(string url, int? proxyPort)
+    private static async Task<string> LoadDescriptions(string url, int? proxyPort, bool sendHwid)
     {
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            DeviceInfo.Apply(request.Headers);
+            DeviceInfo.Apply(request.Headers, sendHwid);
             using var response = await Client(proxyPort).SendAsync(request);
             return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync() : "";
         }

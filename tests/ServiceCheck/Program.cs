@@ -386,16 +386,38 @@ var fcFailRunner = new FakeRunner();
 var fcFailTun = new TunSupervisor(fcFailRunner, new FakeOwner(), fcLog.Add, () => throw new InvalidOperationException("denied"));
 fcFailTun.Start(new TunParameters(10808, "vpn.example.com", null, new RoutingSettings(), "user12345", "password1234567890abcdef"), 7);
 Check(fcFailRunner.Started, "failure to close other cores does not block TUN");
+Check(new Tunnelka.Storage.AppData().SendHwid
+    && !System.Text.Json.JsonSerializer.Deserialize<Tunnelka.Storage.AppData>("{\"SendHwid\":false}")!.SendHwid,
+    "HWID sharing defaults on and can be disabled in saved settings");
 
-var devReq = new HttpRequestMessage();
-DeviceInfo.Apply(devReq.Headers);
-Check(devReq.Headers.Count() == 2
-    && devReq.Headers.GetValues("x-device-os").Single() == DeviceInfo.Platform
-    && devReq.Headers.GetValues("x-device-model").Single() == DeviceInfo.Platform,
-    "subscription device headers contain only a generic platform name");
-Check(!devReq.Headers.Contains("x-hwid") && !devReq.Headers.Contains("x-ver-os")
-    && DeviceInfo.UserAgent.StartsWith("Tunnelka/", StringComparison.Ordinal),
-    "subscription requests omit device identifiers and use the Tunnelka user agent");
+var deviceTestPath = Path.Combine(Path.GetTempPath(), "tunnelka-device-test-" + Guid.NewGuid().ToString("N"), "device-id.dat");
+try
+{
+    var firstId = DeviceInfo.LoadOrCreateHwid(deviceTestPath);
+    var devReq = new HttpRequestMessage();
+    DeviceInfo.Apply(devReq.Headers, firstId);
+    Check(devReq.Headers.Count() == 3
+        && devReq.Headers.GetValues("x-hwid").Single() == firstId
+        && firstId.Length == 32 && firstId.All(Uri.IsHexDigit)
+        && devReq.Headers.GetValues("x-device-os").Single() == DeviceInfo.Platform
+        && devReq.Headers.GetValues("x-device-model").Single() == DeviceInfo.Platform,
+        "subscription headers contain a stable opaque ID and a generic platform name");
+    Check(!devReq.Headers.Contains("x-ver-os")
+        && DeviceInfo.UserAgent.StartsWith("Tunnelka/", StringComparison.Ordinal),
+        "subscription requests omit OS version and use the Tunnelka user agent");
+
+    Check(firstId == DeviceInfo.LoadOrCreateHwid(deviceTestPath), "device ID survives another load");
+    if (OperatingSystem.IsWindows())
+        Check(!System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(deviceTestPath)).Contains(firstId), "device ID is protected on disk");
+    var disabledReq = new HttpRequestMessage();
+    DeviceInfo.Apply(disabledReq.Headers, false);
+    Check(!disabledReq.Headers.Contains("x-hwid") && disabledReq.Headers.Contains("x-device-os"),
+        "disabled HWID omits the identifier");
+}
+finally
+{
+    Directory.Delete(Path.GetDirectoryName(deviceTestPath)!, true);
+}
 
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
