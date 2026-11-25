@@ -120,6 +120,11 @@ Check(pinnedRelay["route"]!["default_interface"]!.ToString() == "Ethernet"
     && pinnedRelay["outbounds"]![0]!["obfs"]!["type"]!.ToString() == "salamander", "Hysteria2 relay uses the physical adapter and keeps obfuscation");
 var fallbackRelay = JsonNode.Parse(SingBoxRelay.Build(new[] { (udpServer, 10809) }))!;
 Check(fallbackRelay["route"]!["auto_detect_interface"]!.GetValue<bool>(), "relay detects the adapter when no physical interface was found");
+var resolvedRelay = JsonNode.Parse(SingBoxRelay.Build(new[] { (udpServer, 10809) },
+    resolvedAddress: _ => "203.0.113.10"))!;
+Check(resolvedRelay["outbounds"]![0]!["server"]!.ToString() == "203.0.113.10"
+    && resolvedRelay["outbounds"]![0]!["tls"]!["server_name"]!.ToString() == "example.com"
+    && udpServer.Address == "vpn.example.com", "relay pins the resolved address without changing TLS identity or the saved server");
 Check(CoreManifest.All.All(p => !p.Executable.Contains("sing", StringComparison.OrdinalIgnoreCase) && !p.Executable.Contains("xray", StringComparison.OrdinalIgnoreCase)), "core files carry neutral names");
 Check(XrayRunner.XrayPath.EndsWith(CoreFiles.Proxy) && XrayRunner.SingBoxPath.EndsWith(CoreFiles.Tun), "runner looks for the renamed cores");
 Check(await ServerWatchdog.TunnelProbe(() => null, () => "http://127.0.0.1/")("h", 1, CancellationToken.None), "tunnel probe stays quiet when nothing is running");
