@@ -13,6 +13,7 @@ public sealed class Toast : Window
     private static Toast? _current;
 
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(10) };
+    private readonly DispatcherTimer _fullscreenTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
     private Toast(string text)
     {
@@ -62,10 +63,13 @@ public sealed class Toast : Window
         Closed += (_, _) =>
         {
             _timer.Stop();
+            _fullscreenTimer.Stop();
             if (_current == this)
                 _current = null;
         };
         _timer.Tick += (_, _) => Close();
+        _fullscreenTimer.Tick += (_, _) => { if (Win32.FullscreenAppActive()) Close(); };
+        Opened += (_, _) => _fullscreenTimer.Start();
     }
 
     public static void Popup(string text)
@@ -75,6 +79,9 @@ public sealed class Toast : Window
             Dispatcher.UIThread.Post(() => Popup(text));
             return;
         }
+
+        if (Win32.FullscreenAppActive())
+            return;
 
         _current?.Close();
         var toast = new Toast(text);

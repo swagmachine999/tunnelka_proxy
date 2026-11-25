@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Tunnelka.Services;
 
-public sealed record UpdateInfo(Version Version, string DownloadUrl, string PageUrl);
+public sealed record UpdateInfo(Version Version, string DownloadUrl, string PageUrl, DateTimeOffset PublishedAt);
 
 public static class UpdateService
 {
@@ -18,6 +18,12 @@ public static class UpdateService
             var version = typeof(UpdateService).Assembly.GetName().Version ?? new Version(1, 0, 0);
             return new Version(version.Major, version.Minor, Math.Max(0, version.Build));
         }
+    }
+
+    public static TimeSpan DelayUntilOffer(DateTimeOffset publishedAt, DateTimeOffset now)
+    {
+        var remaining = publishedAt.AddMinutes(15) - now;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
     public static async Task<UpdateInfo?> CheckAsync(int? proxyPort)
@@ -39,7 +45,9 @@ public static class UpdateService
             .FirstOrDefault(a => a.Name.StartsWith("Tunnelka-Setup", StringComparison.OrdinalIgnoreCase) && a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
 
         var page = root.TryGetProperty("html_url", out var html) ? html.GetString() ?? ReleasesPage : ReleasesPage;
-        return new UpdateInfo(version, installer.Url ?? "", page);
+        var published = root.TryGetProperty("published_at", out var date) && date.ValueKind == JsonValueKind.String
+            && date.TryGetDateTimeOffset(out var publishedAt) ? publishedAt : DateTimeOffset.UtcNow;
+        return new UpdateInfo(version, installer.Url ?? "", page, published);
     }
 
     public static async Task<string> DownloadAsync(UpdateInfo update, int? proxyPort, IProgress<int> progress)

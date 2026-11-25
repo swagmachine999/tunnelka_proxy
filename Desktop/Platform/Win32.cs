@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using Avalonia.Controls;
 
 namespace Tunnelka.Desktop;
@@ -9,11 +10,6 @@ internal static class Win32
     private const int ExTransparent = 0x20;
     private const int ExToolWindow = 0x80;
     private const int ExNoActivate = 0x8000000;
-    private const int ShowRestore = 9;
-    private const uint SwpNoSize = 0x1;
-    private const uint SwpNoMove = 0x2;
-    private const uint SwpShowWindow = 0x40;
-    private static readonly IntPtr HwndTopmost = new(-1);
 
     public static void NoActivate(Window window) => AddExStyle(window, ExToolWindow | ExNoActivate);
 
@@ -30,34 +26,34 @@ internal static class Win32
     {
         try
         {
-            return SHQueryUserNotificationState(out var state) == 0 && state is 2 or 3 or 4;
+            var foreground = GetForegroundWindow();
+            if (foreground == IntPtr.Zero || !IsWindowVisible(foreground) || IsIconic(foreground))
+                return false;
+
+            GetWindowThreadProcessId(foreground, out var processId);
+            if (processId == Environment.ProcessId)
+                return false;
+
+            var className = new StringBuilder(64);
+            GetClassName(foreground, className, className.Capacity);
+            if (className.ToString() is "Progman" or "WorkerW")
+                return false;
+
+            if (SHQueryUserNotificationState(out var state) == 0 && state is 2 or 3 or 4)
+                return true;
+
+            var monitor = MonitorFromWindow(foreground, 2);
+            var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+            if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info) || !GetWindowRect(foreground, out var bounds))
+                return false;
+
+            const int tolerance = 2;
+            return bounds.Left <= info.Monitor.Left + tolerance && bounds.Top <= info.Monitor.Top + tolerance
+                && bounds.Right >= info.Monitor.Right - tolerance && bounds.Bottom >= info.Monitor.Bottom - tolerance;
         }
         catch (Exception)
         {
             return false;
-        }
-    }
-
-    public static void BringToFront(Window window)
-    {
-        var handle = Handle(window);
-        if (handle == IntPtr.Zero)
-            return;
-
-        try
-        {
-            ShowWindow(handle, ShowRestore);
-            var foreground = GetForegroundWindow();
-            var foregroundThread = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, out _);
-            var thisThread = GetCurrentThreadId();
-            var attached = foregroundThread != 0 && foregroundThread != thisThread && AttachThreadInput(thisThread, foregroundThread, true);
-            SetWindowPos(handle, HwndTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpShowWindow);
-            SetForegroundWindow(handle);
-            if (attached)
-                AttachThreadInput(thisThread, foregroundThread, false);
-        }
-        catch (Exception)
-        {
         }
     }
 
@@ -78,6 +74,21 @@ internal static class Win32
     }
 
     private static IntPtr Handle(Window? window) => window?.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect
+    {
+        public int Left, Top, Right, Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public Rect Monitor;
+        public Rect Work;
+        public uint Flags;
+    }
 
     private static void AddExStyle(Window window, int flags)
     {
@@ -110,19 +121,25 @@ internal static class Win32
     private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 
-    [DllImport("user32.dll")]
-    private static extern bool AttachThreadInput(uint attach, uint attachTo, bool on);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetClassNameW")]
+    private static extern int GetClassName(IntPtr hwnd, StringBuilder name, int maxCount);
 
     [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr hwnd, int command);
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetMonitorInfoW")]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
 
     [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
-
-    [DllImport("kernel32.dll")]
-    private static extern uint GetCurrentThreadId();
+    private static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
 
     [DllImport("shell32.dll")]
     private static extern int SHQueryUserNotificationState(out int state);

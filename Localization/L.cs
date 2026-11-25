@@ -47,6 +47,9 @@ public static class L
         ["Передавать HWID"] = "Send HWID",
         ["Для провайдеров с ограничением числа устройств"] = "For providers that limit the number of devices",
         ["Идентификатор Tunnelka"] = "Tunnelka device ID",
+        ["Нажми, чтобы скопировать HWID"] = "Click to copy HWID",
+        ["HWID скопирован"] = "HWID copied",
+        ["Не удалось скопировать HWID"] = "Could not copy HWID",
         ["Случайный ID установки. Имя компьютера и версия Windows не передаются. Изменение настройки действует при следующем обновлении подписки."] =
             "Random installation ID. Computer name and Windows version are not sent. The setting takes effect on the next subscription refresh.",
         ["Добавить ключ"] = "Add key",
@@ -254,6 +257,7 @@ public static class L
         ["мс"] = "ms",
         ["потери {0}%"] = "loss {0}%",
         ["Доступна новая версия"] = "A new version is available",
+        ["Загрузить новую версию"] = "Download new version",
         ["Tunnelka {0}. Скачать и установить сейчас?"] = "Tunnelka {0}. Download and install now?",
         ["Да"] = "Yes",
         ["Нет"] = "No",

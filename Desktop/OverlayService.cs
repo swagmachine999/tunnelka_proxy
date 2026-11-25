@@ -12,10 +12,12 @@ public sealed class OverlayService : IDisposable
     private LossProbe? _lossProbe;
     private OverlayWindow? _window;
     private GlobalHotkey? _hotkey;
+    private readonly DispatcherTimer _fullscreenTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private bool _requestedShown;
 
     public event EventHandler? VisibilityChanged;
 
-    public bool IsShown => _window is { IsVisible: true };
+    public bool IsShown => _requestedShown;
 
     public bool HotkeyFailed { get; private set; }
 
@@ -27,6 +29,7 @@ public sealed class OverlayService : IDisposable
             return;
 
         _session = session;
+        _fullscreenTimer.Tick += (_, _) => UpdateVisibility();
         _probe = new LatencyProbe(() => session.ProxyPort, () => PingTarget.Url);
         _lossProbe = new LossProbe(() => session.LossTarget());
         _probe.Measured += ms => Dispatcher.UIThread.Post(() =>
@@ -98,6 +101,7 @@ public sealed class OverlayService : IDisposable
         _hotkey = null;
         _window?.Close();
         _window = null;
+        _fullscreenTimer.Stop();
     }
 
     private void Show()
@@ -107,14 +111,16 @@ public sealed class OverlayService : IDisposable
             return;
 
         _window ??= new OverlayWindow();
-        _probe?.Start();
-        _window.ShowState(_state, options);
-        SyncLossProbe();
+        _requestedShown = true;
+        _fullscreenTimer.Start();
+        UpdateVisibility();
         VisibilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void Hide()
     {
+        _requestedShown = false;
+        _fullscreenTimer.Stop();
         _probe?.Stop();
         _lossProbe?.Stop();
         _window?.Hide();
@@ -125,7 +131,7 @@ public sealed class OverlayService : IDisposable
 
     private void SyncLossProbe()
     {
-        if (IsShown && _state.Connected && Options is { ShowLoss: true })
+        if (_window is { IsVisible: true } && _state.Connected && Options is { ShowLoss: true })
         {
             _lossProbe?.Start();
             return;
@@ -138,7 +144,26 @@ public sealed class OverlayService : IDisposable
     private void Redraw()
     {
         var options = Options;
-        if (IsShown && options != null)
-            _window!.ShowState(_state, options);
+        if (_requestedShown && options != null)
+            UpdateVisibility();
+    }
+
+    private void UpdateVisibility()
+    {
+        if (!_requestedShown || _window == null || Options is not { } options)
+            return;
+
+        if (Win32.FullscreenAppActive())
+        {
+            _window.Hide();
+            _probe?.Stop();
+            _lossProbe?.Stop();
+            return;
+        }
+
+        if (!_window.IsVisible)
+            _probe?.Start();
+        _window.ShowState(_state, options);
+        SyncLossProbe();
     }
 }

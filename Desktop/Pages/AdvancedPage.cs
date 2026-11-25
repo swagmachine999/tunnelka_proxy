@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Media;
 using Tunnelka.Services;
 using Tunnelka.UI;
 
@@ -49,17 +51,42 @@ public sealed class AdvancedPage : UserControl
         });
         panel.Children.Add(Ui.Row(L.T("Пинг при запуске"), L.T("Проверить пинг локаций при открытии приложения"), ping, out _, out _));
 
-        var idBox = new TextBox { Text = DeviceInfo.Hwid, IsReadOnly = true, Opacity = data.SendHwid ? 1 : 0.5 };
+        var idText = new TextBlock
+        {
+            Text = DeviceInfo.Hwid,
+            FontFamily = new FontFamily("Consolas"),
+            TextWrapping = TextWrapping.Wrap
+        };
+        SettingsTheme.Paint(idText, TextBlock.ForegroundProperty, "TextMutedBrush");
+        var deviceId = new SettingsGroup(L.T("Идентификатор Tunnelka"))
+        {
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Opacity = data.SendHwid ? 1 : 0.5
+        };
+        ToolTip.SetTip(deviceId, L.T("Нажми, чтобы скопировать HWID"));
+        deviceId.Add(idText);
+        deviceId.Add(SettingsParts.Caption(L.T("Случайный ID установки. Имя компьютера и версия Windows не передаются. Изменение настройки действует при следующем обновлении подписки.")));
+        deviceId.PointerReleased += async (_, e) =>
+        {
+            if (e.InitialPressMouseButton != MouseButton.Left || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
+                return;
+            try
+            {
+                await clipboard.SetTextAsync(DeviceInfo.Hwid);
+                Toast.Popup(L.T("HWID скопирован"));
+            }
+            catch (Exception)
+            {
+                Toast.Popup(L.T("Не удалось скопировать HWID"));
+            }
+        };
         var sendHwid = SettingsParts.Toggle(data.SendHwid, on =>
         {
             data.SendHwid = on;
-            idBox.Opacity = on ? 1 : 0.5;
+            deviceId.Opacity = on ? 1 : 0.5;
             session.Save();
         });
         panel.Children.Add(Ui.Row(L.T("Передавать HWID"), L.T("Для провайдеров с ограничением числа устройств"), sendHwid, out _, out _));
-        var deviceId = new SettingsGroup(L.T("Идентификатор Tunnelka"));
-        deviceId.Add(idBox);
-        deviceId.Add(SettingsParts.Caption(L.T("Случайный ID установки. Имя компьютера и версия Windows не передаются. Изменение настройки действует при следующем обновлении подписки.")));
         panel.Children.Add(deviceId);
 
         Content = panel;

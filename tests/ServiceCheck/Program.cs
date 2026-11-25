@@ -424,6 +424,20 @@ finally
     Directory.Delete(Path.GetDirectoryName(deviceTestPath)!, true);
 }
 
+var publishedAt = new DateTimeOffset(2026, 11, 25, 12, 0, 0, TimeSpan.Zero);
+Check(UpdateService.DelayUntilOffer(publishedAt, publishedAt.AddMinutes(14)) == TimeSpan.FromMinutes(1)
+    && UpdateService.DelayUntilOffer(publishedAt, publishedAt.AddMinutes(15)) == TimeSpan.Zero,
+    "update offer waits 15 minutes after release publication");
+
+if (OperatingSystem.IsWindows())
+{
+    var signals = 0;
+    var signalName = "Local\\Tunnelka.TestRestore." + Guid.NewGuid().ToString("N");
+    using var restoreSignal = new SingleInstanceSignal(() => Interlocked.Increment(ref signals), signalName);
+    Check(SingleInstanceSignal.TrySend(signalName) && SpinWait.SpinUntil(() => Volatile.Read(ref signals) == 1, 2000),
+        "second launch signals the running instance to restore");
+}
+
 Console.WriteLine(fails == 0 ? "ALL OK" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
 

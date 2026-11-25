@@ -7,9 +7,15 @@ namespace Tunnelka.Desktop;
 
 internal static class Program
 {
+    private static int _restoreRequested;
+
     public static bool Connect { get; private set; }
 
     public static bool Minimized { get; private set; }
+
+    public static bool RestorePending => Volatile.Read(ref _restoreRequested) != 0;
+
+    public static void ClearRestoreRequest() => Interlocked.Exchange(ref _restoreRequested, 0);
 
     [STAThread]
     private static void Main(string[] args)
@@ -34,9 +40,13 @@ internal static class Program
         using var instance = new Mutex(false, "Tunnelka.SingleInstance");
         if (!Acquire(instance, Connect || args.Contains("--elevated") ? 10000 : 0))
         {
+            if (!Minimized)
+                SingleInstanceSignal.TrySend();
             Console.Error.WriteLine(L.T("Tunnelka уже запущена. Её значок — рядом с часами."));
             return;
         }
+
+        using var restoreSignal = new SingleInstanceSignal(() => Interlocked.Exchange(ref _restoreRequested, 1));
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {

@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Tunnelka.Desktop.Controls;
+using Tunnelka.Services;
 using Tunnelka.Storage;
 
 namespace Tunnelka.Desktop;
@@ -32,6 +33,12 @@ public partial class MainWindow : Window
     private readonly TrayService _tray;
     private readonly UpdateWatcher _updates;
     private readonly WindowScaler _scaler;
+    private readonly DispatcherTimer _restoreTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private readonly Border _updateBanner;
+    private readonly TextBlock _updateBannerText;
+    private readonly Button _downloadUpdateButton;
+    private UpdateInfo? _availableUpdate;
+    private bool _downloadWorking;
     private bool _exiting;
 
     public MainWindow() : this(new Session())
@@ -42,6 +49,11 @@ public partial class MainWindow : Window
     {
         _session = session;
         AvaloniaXamlLoader.Load(this);
+        _updateBanner = Part<Border>("UpdateBanner");
+        _updateBannerText = Part<TextBlock>("UpdateBannerText");
+        _downloadUpdateButton = Part<Button>("DownloadUpdateButton");
+        _downloadUpdateButton.Click += async (_, _) => await DownloadUpdate();
+        _restoreTimer.Tick += (_, _) => RestoreIfRequested();
 
         _hero = new HeroPanel(session);
         _servers = new ServersPage(session);
@@ -89,7 +101,7 @@ public partial class MainWindow : Window
         session.Dialogs = new Dialogs(this, _tray);
         session.Overlay.Attach(session);
         session.Overlay.ApplyHotkey();
-        _updates = new UpdateWatcher(() => session.ProxyPort, update => UpdateDialog.Show(this, update, () => session.ProxyPort));
+        _updates = new UpdateWatcher(() => session.ProxyPort, ShowAvailableUpdate);
 
         session.ThemeChanged += ApplyTheme;
         session.ScaleChanged += () => _scaler.Apply(false);
@@ -114,6 +126,7 @@ public partial class MainWindow : Window
 
         Opened += async (_, _) =>
         {
+            _restoreTimer.Start();
             _scaler.Apply(false);
             if (Program.Minimized)
                 Hide();
@@ -161,6 +174,8 @@ public partial class MainWindow : Window
         _about.Localize();
         _settings.Localize();
         _tray.Localize();
+        if (_availableUpdate != null && !_downloadWorking)
+            UpdateBannerLabels();
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
@@ -174,8 +189,56 @@ public partial class MainWindow : Window
 
         _session.Shutdown();
         _updates.Dispose();
+        _restoreTimer.Stop();
         _tray.Dispose();
         _session.Dispose();
+    }
+
+    private void ShowAvailableUpdate(UpdateInfo update)
+    {
+        _availableUpdate = update;
+        _updateBanner.IsVisible = true;
+        UpdateBannerLabels();
+    }
+
+    private void RestoreIfRequested()
+    {
+        if (!Program.RestorePending || Win32.FullscreenAppActive())
+            return;
+
+        Program.ClearRestoreRequest();
+        _tray.Restore();
+    }
+
+    private void UpdateBannerLabels()
+    {
+        _updateBannerText.Text = L.F("Доступна версия {0}", _availableUpdate!.Version.ToString(3));
+        _downloadUpdateButton.Content = L.T("Загрузить новую версию");
+    }
+
+    private async Task DownloadUpdate()
+    {
+        if (_downloadWorking || _availableUpdate is not { } update)
+            return;
+
+        _downloadWorking = true;
+        _downloadUpdateButton.IsEnabled = false;
+        try
+        {
+            var progress = new Progress<int>(percent => _updateBannerText.Text = L.F("Загрузка {0}%", percent));
+            var path = await UpdateService.DownloadAsync(update, _session.ProxyPort, progress);
+            UpdateService.RunInstaller(path);
+            _session.RequestExit();
+        }
+        catch (Exception ex)
+        {
+            _updateBannerText.Text = L.F("Не удалось обновить: {0}", ex.Message);
+            _downloadUpdateButton.IsEnabled = true;
+        }
+        finally
+        {
+            _downloadWorking = false;
+        }
     }
 
     private void Quit()
