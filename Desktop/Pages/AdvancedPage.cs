@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Tunnelka.Services;
 using Tunnelka.UI;
 
 namespace Tunnelka.Desktop;
@@ -47,6 +48,19 @@ public sealed class AdvancedPage : UserControl
             session.Save();
         });
         panel.Children.Add(Ui.Row(L.T("Пинг при запуске"), L.T("Проверить пинг локаций при открытии приложения"), ping, out _, out _));
+
+        var idBox = new TextBox { Text = DeviceInfo.Hwid, IsReadOnly = true, Opacity = data.SendHwid ? 1 : 0.5 };
+        var sendHwid = SettingsParts.Toggle(data.SendHwid, on =>
+        {
+            data.SendHwid = on;
+            idBox.Opacity = on ? 1 : 0.5;
+            session.Save();
+        });
+        panel.Children.Add(Ui.Row(L.T("Передавать HWID"), L.T("Для провайдеров с ограничением числа устройств"), sendHwid, out _, out _));
+        var deviceId = new SettingsGroup(L.T("Идентификатор Tunnelka"));
+        deviceId.Add(idBox);
+        deviceId.Add(SettingsParts.Caption(L.T("Случайный ID установки. Имя компьютера и версия Windows не передаются. Изменение настройки действует при следующем обновлении подписки.")));
+        panel.Children.Add(deviceId);
 
         Content = panel;
     }

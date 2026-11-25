@@ -44,6 +44,11 @@ public static class L
         ["Серверы"] = "Servers",
         ["Статистика"] = "Statistics",
         ["Настройки"] = "Settings",
+        ["Передавать HWID"] = "Send HWID",
+        ["Для провайдеров с ограничением числа устройств"] = "For providers that limit the number of devices",
+        ["Идентификатор Tunnelka"] = "Tunnelka device ID",
+        ["Случайный ID установки. Имя компьютера и версия Windows не передаются. Изменение настройки действует при следующем обновлении подписки."] =
+            "Random installation ID. Computer name and Windows version are not sent. The setting takes effect on the next subscription refresh.",
         ["Добавить ключ"] = "Add key",
         ["Поиск сервера"] = "Search servers",
         ["Проверить пинг всех серверов"] = "Ping all servers",

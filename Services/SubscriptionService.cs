@@ -99,12 +99,12 @@ public sealed class SubscriptionService
     {
         try
         {
-            return await SubscriptionLoader.LoadAsync(url);
+            return await SubscriptionLoader.LoadAsync(url, sendHwid: _settings.Data.SendHwid);
         }
         catch (Exception) when (_proxyPort() is { } port)
         {
             _log.Write(L.T("Напрямую подписка не загрузилась, пробую через VPN"));
-            return await SubscriptionLoader.LoadAsync(url, port);
+            return await SubscriptionLoader.LoadAsync(url, port, _settings.Data.SendHwid);
         }
     }
 
